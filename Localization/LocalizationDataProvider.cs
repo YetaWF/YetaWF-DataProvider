@@ -9,10 +9,13 @@ using YetaWF.Core.Localize;
 using YetaWF.Core.Packages;
 using YetaWF.Core.Serializers;
 using YetaWF.Core.Support;
+using YetaWF.Core.Support.Serializers;
 
 namespace YetaWF.Core.Models.DataProvider {
 
     public class LocalizationDataProvider : IInitializeApplicationStartup {
+
+        private static GeneralFormatter.Style LocalizationFormat = GeneralFormatter.Style.Xml;
 
         protected YetaWFManager Manager { get { return YetaWFManager.Manager; } }
         protected bool HaveManager { get { return YetaWFManager.HaveManager; } }
@@ -63,6 +66,7 @@ namespace YetaWF.Core.Models.DataProvider {
                     fd = new FileData<LocalizationData> {
                         BaseFolder = Path.Combine(YetaWFManager.UrlToPhysical(addonUrl), FolderName),
                         FileName = file,
+                        Format = LocalizationFormat,
                     };
                     data = fd.Load();
                     break;
@@ -70,6 +74,7 @@ namespace YetaWF.Core.Models.DataProvider {
                     fd = new FileData<LocalizationData> {
                         BaseFolder = Path.Combine(YetaWFManager.UrlToPhysical(addonUrl), FolderName, MultiString.ActiveLanguage),
                         FileName = file,
+                        Format = LocalizationFormat,
                     };
                     data = fd.Load();
                     break;
@@ -78,6 +83,7 @@ namespace YetaWF.Core.Models.DataProvider {
                     fd = new FileData<LocalizationData> {
                         BaseFolder = Path.Combine(YetaWFManager.UrlToPhysical(customAddonUrl), FolderName, MultiString.ActiveLanguage),
                         FileName = file,
+                        Format = LocalizationFormat,
                     };
                     data = fd.Load();
                     break;
@@ -88,6 +94,7 @@ namespace YetaWF.Core.Models.DataProvider {
                     fd = new FileData<LocalizationData> {
                         BaseFolder = Path.Combine(YetaWFManager.UrlToPhysical(customAddonUrl), FolderName, MultiString.ActiveLanguage),
                         FileName = file,
+                        Format = LocalizationFormat,
                     };
                     newData = fd.Load();
 
@@ -99,6 +106,7 @@ namespace YetaWF.Core.Models.DataProvider {
                         fd = new FileData<LocalizationData> {
                             BaseFolder = Path.Combine(YetaWFManager.UrlToPhysical(addonUrl), FolderName, MultiString.ActiveLanguage),
                             FileName = file,
+                            Format = LocalizationFormat,
                         };
                         data = fd.Load();
 
@@ -107,6 +115,7 @@ namespace YetaWF.Core.Models.DataProvider {
                             fd = new FileData<LocalizationData> {
                                 BaseFolder = Path.Combine(YetaWFManager.UrlToPhysical(addonUrl), FolderName),
                                 FileName = file,
+                                Format = LocalizationFormat,
                             };
                             data = fd.Load();
                         }
@@ -193,6 +202,7 @@ namespace YetaWF.Core.Models.DataProvider {
                 fd = new FileData<LocalizationData> {
                     BaseFolder = Path.Combine(YetaWFManager.UrlToPhysical(customAddonUrl), FolderName, MultiString.ActiveLanguage),
                     FileName = file,
+                    Format = LocalizationFormat,
                 };
                 fd.TryRemove();
             } else {
@@ -214,6 +224,7 @@ namespace YetaWF.Core.Models.DataProvider {
                         fd = new FileData<LocalizationData> {
                             BaseFolder = Path.Combine(YetaWFManager.UrlToPhysical(addonUrl), FolderName),
                             FileName = file,
+                            Format = LocalizationFormat,
                         };
                         break;
                     }
@@ -229,6 +240,7 @@ namespace YetaWF.Core.Models.DataProvider {
                         fd = new FileData<LocalizationData> {
                             BaseFolder = Path.Combine(YetaWFManager.UrlToPhysical(customAddonUrl), FolderName, MultiString.ActiveLanguage),
                             FileName = file,
+                            Format = LocalizationFormat,
                         };
                         break;
                     }
@@ -245,7 +257,8 @@ namespace YetaWF.Core.Models.DataProvider {
             foreach (var file in entries) {
                 FileData<LocalizationData> fd = new FileData<LocalizationData> {
                     BaseFolder = Path.GetDirectoryName(file),
-                    FileName = Path.GetFileName(file)
+                    FileName = Path.GetFileName(file),
+                    Format = LocalizationFormat,
                 };
                 fd.Remove();
             }
