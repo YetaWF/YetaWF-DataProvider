@@ -5,7 +5,6 @@ using System.Collections.Generic;
 using System.ComponentModel;
 using System.Data;
 using System.Data.SqlClient;
-using System.Diagnostics;
 using System.Text;
 using YetaWF.Core.DataProvider;
 using YetaWF.Core.Language;
@@ -14,11 +13,10 @@ using YetaWF.DataProvider;
 
 // TODO: Clean up, remove unused
 
-namespace BigfootSQL
-{
+namespace BigfootSQL {
     /// <summary>
     /// This is a simple SQL syntax builder helper class. It aids in the creation of a SQL statement
-    /// by auto creting parameters, as well as preventing against injection attacks etc. It also uses
+    /// by auto creating parameters, as well as preventing against injection attacks etc. It also uses
     /// the DAAB class and ObjectHelper classes to execute the query and hydrate the Model objects.
     ///
     /// It was designed with simplicity and speed in mind. It is a great replacement to writing
@@ -35,10 +33,10 @@ namespace BigfootSQL
     ///         obj = DB.SELECT("OrderID, OrderDate, ShipToCity").FROM("Orders").WHERE("ShipToState","FL").ExecuteCollection<OrderListItem>();
     ///
     ///     Select a single value typed to the correct type:
-    ///         datetime d;
+    ///         DateTime d;
     ///         d = DB.SELECT("OrderDate").FROM("Orders").WHERE("OrderID",OrderID).ExecuteScalar<datetime>()
     ///
-    /// It has several other Execute methods to retreive DataReaders, DataSets, and many others. Also has ExecuteNonQuery for executing
+    /// It has several other Execute methods to retrieve DataReaders, DataSets, and many others. Also has ExecuteNonQuery for executing
     /// void queries.
     /// </summary>
     public class SqlHelper
@@ -87,10 +85,10 @@ namespace BigfootSQL
         }
 
         /// <summary>
-        /// Add a paramter to a WHERE statement. Will generate ColumnName {Operator} 'Value' (quotes only added if it is a string)
+        /// Add a parameter to a WHERE statement. Will generate ColumnName {Operator} 'Value' (quotes only added if it is a string)
         /// </summary>
         /// <param name="wherecolumn">The of the column to search</param>
-        /// <param name="value">The value to search for. If it is a string it is properly espaped etc.</param>
+        /// <param name="value">The value to search for. If it is a string it is properly escaped etc.</param>
         /// /// <param name="isSet">Identifies this comparison as a set statement. Needed for setting null values</param>
         public SqlHelper Add(string wherecolumn, object value, bool isSet )
         {
@@ -98,11 +96,11 @@ namespace BigfootSQL
         }
 
         /// <summary>
-        /// Add a paramter to a WHERE statement. Will generate ColumnName {Operator} 'Value' (quotes only added if it is a string)
+        /// Add a parameter to a WHERE statement. Will generate ColumnName {Operator} 'Value' (quotes only added if it is a string)
         /// </summary>
         /// <param name="wherecolumn">The of the column to search</param>
         /// <param name="operator">The operator for the search. e.g. = <= LIKE <> etc.</param>
-        /// <param name="value">The value to search for. If it is a string it is properly espaped etc.</param>
+        /// <param name="value">The value to search for. If it is a string it is properly escaped etc.</param>
         public SqlHelper Add(string wherecolumn, string @operator, object value)
         {
             return Add(wherecolumn, @operator, value, false);
@@ -113,7 +111,7 @@ namespace BigfootSQL
         /// </summary>
         /// <param name="wherecolumn">The # of the column to search</param>
         /// <param name="operator">The operator for the search. e.g. = <= LIKE <> etc.</param>
-        /// <param name="value">The value to search for. If it is a string it is properly espaped etc.</param>
+        /// <param name="value">The value to search for. If it is a string it is properly escaped etc.</param>
         /// <param name="isSet">Identifies this comparison as a set statement. Needed for setting null values</param>
         public SqlHelper Add(string wherecolumn, string @operator, object value, bool isSet)
         {
@@ -130,7 +128,7 @@ namespace BigfootSQL
                     return isSet ? Add("<> NULL") :
                                Add("IS NOT NULL");
                 else
-                    throw new InternalError("Invaliod operator {0}", @operator);
+                    throw new InternalError("Invalid operator {0}", @operator);
             }
             else
                 return Add(wherecolumn).Add(@operator).Add(AddTempParam(value));
@@ -613,7 +611,7 @@ namespace BigfootSQL
         }
 
         /// <summary>
-        /// Execute a function by passing the function name of and a list of paremters.
+        /// Execute a function by passing the function name of and a list of parameters.
         /// e.g. SELECT_SCALARFUNCTION("GetOrderName", OrderDate, CustomerID)
         /// </summary>
         /// <param name="fname">Name of the function</param>
@@ -653,7 +651,7 @@ namespace BigfootSQL
         /// Adds a named parameter to the query
         /// </summary>
         /// <param name="name">The name of the parameter</param>
-        /// <param name="value">The value of the paremter</param>
+        /// <param name="value">The value of the parameter</param>
         public SqlHelper AddParam(string name, object value, ParameterDirection direction = ParameterDirection.Input)//<<<
         {
             if (name.StartsWith("@")) name=name.Substring(1);
@@ -798,17 +796,17 @@ namespace BigfootSQL
         }
 
         /// <summary>
-        /// Properly excapes a string to be included in a LIKE statement
+        /// Properly escapes a string to be included in a LIKE statement
         /// </summary>
         /// <param name="value">Value to search for</param>
         /// <param name="escapeApostrophe">Whether to escape the apostrophe. Prevents double escaping of apostrophes</param>
-        /// <returns>The transalted value ready to be used in a LIKE statement</returns>
+        /// <returns>The translated value ready to be used in a LIKE statement</returns>
         public static string EscapeForLike(string value, bool escapeApostrophe)
         {
             string[] specialChars = {"%", "_", "-", "^"};
             string newChars;
 
-            // Escape the [ braket
+            // Escape the [ bracket
             newChars = value.Replace("[", "[[]");
 
             // Replace the special chars
@@ -883,7 +881,7 @@ namespace BigfootSQL
         }
 
         /// <summary>
-        /// Executes the query and returns a sclar value of type string
+        /// Executes the query and returns a scalar value of type string
         /// </summary>
         public string ExecuteScalarString()
         {
