@@ -42,12 +42,11 @@ namespace YetaWF.DataProvider {
                     origIndexes = new List<string>();
                     origColumns = new List<string>();
                 }
-                if (TopMost) {
+                List<Column> savedColumnsWithConstraints = new List<Column>();
+                if (TopMost)
                     SavedNewKeys = new List<ForeignKey>();
-                    SavedColumnsWithConstraints = new List<Column>();
-                }
 
-                AddTableColumns(conn, db, updatingTable, origColumns, origIndexes, newTab, tableName, key1Name, key2Name, identityName, propData, tpProps, "", true, columns, errorList, SubTable: SubTable);
+                AddTableColumns(conn, db, updatingTable, origColumns, origIndexes, newTab, tableName, key1Name, key2Name, identityName, propData, tpProps, "", true, columns, errorList, savedColumnsWithConstraints, SubTable: SubTable);
 
                 // if this table (base class) has a derived type, add its table name and its derived type as a column
                 if (DerivedDataTableName != null) {
@@ -149,8 +148,8 @@ namespace YetaWF.DataProvider {
                         newTab.Columns[origCol].Drop();
                     newTab.Alter();
                     // remove default values we added for existing records
-                    if (SavedColumnsWithConstraints.Count > 0) {
-                        foreach (Column column in SavedColumnsWithConstraints)
+                    if (savedColumnsWithConstraints.Count > 0) {
+                        foreach (Column column in savedColumnsWithConstraints)
                             column.DefaultConstraint.Drop();
                         newTab.Alter();
                     }
@@ -241,12 +240,12 @@ namespace YetaWF.DataProvider {
             return fk;
         }
 
-        List<Column> SavedColumnsWithConstraints = null;
         List<ForeignKey> SavedNewKeys = null;
 
         private void AddTableColumns(SqlConnection conn, Database db, bool updatingTable, List<string> origColumns, List<string> origIndexes, Table newTab,
                 string tableName, string key1Name, string key2Name, string identityName,
                 List<PropertyData> propData, Type tpContainer, string prefix, bool topMost, List<string> columns, List<string> errorList,
+                List<Column> savedColumnsWithConstraints,
                 bool SubTable = false) {
 
             foreach (PropertyData prop in propData) {
@@ -308,7 +307,7 @@ namespace YetaWF.DataProvider {
                             Data_NewValue newValAttr = (Data_NewValue)pi.GetCustomAttribute(typeof(Data_NewValue));
                             if (updatingTable && isNew) {
                                 if (newValAttr != null) {
-                                    SavedColumnsWithConstraints.Add(newColumn);
+                                    savedColumnsWithConstraints.Add(newColumn);
                                     newColumn.AddDefaultConstraint().Text = newValAttr.Value;
                                 } else if (!nullable) {
                                     throw new InternalError("Non-nullable property {0} in table {1} doesn't have a Data_NewValue attribute, which is required when updating tables", prop.Name, tableName);
@@ -330,7 +329,7 @@ namespace YetaWF.DataProvider {
                                 throw new InternalError("Creation of subtable failed");
                         } else if (pi.PropertyType.IsClass) {
                             List<PropertyData> subPropData = ObjectSupport.GetPropertyData(pi.PropertyType);
-                            AddTableColumns(conn, db, updatingTable, origColumns, origIndexes, newTab, tableName, null, null, identityName, subPropData, pi.PropertyType, prefix + prop.Name + "_", false, columns, errorList);
+                            AddTableColumns(conn, db, updatingTable, origColumns, origIndexes, newTab, tableName, null, null, identityName, subPropData, pi.PropertyType, prefix + prop.Name + "_", false, columns, errorList, savedColumnsWithConstraints);
                         } else
                             throw new InternalError("Unknown property type {2} used in class {0}, property {1}", tpContainer.FullName, prop.Name, pi.PropertyType.FullName);
                     }
