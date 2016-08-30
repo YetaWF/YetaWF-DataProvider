@@ -116,6 +116,11 @@ namespace YetaWF.DataProvider
                         if (changed > 1)
                             throw new InternalError("Update failed - {0} records updated", changed);
                     } catch (Exception exc) {
+                        SqlException sqlExc = exc as SqlException;
+                        if (sqlExc != null && sqlExc.Number == 2627) {
+                            // duplicate key violation, meaning the new key already exists
+                            return UpdateStatusEnum.NewKeyExists;
+                        }
                         throw new InternalError("Update failed for type {0} - {1}", typeof(OBJTYPE).FullName, exc.Message);
                     }
                     tr.Commit();
