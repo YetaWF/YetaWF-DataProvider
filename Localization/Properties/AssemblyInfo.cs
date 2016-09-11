@@ -5,7 +5,7 @@ using System.Runtime.InteropServices;
 using YetaWF.PackageAttributes;
 
 [assembly: AssemblyTitle("Localization")]
-[assembly: AssemblyDescription("YetaWF Localization Data Provider")]
+[assembly: AssemblyDescription("YetaWF Localization Resources Provider")]
 [assembly: AssemblyConfiguration("")]
 [assembly: AssemblyCompany("Softel vdm, Inc.")]
 [assembly: AssemblyProduct("Localization")]

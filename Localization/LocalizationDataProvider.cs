@@ -196,15 +196,23 @@ namespace YetaWF.Core.Models.DataProvider {
 
             FileData<LocalizationData> fd;
             if (data == null) {
-                if (location != LocalizationSupport.Location.CustomResources)
-                    throw new InternalError("Only custom localization resources can be removed");
-                string customAddonUrl = VersionManager.GetCustomUrlFromUrl(addonUrl);
-                fd = new FileData<LocalizationData> {
-                    BaseFolder = Path.Combine(YetaWFManager.UrlToPhysical(customAddonUrl), FolderName, MultiString.ActiveLanguage),
-                    FileName = file,
-                    Format = LocalizationFormat,
-                };
-                fd.TryRemove();
+                if (location == LocalizationSupport.Location.CustomResources) {
+                    string customAddonUrl = VersionManager.GetCustomUrlFromUrl(addonUrl);
+                    fd = new FileData<LocalizationData> {
+                        BaseFolder = Path.Combine(YetaWFManager.UrlToPhysical(customAddonUrl), FolderName, MultiString.ActiveLanguage),
+                        FileName = file,
+                        Format = LocalizationFormat,
+                    };
+                    fd.TryRemove();
+                } else  if (location == LocalizationSupport.Location.InstalledResources && MultiString.ActiveLanguage != MultiString.DefaultLanguage) {
+                    fd = new FileData<LocalizationData> {
+                        BaseFolder = Path.Combine(YetaWFManager.UrlToPhysical(addonUrl), FolderName, MultiString.ActiveLanguage),
+                        FileName = file,
+                        Format = LocalizationFormat,
+                    };
+                    fd.TryRemove();
+                } else
+                    throw new InternalError("Only custom localization and non US-English installed resources can be removed");
             } else {
                 // order all info by name
                 if (data.Classes == null) data.Classes = new SerializableList<LocalizationData.ClassData>();
@@ -232,6 +240,7 @@ namespace YetaWF.Core.Models.DataProvider {
                         fd = new FileData<LocalizationData> {
                             BaseFolder = Path.Combine(YetaWFManager.UrlToPhysical(addonUrl), FolderName, MultiString.ActiveLanguage),
                             FileName = file,
+                            Format = LocalizationFormat,
                         };
                         break;
                     }
