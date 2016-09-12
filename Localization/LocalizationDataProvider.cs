@@ -67,6 +67,7 @@ namespace YetaWF.Core.Models.DataProvider {
                         BaseFolder = Path.Combine(YetaWFManager.UrlToPhysical(addonUrl), FolderName),
                         FileName = file,
                         Format = LocalizationFormat,
+                        Cacheable = false,
                     };
                     data = fd.Load();
                     break;
@@ -75,6 +76,7 @@ namespace YetaWF.Core.Models.DataProvider {
                         BaseFolder = Path.Combine(YetaWFManager.UrlToPhysical(addonUrl), FolderName, MultiString.ActiveLanguage),
                         FileName = file,
                         Format = LocalizationFormat,
+                        Cacheable = false,
                     };
                     data = fd.Load();
                     break;
@@ -84,6 +86,7 @@ namespace YetaWF.Core.Models.DataProvider {
                         BaseFolder = Path.Combine(YetaWFManager.UrlToPhysical(customAddonUrl), FolderName, MultiString.ActiveLanguage),
                         FileName = file,
                         Format = LocalizationFormat,
+                        Cacheable = false,
                     };
                     data = fd.Load();
                     break;
@@ -95,18 +98,20 @@ namespace YetaWF.Core.Models.DataProvider {
                         BaseFolder = Path.Combine(YetaWFManager.UrlToPhysical(customAddonUrl), FolderName, MultiString.ActiveLanguage),
                         FileName = file,
                         Format = LocalizationFormat,
+                        Cacheable = false,
                     };
                     newData = fd.Load();
 
-                    if (newData != null && !newData.MergeWithDefault) {
+                    if (newData != null) {
                         data = newData;
                         newData = null;
-                    } else if (newData == null || newData.MergeWithDefault) {
+                    } else {
                         // get installed resources if available
                         fd = new FileData<LocalizationData> {
                             BaseFolder = Path.Combine(YetaWFManager.UrlToPhysical(addonUrl), FolderName, MultiString.ActiveLanguage),
                             FileName = file,
                             Format = LocalizationFormat,
+                            Cacheable = false,
                         };
                         data = fd.Load();
 
@@ -116,6 +121,7 @@ namespace YetaWF.Core.Models.DataProvider {
                                 BaseFolder = Path.Combine(YetaWFManager.UrlToPhysical(addonUrl), FolderName),
                                 FileName = file,
                                 Format = LocalizationFormat,
+                                Cacheable = false,
                             };
                             data = fd.Load();
                         }
@@ -138,7 +144,7 @@ namespace YetaWF.Core.Models.DataProvider {
 
         private string MakeKey(string file) {
             if (Manager.CurrentSite == null) throw new InternalError("No current site");
-            return Manager.CurrentSite.SiteDomain + "_" + file;
+            return string.Format("{0}_{1}_{2})", Manager.CurrentSite.SiteDomain, MultiString.ActiveLanguage, file);
         }
 
         private void Merge(LocalizationData data, LocalizationData newData) {
@@ -202,6 +208,7 @@ namespace YetaWF.Core.Models.DataProvider {
                         BaseFolder = Path.Combine(YetaWFManager.UrlToPhysical(customAddonUrl), FolderName, MultiString.ActiveLanguage),
                         FileName = file,
                         Format = LocalizationFormat,
+                        Cacheable = false,
                     };
                     fd.TryRemove();
                 } else  if (location == LocalizationSupport.Location.InstalledResources && MultiString.ActiveLanguage != MultiString.DefaultLanguage) {
@@ -209,6 +216,7 @@ namespace YetaWF.Core.Models.DataProvider {
                         BaseFolder = Path.Combine(YetaWFManager.UrlToPhysical(addonUrl), FolderName, MultiString.ActiveLanguage),
                         FileName = file,
                         Format = LocalizationFormat,
+                        Cacheable = false,
                     };
                     fd.TryRemove();
                 } else
@@ -233,6 +241,7 @@ namespace YetaWF.Core.Models.DataProvider {
                             BaseFolder = Path.Combine(YetaWFManager.UrlToPhysical(addonUrl), FolderName),
                             FileName = file,
                             Format = LocalizationFormat,
+                            Cacheable = false,
                         };
                         break;
                     }
@@ -241,6 +250,7 @@ namespace YetaWF.Core.Models.DataProvider {
                             BaseFolder = Path.Combine(YetaWFManager.UrlToPhysical(addonUrl), FolderName, MultiString.ActiveLanguage),
                             FileName = file,
                             Format = LocalizationFormat,
+                            Cacheable = false,
                         };
                         break;
                     }
@@ -250,6 +260,7 @@ namespace YetaWF.Core.Models.DataProvider {
                             BaseFolder = Path.Combine(YetaWFManager.UrlToPhysical(customAddonUrl), FolderName, MultiString.ActiveLanguage),
                             FileName = file,
                             Format = LocalizationFormat,
+                            Cacheable = false,
                         };
                         break;
                     }
@@ -268,6 +279,7 @@ namespace YetaWF.Core.Models.DataProvider {
                     BaseFolder = Path.GetDirectoryName(file),
                     FileName = Path.GetFileName(file),
                     Format = LocalizationFormat,
+                    Cacheable = false,
                 };
                 fd.Remove();
             }
