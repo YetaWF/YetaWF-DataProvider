@@ -5,7 +5,9 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using YetaWF.Core.DataProvider;
+using YetaWF.Core.DataProvider.Attributes;
 using YetaWF.Core.IO;
+using YetaWF.Core.Models;
 using YetaWF.Core.Modules;
 using YetaWF.Core.Packages;
 using YetaWF.Core.Serializers;
@@ -136,6 +138,7 @@ namespace YetaWF.DataProvider
                         ModuleGuid = mod.ModuleGuid,
                         Description = mod.Description,
                         Name = mod.Name,
+                        AreaName = mod.AreaName,
                     };
                     modules.Add(mod.ModuleGuid, desMod);
                 }
@@ -214,13 +217,29 @@ namespace YetaWF.DataProvider
             return modules;
         }
 
+        public class TempDesignedModule {
+            [Data_PrimaryKey]
+            public Guid ModuleGuid { get; set; }
+            public string Name { get; set; }
+            public MultiString Description { get; set; }
+            public string DerivedAssemblyName { get; set; }
+
+            public TempDesignedModule() {
+                Description = new MultiString();
+            }
+        }
         private DesignedModulesDictionary GetDesignedModules_Sql() {
-            IDataProvider<Guid, DesignedModule> dataProvider = new SQLSimpleObjectDataProvider<Guid, DesignedModule>(ModuleDefinition.BaseFolderName, SQLDbo, SQLConn, CurrentSiteIdentity: SiteIdentity);
+            IDataProvider<Guid, TempDesignedModule> dataProvider = new SQLSimpleObjectDataProvider<Guid, TempDesignedModule>(ModuleDefinition.BaseFolderName, SQLDbo, SQLConn, CurrentSiteIdentity: SiteIdentity);
             int total;
-            List<DesignedModule> modules = dataProvider.GetRecords(0, 0, null, null, out total);
+            List<TempDesignedModule> modules = dataProvider.GetRecords(0, 0, null, null, out total);
             DesignedModulesDictionary designedMods = new DesignedModulesDictionary();
-            foreach (DesignedModule mod in modules) {
-                designedMods.Add(mod.ModuleGuid, mod);
+            foreach (TempDesignedModule mod in modules) {
+                designedMods.Add(mod.ModuleGuid, new DesignedModule {
+                    ModuleGuid = mod.ModuleGuid,
+                    Name = mod.Name,
+                    Description = mod.Description,
+                    AreaName = mod.DerivedAssemblyName.Replace(".", "_"),
+                });
             }
             return designedMods;
         }
@@ -232,7 +251,7 @@ namespace YetaWF.DataProvider
                 ModuleDefinition mod = (ModuleDefinition) (object) DataProvider.Get((KEY)(object)modGuid);
                 if (mod == null)
                     throw new InternalError("No ModuleDefinition for guid {0}", modGuid);
-                DesignedModule desMod = new DesignedModule() { ModuleGuid = modGuid, Name = mod.Name, Description = mod.Description };
+                DesignedModule desMod = new DesignedModule() { ModuleGuid = modGuid, Name = mod.Name, Description = mod.Description, AreaName = mod.AreaName, };
                 modules.Add(modGuid, desMod);
             }
             return modules;
