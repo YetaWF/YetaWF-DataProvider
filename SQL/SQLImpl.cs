@@ -471,6 +471,8 @@ namespace YetaWF.DataProvider {
                         object val = pi.GetValue(container);
                         if (pi.PropertyType == typeof(byte[])) {
                             DB.SET(prefix + prop.Name, val);
+                        } else if (val == null) {
+                            DB.SET(prefix + prop.Name, null);
                         } else {
                             byte[] data = new GeneralFormatter().Serialize(val);
                             DB.SET(prefix + prop.Name, data);
