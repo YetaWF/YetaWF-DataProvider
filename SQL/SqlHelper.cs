@@ -11,8 +11,6 @@ using YetaWF.Core.Language;
 using YetaWF.Core.Support;
 using YetaWF.DataProvider;
 
-// TODO: Clean up, remove unused
-
 namespace BigfootSQL {
     /// <summary>
     /// This is a simple SQL syntax builder helper class. It aids in the creation of a SQL statement
@@ -39,8 +37,7 @@ namespace BigfootSQL {
     /// It has several other Execute methods to retrieve DataReaders, DataSets, and many others. Also has ExecuteNonQuery for executing
     /// void queries.
     /// </summary>
-    public class SqlHelper
-    {
+    public class SqlHelper {
 
         StringBuilder _sql = new StringBuilder();
         List<SqlParameter> _params = new List<SqlParameter>();
@@ -60,8 +57,7 @@ namespace BigfootSQL {
             Languages = languages;
         }
 
-        public StringBuilder RawBuilder
-        {
+        public StringBuilder RawBuilder {
             get { return _sql; }
         }
 
@@ -69,8 +65,7 @@ namespace BigfootSQL {
         /// Add literal SQL statement to the query
         /// </summary>
         /// <param name="sql">SQL Fragment to add</param>
-        public SqlHelper Add(string sql)
-        {
+        public SqlHelper Add(string sql) {
             return Append(sql);
         }
 
@@ -79,8 +74,7 @@ namespace BigfootSQL {
         /// </summary>
         /// <param name="wherecolumn">The name of the column to search</param>
         /// <param name="value">The value to search for</param>
-        public SqlHelper Add(string wherecolumn, object value)
-        {
+        public SqlHelper Add(string wherecolumn, object value) {
             return Add(wherecolumn, "=", value, false);
         }
 
@@ -90,8 +84,7 @@ namespace BigfootSQL {
         /// <param name="wherecolumn">The of the column to search</param>
         /// <param name="value">The value to search for. If it is a string it is properly escaped etc.</param>
         /// /// <param name="isSet">Identifies this comparison as a set statement. Needed for setting null values</param>
-        public SqlHelper Add(string wherecolumn, object value, bool isSet )
-        {
+        public SqlHelper Add(string wherecolumn, object value, bool isSet) {
             return Add(wherecolumn, "=", value, isSet);
         }
 
@@ -101,8 +94,7 @@ namespace BigfootSQL {
         /// <param name="wherecolumn">The of the column to search</param>
         /// <param name="operator">The operator for the search. e.g. = <= LIKE <> etc.</param>
         /// <param name="value">The value to search for. If it is a string it is properly escaped etc.</param>
-        public SqlHelper Add(string wherecolumn, string @operator, object value)
-        {
+        public SqlHelper Add(string wherecolumn, string @operator, object value) {
             return Add(wherecolumn, @operator, value, false);
         }
 
@@ -113,13 +105,11 @@ namespace BigfootSQL {
         /// <param name="operator">The operator for the search. e.g. = <= LIKE <> etc.</param>
         /// <param name="value">The value to search for. If it is a string it is properly escaped etc.</param>
         /// <param name="isSet">Identifies this comparison as a set statement. Needed for setting null values</param>
-        public SqlHelper Add(string wherecolumn, string @operator, object value, bool isSet)
-        {
+        public SqlHelper Add(string wherecolumn, string @operator, object value, bool isSet) {
             if (!wherecolumn.Contains(".") && !wherecolumn.StartsWith("["))
                 wherecolumn = SQLDataProviderImpl.WrapBrackets(wherecolumn);
 
-            if (value == null)
-            {
+            if (value == null) {
                 Add(wherecolumn);
                 if (@operator == "=")
                     return isSet ? Add("= NULL") :
@@ -129,114 +119,41 @@ namespace BigfootSQL {
                                Add("IS NOT NULL");
                 else
                     throw new InternalError("Invalid operator {0}", @operator);
-            }
-            else
+            } else
                 return Add(wherecolumn).Add(@operator).Add(AddTempParam(value));
         }
 
-        public SqlHelper LIKE(string wherecolumn, string value)
-        {
-            return Add(wherecolumn).Add("LIKE").Add("'%" + EscapeForLike(value,true) + "%'");
-        }
-
-        public SqlHelper LIKE(string wherecolumn, string value, bool fullTextSearch)
-        {
-            if (!string.IsNullOrEmpty(value) && fullTextSearch)
-            {
-                var firstWord = true;
-                OpenParenthesis();
-                foreach (var term in value.Split(' '))
-                {
-                    if (firstWord) firstWord = false; else AND();
-                    LIKE(wherecolumn, term);
-                }
-                CloseParenthesis();
-                return this;
-            }
-            else
-            {
-                return LIKE(wherecolumn, value);
-            }
-        }
-
-        public SqlHelper SELECT(string sql)
-        {
+        public SqlHelper SELECT(string sql) {
             return Add("SELECT " + sql);
         }
 
-        /// <summary>
-        /// Used to returned a paged result set
-        /// </summary>
-        /// <param name="columns">Columns to include in the paged result. When paging this you can specify columns only once</param>
-        /// <param name="pageorderby">This is used to generate the RowNumber field resulting in:
-        /// ROW_NUMBER() OVER(ORDER BY Field1, Field2) AS RowNumber </param>
-        /// <param name="pageSize">How many records per page</param>
-        /// <returns></returns>
-        public SqlHelper SELECTPAGED(string columns, string pageorderby)
-        {
-            _pageorderby = pageorderby;
-            return Add("SELECT " + columns + ", ROW_NUMBER() OVER(ORDER BY " + pageorderby + " ) AS RowNumber INTO #temp1"); ///<<<<
-        }
-        private string _pageorderby;
-
-        /// <summary>
-        /// Call this function to identify which page to get. Must be called at the end of the statement.
-        /// </summary>
-        /// <param name="currentpage">The current page (0 based)</param>
-        public SqlHelper PAGE(int currentpage, int pageSize)
-        {
-            AddParam("SELECTPAGED_PAGE", currentpage, ParameterDirection.InputOutput);
-            AddParam("SELECTPAGED_TOTALRECORDS", 0, ParameterDirection.InputOutput);
-
-            _sql.AppendFormat(" SET @SELECTPAGED_TOTALRECORDS = @@ROWCOUNT\n");//<<<<
-            _sql.AppendFormat(" IF (@SELECTPAGED_PAGE+1)*{0} >= @SELECTPAGED_TOTALRECORDS SET @SELECTPAGED_PAGE = (@SELECTPAGED_TOTALRECORDS-1)/{0}\n", pageSize);
-            _sql.AppendFormat(" IF @SELECTPAGED_PAGE < 0 SET @SELECTPAGED_PAGE = 0\n");
-
-            _sql.AppendFormat(" SELECT * FROM #temp1 "); //<<<<
-            _sql.AppendFormat(" WHERE RowNumber BETWEEN @SELECTPAGED_PAGE*{0}+1 AND (@SELECTPAGED_PAGE+1)*{0}", pageSize);//<<< ORDER BY " + _pageorderby);
-            return this;
-        }
-
-        public SqlHelper SELECT_ALL_FROM(string tablename)
-        {
+        public SqlHelper SELECT_ALL_FROM(string tablename) {
             return Add("SELECT * FROM").Add(tablename);
         }
 
-        public SqlHelper SELECT_COUNT_ALL_FROM(string tablename)
-        {
-            return Add("SELECT COUNT(*) FROM").Add(tablename);
-        }
-
-        public SqlHelper SELECT(params string[] columns)
-        {
+        public SqlHelper SELECT(params string[] columns) {
             var s = "SELECT ";
             var firstcolumn = true;
-            foreach (string c in columns)
-            {
+            foreach (string c in columns) {
                 if (firstcolumn) {
                     s += c;//<< was columns
                     firstcolumn = false;
-                }
-                else
-                {
+                } else {
                     s += ", " + c;
                 }
             }
             return Add(s);
         }
 
-        public SqlHelper SELECT_IDENTITY()
-        {
+        public SqlHelper SELECT_IDENTITY() {
             return Add("SELECT @@IDENTITY");
         }
 
-        public SqlHelper INNERJOIN(string sql)
-        {
+        public SqlHelper INNERJOIN(string sql) {
             return Add("INNER JOIN " + sql);
         }
 
-        public SqlHelper LEFTJOIN(string sql)
-        {
+        public SqlHelper LEFTJOIN(string sql) {
             return Add("LEFT JOIN " + sql);
         }
 
@@ -244,33 +161,25 @@ namespace BigfootSQL {
             return Add("ON ");
         }
 
-        public SqlHelper ON(string sql) {
-            return Add("ON " + sql);
-        }
-
-        public SqlHelper ON(string leftcolumn, string rightcolumn)
-        {
+        public SqlHelper ON(string leftcolumn, string rightcolumn) {
             return Add("ON " + leftcolumn + " = " + rightcolumn);
         }
         public SqlHelper ANDON(string leftcolumn, string rightcolumn) {
             return Add("AND " + leftcolumn + " = " + rightcolumn);
         }
 
-        public SqlHelper FROM(string tableName)
-        {
+        public SqlHelper FROM(string tableName) {
             return Add("FROM " + SQLDataProviderImpl.WrapBrackets(tableName));
         }
         public SqlHelper FROM(string databaseName, string dbOwner, string tableName) {
             return Add("FROM " + MakeFullTableName(databaseName, dbOwner, tableName));
         }
 
-        public SqlHelper WHERE()
-        {
+        public SqlHelper WHERE() {
             return Add("WHERE");
         }
 
-        public SqlHelper WHERE(string columnname, object value)
-        {
+        public SqlHelper WHERE(string columnname, object value) {
             return Add("WHERE").Add(columnname, value);
         }
         public void WHERE_EXPR(string tableName, List<DataProviderFilterInfo> filter, Dictionary<string, string> visibleColumns) {
@@ -331,20 +240,20 @@ namespace BigfootSQL {
                             isNull = false;
                             oper = ">="; break;
                         case "startswith":
-                            oper = "LIKE"; val = (val??"").ToString() + "%"; break;
+                            oper = "LIKE"; val = EscapeForLike((val ?? "").ToString(), false) + "%"; break;
                         case "notstartswith":
                             isNull = true;
-                            oper = "NOT LIKE"; val = (val ?? "").ToString() + "%"; break;
+                            oper = "NOT LIKE"; val = EscapeForLike((val ?? "").ToString(), false) + "%"; break;
                         case "endswith":
-                            oper = "LIKE"; val = "%" + (val ?? "").ToString(); break;
+                            oper = "LIKE"; val = "%" + EscapeForLike((val ?? "").ToString(), false); break;
                         case "notendswith":
                             isNull = true;
-                            oper = "NOT LIKE"; val = "%" + (val ?? "").ToString(); break;
+                            oper = "NOT LIKE"; val = "%" + EscapeForLike((val ?? "").ToString(), false); break;
                         case "contains":
-                            oper = "LIKE"; val = "%" + (val ?? "").ToString() + "%"; break;
+                            oper = "LIKE"; val = "%" + EscapeForLike((val ?? "").ToString() + "%", false); break;
                         case "notcontains":
                             isNull = true;
-                            oper = "NOT LIKE"; val = "%" + (val ?? "").ToString() + "%"; break;
+                            oper = "NOT LIKE"; val = "%" + EscapeForLike((val ?? "").ToString(), false) + "%"; break;
                         default:
                             throw new InternalError("Invalid operator {0}", f.Operator);
                     }
@@ -380,11 +289,6 @@ namespace BigfootSQL {
                 return SQLDataProviderImpl.WrapBrackets(column.Replace('.', '_'));
         }
 
-        public SqlHelper IN(string columnname, string values)
-        {
-            return Add(columnname + " IN (" + EscapeApostrophe(values) + ")");
-        }
-
         public SqlHelper ORDERBY(string sql, bool Asc = true, int Offset = 0, int Next = 0) {
             Add("ORDER BY " + sql);
             if (!Asc)
@@ -407,71 +311,30 @@ namespace BigfootSQL {
             return this;
         }
 
-        public SqlHelper GROUPBY(string sql)
-        {
-            return Add("GROUP BY " + sql);
-        }
-
-        public SqlHelper HAVING(string sql)
-        {
-            return Add("HAVING " + sql);
-        }
-
-        public SqlHelper INSERTINTO(string tablename, string columns)
-        {
+        public SqlHelper INSERTINTO(string tablename, string columns) {
             return Add("INSERT INTO " + tablename + "(" + columns + ")");
         }
 
-        public SqlHelper OP()
-        {
-            return OpenParenthesis();
-        }
-
-        public SqlHelper OpenParenthesis()
-        {
+        public SqlHelper OP() {
             return Add("(");
         }
 
-        public SqlHelper OP(string wherecolumn, object value)
-        {
-            return OpenParenthesis(wherecolumn, value);
+        public SqlHelper OP(string wherecolumn, object value) {
+            return Add("(").Add(wherecolumn, value);
         }
 
-        public SqlHelper OpenParenthesis(string wherecolumn, object value)
-        {
-            return Add("(").Add(wherecolumn,value);
-        }
-
-        public SqlHelper Clause(string wherecolumn, object value) {
-            return Add(wherecolumn, value);
-        }
-
-        public SqlHelper CP()
-        {
-            return CloseParenthesis();
-        }
-
-        public SqlHelper CloseParenthesis()
-        {
+        public SqlHelper CP() {
             return Add(")");
         }
 
         bool updateStarted = false;
 
-        public SqlHelper UPDATE(string sql)
-        {
+        public SqlHelper UPDATE(string sql) {
             updateStarted = true;
             return Add("UPDATE " + sql);
         }
 
-        public SqlHelper SET()
-        {
-            updateStarted = false;
-            return Add("SET");
-        }
-
-        public SqlHelper SET(string columnname, object value)
-        {
+        public SqlHelper SET(string columnname, object value) {
             if (updateStarted)
                 Add("SET");
             updateStarted = false;
@@ -484,70 +347,29 @@ namespace BigfootSQL {
 
             return this;
         }
-        public SqlHelper SET(string columnname) {
-            if (updateStarted)
-                Add("SET");
-            else
-                Add(",");
-            updateStarted = false;
-
-            Add(columnname);
-            Add("=");
-            return this;
-        }
 
         public SqlHelper DELETE(string sql) {
             return Add("DELETE " + sql);
         }
 
-        public SqlHelper DELETEFROM(string sql)
-        {
+        public SqlHelper DELETEFROM(string sql) {
             return Add("DELETE FROM " + sql);
         }
 
-        public SqlHelper AND()
-        {
+        public SqlHelper AND() {
             return Add("AND");
         }
 
-        public SqlHelper AND(string sql)
-        {
-            return Add("AND " + sql);
-        }
-
-        public SqlHelper AND(string column, object value)
-        {
+        public SqlHelper AND(string column, object value) {
             return Add("AND").Add(column, value);
         }
 
-        public SqlHelper AND(string column, string @operator, object value)
-        {
-            return Add("AND").Add(column, @operator, value);
-        }
-
-        public SqlHelper OR()
-        {
+        public SqlHelper OR() {
             return Add("OR");
         }
 
-        public SqlHelper OR(string sql)
-        {
-            return Add("OR " + sql);
-        }
-
-        public SqlHelper OR(string column, object value)
-        {
-            return Add("OR").Add(column, value);
-        }
-
-        public SqlHelper OR(string column, string @operator, object value )
-        {
-            return Add("OR").Add(column, @operator, value);
-        }
-
-        public SqlHelper VALUES(string sql)
-        {
-            return VALUES_START().Add( sql ).VALUES_END();
+        public SqlHelper VALUES(string sql) {
+            return VALUES_START().Add(sql).VALUES_END();
         }
 
         public SqlHelper VALUES_START() {
@@ -558,81 +380,6 @@ namespace BigfootSQL {
             return Add(" ) ");
         }
 
-        public SqlHelper VALUES(params object[] ps)
-        {
-            VALUES_START();
-            var first = true;
-            foreach (var p in ps)
-            {
-                if (!first)
-                    Add(",");
-                Add(AddTempParam(p));
-                first = false;
-            }
-            return VALUES_END();
-        }
-
-        public SqlHelper DECLARE(string varname, string vartype)
-        {
-            if (varname.StartsWith("@")==false ) varname = "@" + varname;
-            return Add("DECLARE " + varname + ((vartype.ToLower() == "table") ? " AS " : " ") + vartype); //<<<
-        }
-
-        public SqlHelper DECLARE(string varname, string vartype, object value)
-        {
-            if (varname.StartsWith("@")==false ) varname = "@" + varname;
-            return DECLARE(varname, vartype).Add("SET " + varname + " = " + AddTempParam(value));
-        }
-
-        public SqlHelper DECLARE_TABLE(string varname, string columns)
-        {
-            return DECLARE(varname, "TABLE").Add("( " + columns + " )");
-        }
-
-        /// <summary>
-        /// Execute a StoredProcedure. By passing the SP name and a list values as parameters to the SP
-        /// </summary>
-        /// <param name="spname">SP Name</param>
-        /// <param name="ps">Parameters for the Stored Procedure in the proper order</param>
-        public SqlHelper EXECUTE(string spname, params object[] ps)
-        {
-            Add("EXECUTE " + spname);
-            var first = true;
-            foreach (var p in ps)
-            {
-                if (first)
-                    first = false;
-                else
-                    Add(",");
-
-                Add(AddTempParam(p));
-            }
-            return this;
-        }
-
-        /// <summary>
-        /// Execute a function by passing the function name of and a list of parameters.
-        /// e.g. SELECT_SCALARFUNCTION("GetOrderName", OrderDate, CustomerID)
-        /// </summary>
-        /// <param name="fname">Name of the function</param>
-        /// <param name="ps">List of parameters values to pass into the function. Must be in the right order</param>
-        public SqlHelper SELECT_SCALARFUNCTION(string fname, params object[] ps)
-        {
-            Add("SELECT " + fname + "(");
-            var first = true;
-            foreach (var p in ps)
-            {
-                if (first)
-                    first = false;
-                else
-                    Add(",");
-
-                Add(AddTempParam(p));
-            }
-            Add(")");
-            return this;
-        }
-
         /// <summary>
         /// Adds a parameter with the provided value and returns the created parameter name
         /// Used when creating dynamic queries and the parameter is not important outside of the immediate query
@@ -640,8 +387,7 @@ namespace BigfootSQL {
         /// </summary>
         /// <param name="value">The value of the parameter</param>
         /// <returns>The generated name for the parameter</returns>
-        public string AddTempParam(object value)
-        {
+        public string AddTempParam(object value) {
             var name = "_tempParam" + _params.Count;
             AddParam(name, value);
             return "@" + name;
@@ -654,7 +400,7 @@ namespace BigfootSQL {
         /// <param name="value">The value of the parameter</param>
         public SqlHelper AddParam(string name, object value, ParameterDirection direction = ParameterDirection.Input)//<<<
         {
-            if (name.StartsWith("@")) name=name.Substring(1);
+            if (name.StartsWith("@")) name = name.Substring(1);
 
             SqlParameter parm;
 
@@ -672,7 +418,7 @@ namespace BigfootSQL {
                 System.Data.Linq.Binary lb = (System.Data.Linq.Binary)value;
                 parm = new SqlParameter(name, lb.ToArray());
             } else if (value is System.String) {
-                string s = (string) value ?? "";
+                string s = (string)value ?? "";
                 parm = new SqlParameter(name, SqlDbType.NVarChar, s.Length);
                 parm.Value = s;
             } else if (value is DateTime) {
@@ -690,17 +436,15 @@ namespace BigfootSQL {
         /// <summary>
         /// Clear the current query
         /// </summary>
-        public void Clear()
-        {
+        public void Clear() {
             _sql = new StringBuilder();
-            _params=new List<SqlParameter>();
+            _params = new List<SqlParameter>();
         }
 
         /// <summary>
         /// Auto writes the finished statement as close as possible.
         /// </summary>
-        public override string ToString()
-        {
+        public override string ToString() {
 #if DEBUG
             // uncomment for detailed debugging
             // Debug.WriteLine(DebugSql);
@@ -708,20 +452,10 @@ namespace BigfootSQL {
             return _sql.ToString();
         }
 
-        private SqlHelper Append(string sql)
-        {
-            if (_sql.Length > 0 && _sql[_sql.Length-1] != ' ')
+        private SqlHelper Append(string sql) {
+            if (_sql.Length > 0 && _sql[_sql.Length - 1] != ' ')
                 _sql.Append(" ");
             _sql.Append(sql);
-            return this;
-        }
-
-        public SqlHelper RemoveLastComma() {
-            int length = _sql.Length;
-            while (length > 0 && _sql[length-1] == ' ')
-                _sql.Remove(length-1, 1);
-            if (length > 0 && _sql[length-1] == ',')
-                _sql.Remove(length-1, 1);
             return this;
         }
 
@@ -736,16 +470,13 @@ namespace BigfootSQL {
         /// <summary>
         /// Creates an executable SQL statement including declaration of SQL parameters for debugging purposes.
         /// </summary>
-        public string DebugSql
-        {
-            get
-            {
+        public string DebugSql {
+            get {
                 var value = "====NEW QUERY====\r\n";
-                foreach (SqlParameter param in _params)
-                {
+                foreach (SqlParameter param in _params) {
                     var addQuotes = (param.SqlDbType == SqlDbType.NVarChar);
                     value += "DECLARE @" + param.ParameterName + " " + param.SqlDbType;
-                    if (param.SqlDbType == SqlDbType.NVarChar ||param.SqlDbType == SqlDbType.VarChar)
+                    if (param.SqlDbType == SqlDbType.NVarChar || param.SqlDbType == SqlDbType.VarChar)
                         value += "(" + param.Size.ToString() + ")";
                     if (param.Value == null)
                         value += " SET @" + param.ParameterName + " = NULL";
@@ -769,28 +500,11 @@ namespace BigfootSQL {
         }
 
         /// <summary>
-        /// Converts a collection of int into a value list to be used in and IN statement
-        /// </summary>
-        /// <param name="ps">List of int values</param>
-        /// <returns>Properly formatted list for IN statement</returns>
-        public static string ArrayToINint(params int[] ps)
-        {
-            string result = "";
-            foreach (var p in ps)
-            {
-                if (result.Length > 0) result += ", ";
-                result += p.ToString();
-            }
-            return result;
-        }
-
-        /// <summary>
         /// Escapes the apostrophe on strings
         /// </summary>
         /// <param name="sql">SQL statement fragment</param>
         /// <returns>The clean SQL fragment</returns>
-        public static string EscapeApostrophe(string sql)
-        {
+        public static string EscapeApostrophe(string sql) {
             sql = sql.Replace("'", "''");
             return sql;
         }
@@ -801,8 +515,7 @@ namespace BigfootSQL {
         /// <param name="value">Value to search for</param>
         /// <param name="escapeApostrophe">Whether to escape the apostrophe. Prevents double escaping of apostrophes</param>
         /// <returns>The translated value ready to be used in a LIKE statement</returns>
-        public static string EscapeForLike(string value, bool escapeApostrophe)
-        {
+        public static string EscapeForLike(string value, bool escapeApostrophe = true) {
             string[] specialChars = {"%", "_", "-", "^"};
             string newChars;
 
@@ -829,8 +542,7 @@ namespace BigfootSQL {
         /// Executes the query and returns a Scalar value
         /// </summary>
         /// <returns>Object (null when dbnull value is returned)</returns>
-        public object ExecuteScalar()
-        {
+        public object ExecuteScalar() {
             object rvalue;
             if (SqlTransaction != null) {
                 rvalue = (HasParams)
@@ -850,11 +562,9 @@ namespace BigfootSQL {
         /// Executes the query and returns a Scalar value for the specific generic value
         /// </summary>
         /// <returns>A typed object of T</returns>
-        public T ExecuteScalar<T>()
-        {
+        public T ExecuteScalar<T>() {
             object rvalue = ExecuteScalar();
-            if (rvalue != null)
-            {
+            if (rvalue != null) {
                 var tc = TypeDescriptor.GetConverter(typeof(T));
                 return (T)tc.ConvertFromInvariantString(rvalue.ToString());
             }
@@ -866,8 +576,7 @@ namespace BigfootSQL {
         /// Appends a SELECT @@IDENTITY statement to the query and then executes
         /// </summary>
         /// <returns>The identity of the just inserted record</returns>
-        public int ExecuteScalarIdentity()
-        {
+        public int ExecuteScalarIdentity() {
             SELECT_IDENTITY();
             return ExecuteScalarInt();
         }
@@ -875,24 +584,14 @@ namespace BigfootSQL {
         /// <summary>
         /// Executes the query and returns a scalar value of type int
         /// </summary>
-        public int ExecuteScalarInt()
-        {
+        public int ExecuteScalarInt() {
             return ExecuteScalar<int>();
-        }
-
-        /// <summary>
-        /// Executes the query and returns a scalar value of type string
-        /// </summary>
-        public string ExecuteScalarString()
-        {
-            return ExecuteScalar<string>();
         }
 
         /// <summary>
         /// Executes a query that does not return a value
         /// </summary>
-        public int ExecuteNonquery()
-        {
+        public int ExecuteNonquery() {
             if (SqlTransaction != null) {
                 return (HasParams)
                     ? DAAB.ExecuteNonQuery(SqlTransaction, CommandType.Text, ToString(), _params.ToArray())
@@ -909,8 +608,7 @@ namespace BigfootSQL {
         /// </summary>
         /// <typeparam name="T">The type of the object to hydrate and return</typeparam>
         /// <returns>I hydrated object of the type specified</returns>
-        public T ExecuteObject<T>()
-        {
+        public T ExecuteObject<T>() {
             SqlDataReader reader = ExecuteReader();
             ObjectHelper objHelper = new ObjectHelper(Languages);
             T t = objHelper.FillObject<T>(reader);
@@ -924,8 +622,7 @@ namespace BigfootSQL {
         /// </summary>
         /// <typeparam name="T">The of object for the collection</typeparam>
         /// <returns>A collection of T</returns>
-        public List<T> ExecuteCollection<T>()
-        {
+        public List<T> ExecuteCollection<T>() {
             SqlDataReader reader = ExecuteReader();
             ObjectHelper objHelper = new ObjectHelper(Languages);
             List<T> list = objHelper.FillCollection<T>(reader);
