@@ -250,7 +250,7 @@ namespace BigfootSQL {
                             isNull = true;
                             oper = "NOT LIKE"; val = "%" + EscapeForLike((val ?? "").ToString(), false); break;
                         case "contains":
-                            oper = "LIKE"; val = "%" + EscapeForLike((val ?? "").ToString() + "%", false); break;
+                            oper = "LIKE"; val = "%" + EscapeForLike((val ?? "").ToString(), false) + "%"; break;
                         case "notcontains":
                             isNull = true;
                             oper = "NOT LIKE"; val = "%" + EscapeForLike((val ?? "").ToString(), false) + "%"; break;
