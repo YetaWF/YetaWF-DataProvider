@@ -12,6 +12,7 @@ using YetaWF.Core.Modules;
 using YetaWF.Core.Packages;
 using YetaWF.Core.Serializers;
 using YetaWF.Core.Support;
+using YetaWF.Core.Support.Serializers;
 
 namespace YetaWF.DataProvider
 {
@@ -23,24 +24,45 @@ namespace YetaWF.DataProvider
 
         public void InitializeApplicationStartup() {
             ModuleDefinition.LoadModuleDefinition = LoadModuleDefinition;
+            ModuleDefinition.SaveModuleDefinition = SaveModuleDefinition;
             ModuleDefinition.RemoveModuleDefinition = RemoveModuleDefinition;
             DesignedModules.LoadDesignedModules = LoadDesignedModules;
             ModuleDefinition.GetModules = GetModules;
         }
 
+        // CACHE
+        // CACHE
+        // CACHE
+
+        private string CacheKey(Guid guid) {
+            return string.Format("__Mod_{0}_{1}", YetaWFManager.Manager.CurrentSite.Identity, guid);
+        }
+        private static object EmptyCachedObject = new object();
+        private bool GetModule(Guid guid, out ModuleDefinition mod) {
+            mod = null;
+            object o = YetaWFManager.Manager.CurrentContext.Cache[CacheKey(guid)];
+            if (o == null)
+                return false;
+            if (o == EmptyCachedObject)
+                return true;
+            mod = (ModuleDefinition)new GeneralFormatter().Deserialize((byte[])o);
+            return true;
+        }
+        private void SetModule(ModuleDefinition mod) {
+            YetaWFManager.Manager.CurrentContext.Cache[CacheKey(mod.ModuleGuid)] = new GeneralFormatter().Serialize(mod);
+        }
+        private void SetEmptyModule(Guid guid) {
+            YetaWFManager.Manager.CurrentContext.Cache[CacheKey(guid)] = EmptyCachedObject;
+        }
+        private void RemoveModule(Guid guid) {
+            YetaWFManager.Manager.CurrentContext.Cache.Remove(CacheKey(guid));
+        }
+
+        // Implementation
+
         private List<DesignedModule> LoadDesignedModules() {
             using (GenericModuleDefinitionDataProvider modDP = new GenericModuleDefinitionDataProvider()) {
                 return modDP.LoadDesignedModules();
-            }
-        }
-        private bool RemoveModuleDefinition(Guid guid) {
-            using (GenericModuleDefinitionDataProvider modDP = new GenericModuleDefinitionDataProvider()) {
-                return modDP.RemoveModuleDefinition(guid);
-            }
-        }
-        private ModuleDefinition LoadModuleDefinition(Guid guid) {
-            using (GenericModuleDefinitionDataProvider modDP = new GenericModuleDefinitionDataProvider()) {
-                return modDP.LoadModuleDefinition(guid);
             }
         }
         private void GetModules(ModuleDefinition.ModuleBrowseInfo info) {
@@ -48,6 +70,31 @@ namespace YetaWF.DataProvider
                 int total;
                 info.Modules = modDP.GetModules(info.Skip, info.Take, info.Sort, info.Filters, out total);
                 info.Total = total;
+            }
+        }
+        private ModuleDefinition LoadModuleDefinition(Guid guid) {
+            ModuleDefinition mod;
+            if (GetModule(guid, out mod))
+                return mod;
+            using (GenericModuleDefinitionDataProvider modDP = new GenericModuleDefinitionDataProvider()) {
+                mod = modDP.LoadModuleDefinition(guid);
+                if (mod != null)
+                    SetModule(mod);
+                else
+                    SetEmptyModule(guid);
+                return mod;
+            }
+        }
+        private void SaveModuleDefinition(ModuleDefinition mod) {
+            SetModule(mod);
+            using (GenericModuleDefinitionDataProvider modDP = new GenericModuleDefinitionDataProvider()) {
+                modDP.SaveModuleDefinition(mod);
+            }
+        }
+        private bool RemoveModuleDefinition(Guid guid) {
+            RemoveModule(guid);
+            using (GenericModuleDefinitionDataProvider modDP = new GenericModuleDefinitionDataProvider()) {
+                return modDP.RemoveModuleDefinition(guid);
             }
         }
     }
