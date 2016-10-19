@@ -85,11 +85,9 @@ namespace YetaWF.DataProvider
                 return mod;
             }
         }
-        private void SaveModuleDefinition(ModuleDefinition mod) {
+        private void SaveModuleDefinition(ModuleDefinition mod, IModuleDefinitionIO dataProvider) {
             SetModule(mod);
-            using (GenericModuleDefinitionDataProvider modDP = new GenericModuleDefinitionDataProvider()) {
-                modDP.SaveModuleDefinition(mod);
-            }
+            dataProvider.SaveModuleDefinition(mod);
         }
         private bool RemoveModuleDefinition(Guid guid) {
             RemoveModule(guid);
