@@ -6,6 +6,7 @@ using System.Collections.Generic;
 using System.Data.SqlClient;
 using System.Linq;
 using YetaWF.Core.DataProvider;
+using YetaWF.Core.Models;
 using YetaWF.Core.Packages;
 using YetaWF.Core.Serializers;
 using YetaWF.Core.Support;
@@ -27,7 +28,7 @@ namespace YetaWF.DataProvider
                 Func<string, string> CalculatedPropertyCallback = null)
             : base(table, dbOwner, connString, 0, CurrentSiteIdentity, NoLanguages, Cacheable, Logging, IdentitySeed, CalculatedPropertyCallback) { }
 
-        public string Key2Name { get { return GetKey2Name(TableName, GetPropertyData(typeof(OBJTYPE))); } }
+        public string Key2Name { get { return GetKey2Name(TableName, ObjectSupport.GetPropertyData(typeof(OBJTYPE))); } }
 
         public OBJTYPE Get(KEYTYPE key, KEY2TYPE key2) {
             using (SqlConnection connection = new SqlConnection(ConnString)) {
@@ -45,7 +46,7 @@ namespace YetaWF.DataProvider
                     DB.AND(SiteColumn, CurrentSiteIdentity);
                 OBJTYPE obj = DB.ExecuteObject<OBJTYPE>();
                 if (obj != null)
-                    ReadSubTables(DB, TableName, IdentityName, GetPropertyData(), obj, typeof(OBJTYPE));
+                    ReadSubTables(DB, TableName, IdentityName, ObjectSupport.GetPropertyData(typeof(OBJTYPE)), obj, typeof(OBJTYPE));
                 return obj;
             }
         }
@@ -62,7 +63,7 @@ namespace YetaWF.DataProvider
 
                 OBJTYPE obj = DB.ExecuteObject<OBJTYPE>();
                 if (obj != null)
-                    ReadSubTables(DB, TableName, IdentityName, GetPropertyData(), obj, typeof(OBJTYPE));
+                    ReadSubTables(DB, TableName, IdentityName, ObjectSupport.GetPropertyData(typeof(OBJTYPE)), obj, typeof(OBJTYPE));
                 return obj;
             }
         }
@@ -72,7 +73,7 @@ namespace YetaWF.DataProvider
                 using (SqlTransaction tr = connection.BeginTransaction()) {
                     BigfootSQL.SqlHelper DB = new BigfootSQL.SqlHelper(connection, tr, Languages);
                     DB.UPDATE(TableName);
-                    AddSetColumns(DB, TableName, IdentityName, GetPropertyData(), obj, typeof(OBJTYPE));
+                    AddSetColumns(DB, TableName, IdentityName, ObjectSupport.GetPropertyData(typeof(OBJTYPE)), obj, typeof(OBJTYPE));
                     DB.WHERE(Key1Name, origKey);
                     if (typeof(KEY2TYPE) != typeof(object))
                         DB.AND(Key2Name, origKey2);
@@ -106,7 +107,7 @@ namespace YetaWF.DataProvider
                 using (SqlTransaction tr = connection.BeginTransaction()) {
                     BigfootSQL.SqlHelper DB = new BigfootSQL.SqlHelper(connection, tr, Languages);
                     DB.UPDATE(TableName);
-                    AddSetColumns(DB, TableName, IdentityName, GetPropertyData(), obj, typeof(OBJTYPE));
+                    AddSetColumns(DB, TableName, IdentityName, ObjectSupport.GetPropertyData(typeof(OBJTYPE)), obj, typeof(OBJTYPE));
                     DB.WHERE(IdentityName, id);
                     DB.SELECT("@@ROWCOUNT");
                     try {
@@ -181,7 +182,7 @@ namespace YetaWF.DataProvider
             using (SqlConnection conn = new SqlConnection(ConnString)) {
                 Database db = GetDatabase(conn);
                 List<string> columns = new List<string>();
-                success = CreateTable(conn, db, TableName, Key1Name, Key2Name, IdentityName, GetPropertyData(), typeof(OBJTYPE), errorList, columns,
+                success = CreateTable(conn, db, TableName, Key1Name, Key2Name, IdentityName, ObjectSupport.GetPropertyData(typeof(OBJTYPE)), typeof(OBJTYPE), errorList, columns,
                     SiteSpecific: CurrentSiteIdentity > 0,
                     TopMost: true, UseIdentity: UseIdentity);
             }

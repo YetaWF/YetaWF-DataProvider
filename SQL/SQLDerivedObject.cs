@@ -32,11 +32,11 @@ namespace YetaWF.DataProvider
 
         public string BaseTableName { get; private set; }
 
-        public string Key1Name { get { return GetKey1Name(TableName, GetPropertyData(typeof(OBJTYPE))); } }
-        public string IdentityName { get { return GetIdentityName(TableName, GetPropertyData(typeof(OBJTYPE))); } }
+        public string Key1Name { get { return GetKey1Name(TableName, ObjectSupport.GetPropertyData(typeof(OBJTYPE))); } }
+        public string IdentityName { get { return GetIdentityName(TableName, ObjectSupport.GetPropertyData(typeof(OBJTYPE))); } }
 
         protected List<PropertyData> GetBasePropertyData() {
-            return GetPropertyData(typeof(BASEOBJTYPE));
+            return ObjectSupport.GetPropertyData(typeof(BASEOBJTYPE));
         }
 
         protected List<PropertyData> GetPropertyData() {

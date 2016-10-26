@@ -139,11 +139,6 @@ namespace YetaWF.DataProvider {
         }
         private string _identityName;
 
-        protected List<PropertyData> GetPropertyData(Type type) {
-            List<PropertyData> propData = ObjectSupport.GetPropertyData(type);
-            return propData;
-        }
-
         protected Database GetDatabase(SqlConnection conn) {
             Server server = GetServer(conn);
             if (server.Databases == null || !server.Databases.Contains(conn.Database))

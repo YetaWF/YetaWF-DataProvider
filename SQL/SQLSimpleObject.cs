@@ -31,12 +31,9 @@ namespace YetaWF.DataProvider {
             this.UseIdentity = !string.IsNullOrWhiteSpace(IdentityName);
         }
 
-        public string Key1Name { get { return GetKey1Name(TableName, GetPropertyData(typeof(OBJTYPE))); } }
-        public string IdentityName { get { return GetIdentityName(TableName, GetPropertyData(typeof(OBJTYPE))); } }
+        public string Key1Name { get { return GetKey1Name(TableName, ObjectSupport.GetPropertyData(typeof(OBJTYPE))); } }
+        public string IdentityName { get { return GetIdentityName(TableName, ObjectSupport.GetPropertyData(typeof(OBJTYPE))); } }
 
-        protected List<PropertyData> GetPropertyData() {
-            return GetPropertyData(typeof(OBJTYPE));
-        }
         public string ReplaceWithTableName(string text, string searchText) { return text.Replace(searchText, GetTableName()); }
         public string GetTableName() { return string.Format("[{0}].[{1}].[{2}]", DatabaseName, DbOwner, TableName); }
 
@@ -55,7 +52,7 @@ namespace YetaWF.DataProvider {
 
                 OBJTYPE obj = DB.ExecuteObject<OBJTYPE>();
                 if (obj != null)
-                    ReadSubTables(DB, TableName, IdentityName, GetPropertyData(), obj, typeof(OBJTYPE));
+                    ReadSubTables(DB, TableName, IdentityName, ObjectSupport.GetPropertyData(typeof(OBJTYPE)), obj, typeof(OBJTYPE));
                 return obj;
             }
         }
@@ -65,7 +62,7 @@ namespace YetaWF.DataProvider {
                 using (SqlTransaction tr = connection.BeginTransaction()) {
                     BigfootSQL.SqlHelper DB = new BigfootSQL.SqlHelper(connection, tr, Languages);
                     DB.UPDATE(TableName);
-                    AddSetColumns(DB, TableName, IdentityName, GetPropertyData(), obj, typeof(OBJTYPE));
+                    AddSetColumns(DB, TableName, IdentityName, ObjectSupport.GetPropertyData(typeof(OBJTYPE)), obj, typeof(OBJTYPE));
                     DB.WHERE(Key1Name, origKey);
                     if (CurrentSiteIdentity > 0)
                         DB.AND(SiteColumn, CurrentSiteIdentity);
@@ -97,8 +94,8 @@ namespace YetaWF.DataProvider {
                 connection.Open();
                 using (SqlTransaction tr = connection.BeginTransaction()) {
                     BigfootSQL.SqlHelper DB = new BigfootSQL.SqlHelper(connection, tr, Languages);
-                    DB.INSERTINTO(TableName, GetColumnList(DB, GetPropertyData(), obj.GetType(), "", true, SiteSpecific: CurrentSiteIdentity > 0))
-                            .VALUES(GetValueList(DB, TableName, GetPropertyData(), obj, typeof(OBJTYPE), SiteSpecific: CurrentSiteIdentity > 0));
+                    DB.INSERTINTO(TableName, GetColumnList(DB, ObjectSupport.GetPropertyData(typeof(OBJTYPE)), obj.GetType(), "", true, SiteSpecific: CurrentSiteIdentity > 0))
+                            .VALUES(GetValueList(DB, TableName, ObjectSupport.GetPropertyData(typeof(OBJTYPE)), obj, typeof(OBJTYPE), SiteSpecific: CurrentSiteIdentity > 0));
                     int identity = 0;
                     try {
                         if (UseIdentity)
@@ -237,7 +234,7 @@ namespace YetaWF.DataProvider {
         private void ReadSubTableRecords(BigfootSQL.SqlHelper DB, List<OBJTYPE> list) {
             foreach (var obj in list) {
                 DB.Clear();
-                ReadSubTables(DB, TableName, IdentityName, GetPropertyData(), obj, typeof(OBJTYPE));
+                ReadSubTables(DB, TableName, IdentityName, ObjectSupport.GetPropertyData(typeof(OBJTYPE)), obj, typeof(OBJTYPE));
             }
         }
 
@@ -257,7 +254,7 @@ namespace YetaWF.DataProvider {
             using (SqlConnection conn = new SqlConnection(ConnString)) {
                 Database db = GetDatabase(conn);
                 List<string> columns = new List<string>();
-                success = CreateTable(conn, db, TableName, Key1Name, null, IdentityName, GetPropertyData(), typeof(OBJTYPE), errorList, columns,
+                success = CreateTable(conn, db, TableName, Key1Name, null, IdentityName, ObjectSupport.GetPropertyData(typeof(OBJTYPE)), typeof(OBJTYPE), errorList, columns,
                     SiteSpecific: CurrentSiteIdentity > 0,
                     TopMost: true, UseIdentity: UseIdentity);
             }
@@ -322,8 +319,8 @@ namespace YetaWF.DataProvider {
                                 subDBs = new List<BigfootSQL.SqlHelper>();
                                 BigfootSQL.SqlHelper DB = new BigfootSQL.SqlHelper(connection, tr, Languages);
                                 OBJTYPE item = serList[processed];
-                                DB.INSERTINTO(TableName, GetColumnList(DB, GetPropertyData(), typeof(OBJTYPE), "", true, SiteSpecific: CurrentSiteIdentity > 0))
-                                        .VALUES(GetValueList(DB, TableName, GetPropertyData(), item, typeof(OBJTYPE), SiteSpecific: CurrentSiteIdentity > 0));
+                                DB.INSERTINTO(TableName, GetColumnList(DB, ObjectSupport.GetPropertyData(typeof(OBJTYPE)), typeof(OBJTYPE), "", true, SiteSpecific: CurrentSiteIdentity > 0))
+                                        .VALUES(GetValueList(DB, TableName, ObjectSupport.GetPropertyData(typeof(OBJTYPE)), item, typeof(OBJTYPE), SiteSpecific: CurrentSiteIdentity > 0));
                                 int identity = 0;
                                 if (UseIdentity)
                                     identity = DB.ExecuteScalarIdentity();
