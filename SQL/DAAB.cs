@@ -102,7 +102,7 @@ namespace BigfootSQL {
             // If we were provided a transaction, assign it
             if (transaction != null)
             {
-                if (transaction.Connection == null) throw new ArgumentException("The transaction was rollbacked or commited, please provide an open transaction.", "transaction");
+                if (transaction.Connection == null) throw new ArgumentException("The transaction was rolled back or committed, please provide an open transaction.", "transaction");
                 command.Transaction = transaction;
             }
 
@@ -422,6 +422,93 @@ namespace BigfootSQL {
             // Detach the SqlParameters from the command object, so they can be used again
             cmd.Parameters.Clear();
             return retval;
+        }
+
+        /// <summary>
+        /// Execute a SqlCommand that returns a return value (int) against the provided SqlConnection.
+        /// </summary>
+        /// <param name="connection">A valid SqlConnection</param>
+        /// <param name="commandType">The CommandType (stored procedure, text, etc.)</param>
+        /// <param name="commandText">The stored procedure name or T-SQL command</param>
+        /// <returns>An int representing the number of rows affected by the command</returns>
+        public static int ExecuteQueryRetVal(SqlConnection connection, CommandType commandType, string commandText) {
+            // Pass through the call providing null for the set of SqlParameters
+            return ExecuteQueryRetVal(connection, commandType, commandText, (SqlParameter[])null);
+        }
+
+        /// <summary>
+        /// Execute a SqlCommand that returns a return value (int) against the provided SqlConnection
+        /// using the provided parameters.
+        /// </summary>
+        /// <param name="connection">A valid SqlConnection</param>
+        /// <param name="commandType">The CommandType (stored procedure, text, etc.)</param>
+        /// <param name="commandText">The stored procedure name or T-SQL command</param>
+        /// <param name="commandParameters">An array of SqlParamters used to execute the command</param>
+        /// <returns>An int representing the number of rows affected by the command</returns>
+        public static int ExecuteQueryRetVal(SqlConnection connection, CommandType commandType, string commandText, params SqlParameter[] commandParameters) {
+            if (connection == null) throw new ArgumentNullException("connection");
+
+            // Create a command and prepare it for execution
+            SqlCommand cmd = new SqlCommand();
+            PrepareCommand(cmd, connection, (SqlTransaction)null, commandType, commandText, commandParameters);
+
+            SqlParameter returnParameter = cmd.Parameters.Add("@ReturnVal", SqlDbType.Int);
+            returnParameter.Direction = ParameterDirection.ReturnValue;
+
+            // Finally, execute the command
+            int retval = cmd.ExecuteNonQuery();
+
+            var result = (int) returnParameter.Value;
+
+            // Detach the SqlParameters from the command object, so they can be used again
+            cmd.Parameters.Clear();
+            return result;
+        }
+
+        /// <summary>
+        /// Execute a SqlCommand that returns a return value (int) against the provided SqlConnection.
+        /// </summary>
+        /// <param name="transaction">A valid SqlTransaction</param>
+        /// <param name="commandType">The CommandType (stored procedure, text, etc.)</param>
+        /// <param name="commandText">The stored procedure name or T-SQL command</param>
+        /// <returns>An int representing the number of rows affected by the command</returns>
+        public static int ExecuteQueryRetVal(SqlTransaction transaction, CommandType commandType, string commandText) {
+            // Pass through the call providing null for the set of SqlParameters
+            return ExecuteQueryRetVal(transaction, commandType, commandText, (SqlParameter[])null);
+        }
+
+        /// <summary>
+        /// Execute a SqlCommand that returns a return value (int) against the provided SqlConnection
+        /// using the provided parameters.
+        /// </summary>
+        /// <remarks>
+        /// e.g.:
+        ///  int result = ExecuteNonQuery(trans, CommandType.StoredProcedure, "GetOrders", new SqlParameter("@prodid", 24));
+        /// </remarks>
+        /// <param name="transaction">A valid SqlTransaction</param>
+        /// <param name="commandType">The CommandType (stored procedure, text, etc.)</param>
+        /// <param name="commandText">The stored procedure name or T-SQL command</param>
+        /// <param name="commandParameters">An array of SqlParamters used to execute the command</param>
+        /// <returns>An int representing the number of rows affected by the command</returns>
+        public static int ExecuteQueryRetVal(SqlTransaction transaction, CommandType commandType, string commandText, params SqlParameter[] commandParameters) {
+            if (transaction == null) throw new ArgumentNullException("transaction");
+            if (transaction != null && transaction.Connection == null) throw new ArgumentException("The transaction was rollbacked or committed, please provide an open transaction.", "transaction");
+
+            // Create a command and prepare it for execution
+            SqlCommand cmd = new SqlCommand();
+            PrepareCommand(cmd, transaction.Connection, transaction, commandType, commandText, commandParameters);
+
+            SqlParameter returnParameter = cmd.Parameters.Add("@ReturnVal", SqlDbType.Int);
+            returnParameter.Direction = ParameterDirection.ReturnValue;
+
+            // Finally, execute the command
+            int retval = cmd.ExecuteNonQuery();
+
+            var result = (int)returnParameter.Value;
+
+            // Detach the SqlParameters from the command object, so they can be used again
+            cmd.Parameters.Clear();
+            return result;
         }
     }
 }

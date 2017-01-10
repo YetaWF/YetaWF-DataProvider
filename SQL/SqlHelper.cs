@@ -602,6 +602,20 @@ namespace BigfootSQL {
                     : DAAB.ExecuteNonQuery(SqlConnection, CommandType.Text, ToString());
             }
         }
+        /// <summary>
+        /// Executes a query that returns an int return a value.
+        /// </summary>
+        public int ExecuteQueryRetVal() {
+            if (SqlTransaction != null) {
+                return (HasParams)
+                    ? DAAB.ExecuteQueryRetVal(SqlTransaction, CommandType.Text, ToString(), _params.ToArray())
+                    : DAAB.ExecuteQueryRetVal(SqlTransaction, CommandType.Text, ToString());
+            } else {
+                return (HasParams)
+                    ? DAAB.ExecuteQueryRetVal(SqlConnection, CommandType.Text, ToString(), _params.ToArray())
+                    : DAAB.ExecuteQueryRetVal(SqlConnection, CommandType.Text, ToString());
+            }
+        }
 
         /// <summary>
         /// Executes a query and hydrates an object with the result

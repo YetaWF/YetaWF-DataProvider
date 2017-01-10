@@ -25,7 +25,7 @@ using YetaWF.Core.Views.Shared;
 
 namespace YetaWF.DataProvider {
 
-    public partial class SQLDataProviderImpl {
+    public partial class SQLDataProviderImpl : IDisposable {
 
         public static readonly int IDENTITY_SEED = 1000;
 
@@ -49,11 +49,23 @@ namespace YetaWF.DataProvider {
                 if (Languages.Count == 0)
                     throw new InternalError("We need Languages");
             }
-            using (SqlConnection conn = new SqlConnection(ConnString)) {
-                this.DatabaseName = conn.Database;
+            Conn = new SqlConnection(ConnString);
+            Conn.Open();
+            this.DatabaseName = Conn.Database;
+        }
+        public void Dispose() { Dispose(true); }
+        protected virtual void Dispose(bool disposing) {
+            if (disposing) {
+                if (Conn != null) {
+                    Conn.Close();
+                    Conn.Dispose();
+                    Conn = null;
+                }
             }
         }
+        //~SQLDataProviderImpl() { Dispose(false); }
 
+        public SqlConnection Conn { get; set; }
         public string DbOwner { get; internal set; }
         // http://stackoverflow.com/questions/4439409/open-close-sqlconnection-or-keep-open
         protected string ConnString { get; set; }
@@ -70,8 +82,8 @@ namespace YetaWF.DataProvider {
         public const string SiteColumn = "__Site";
         public const string SubTableKeyColumn = "__Key";
 
-        private Server GetServer(SqlConnection conn) {
-            return new Server(new ServerConnection(conn));
+        private Server GetServer() {
+            return new Server(new ServerConnection(Conn));
         }
 
         private TransactionScope Trans { get; set; }
@@ -139,20 +151,14 @@ namespace YetaWF.DataProvider {
         }
         private string _identityName;
 
-        protected Database GetDatabase(SqlConnection conn) {
-            Server server = GetServer(conn);
-            if (server.Databases == null || !server.Databases.Contains(conn.Database))
-                throw new InternalError("Can't connect to database {0} using connection string {1}", conn.Database, conn);
-            return server.Databases[conn.Database];
+        protected Database GetDatabase() {
+            Server server = GetServer();
+            if (server.Databases == null || !server.Databases.Contains(Conn.Database))
+                throw new InternalError("Can't connect to database {0}", Conn.Database);
+            return server.Databases[Conn.Database];
         }
         public string ReplaceWithLanguage(string text, string searchText) {
             return text.Replace(searchText, GetLanguageSuffix());
-        }
-        public Database GetDatabase() {
-            using (SqlConnection connection = new SqlConnection(ConnString)) {
-                Database database = GetDatabase(connection);
-                return database;
-            }
         }
 
         protected void AddCalculatedProperties(BigfootSQL.SqlHelper DB, Type objType) {
@@ -181,22 +187,20 @@ namespace YetaWF.DataProvider {
 
         public void DropAllTables() {
             // don't do any logging here - we might be deleting the tables needed for logging
-            using (SqlConnection conn = new SqlConnection(ConnString)) {
-                Database db = GetDatabase(conn);
-                int maxTimes = 5;
-                for (int time = maxTimes ; time > 0 && db.Tables.Count > 0 ; --time) {
-                    List<Table> tables = (from Table t in db.Tables select t).ToList<Table>();
-                    foreach (Table table in tables) {
-                        if (table.Schema == DbOwner) {
-                            try {
-                                table.Drop();
-                            } catch (Exception) { }
-                        }
+            Database db = GetDatabase();
+            int maxTimes = 5;
+            for (int time = maxTimes ; time > 0 && db.Tables.Count > 0 ; --time) {
+                List<Table> tables = (from Table t in db.Tables select t).ToList<Table>();
+                foreach (Table table in tables) {
+                    if (table.Schema == DbOwner) {
+                        try {
+                            table.Drop();
+                        } catch (Exception) { }
                     }
                 }
             }
         }
-        protected bool DropTable(SqlConnection conn, Database db, string tableName, List<string> errorList) {
+        protected bool DropTable(Database db, string tableName, List<string> errorList) {
             foreach (Table table in db.Tables) {
                 if (table.Schema == DbOwner && table.Name == tableName) {
                     try {
@@ -216,13 +220,13 @@ namespace YetaWF.DataProvider {
             errorList.Add(string.Format("Table {0} not found - can't be dropped", tableName));
             return false;
         }
-        protected bool DropSubTables(SqlConnection conn, Database db, string tableName, List<string> errorList) {
+        protected bool DropSubTables(Database db, string tableName, List<string> errorList) {
             bool status = true;
             string subtablePrefix = tableName + "_";
             Table[] tables = (from Table t in db.Tables select t).ToArray<Table>();
             foreach (Table table in tables) {
                 if (table.Name.StartsWith(subtablePrefix))
-                    if (!DropTable(conn, db, table.Name, errorList))
+                    if (!DropTable(db, table.Name, errorList))
                         status = false;
             }
             return status;
@@ -657,38 +661,37 @@ namespace YetaWF.DataProvider {
         }
 
         public int Direct_ScalarInt(string tableName, string sql) {
-            using (SqlConnection connection = new SqlConnection(ConnString)) {
-                connection.Open();
-                BigfootSQL.SqlHelper DB = new BigfootSQL.SqlHelper(connection, Languages);
-                sql = sql.Replace("{TableName}", SQLDataProviderImpl.WrapBrackets(tableName));
-                if (CurrentSiteIdentity > 0)
-                    sql = sql.Replace("{__Site}", "[__Site] = " + CurrentSiteIdentity.ToString());
-                DB.RawBuilder.Append(sql);
-                int val = DB.ExecuteScalarInt();
-                return val;
-            }
+            BigfootSQL.SqlHelper DB = new BigfootSQL.SqlHelper(Conn, Languages);
+            sql = sql.Replace("{TableName}", SQLDataProviderImpl.WrapBrackets(tableName));
+            if (CurrentSiteIdentity > 0)
+                sql = sql.Replace("{__Site}", "[__Site] = " + CurrentSiteIdentity.ToString());
+            DB.RawBuilder.Append(sql);
+            int val = DB.ExecuteScalarInt();
+            return val;
         }
         public void Direct_Query(string tableName, string sql) {
-            using (SqlConnection connection = new SqlConnection(ConnString)) {
-                connection.Open();
-                BigfootSQL.SqlHelper DB = new BigfootSQL.SqlHelper(connection, Languages);
-                sql = sql.Replace("{TableName}", SQLDataProviderImpl.WrapBrackets(tableName));
-                if (CurrentSiteIdentity > 0)
-                    sql = sql.Replace("{__Site}", "[__Site] = " + CurrentSiteIdentity.ToString());
-                DB.RawBuilder.Append(sql);
-                DB.ExecuteNonquery();
-            }
+            BigfootSQL.SqlHelper DB = new BigfootSQL.SqlHelper(Conn, Languages);
+            sql = sql.Replace("{TableName}", SQLDataProviderImpl.WrapBrackets(tableName));
+            if (CurrentSiteIdentity > 0)
+                sql = sql.Replace("{__Site}", "[__Site] = " + CurrentSiteIdentity.ToString());
+            DB.RawBuilder.Append(sql);
+            DB.ExecuteNonquery();
+        }
+        public int Direct_QueryRetVal(string tableName, string sql) {
+            BigfootSQL.SqlHelper DB = new BigfootSQL.SqlHelper(Conn, Languages);
+            sql = sql.Replace("{TableName}", SQLDataProviderImpl.WrapBrackets(tableName));
+            if (CurrentSiteIdentity > 0)
+                sql = sql.Replace("{__Site}", "[__Site] = " + CurrentSiteIdentity.ToString());
+            DB.RawBuilder.Append(sql);
+            return DB.ExecuteQueryRetVal();
         }
         public List<TYPE> Direct_QueryList<TYPE>(string tableName, string sql) {
-            using (SqlConnection connection = new SqlConnection(ConnString)) {
-                connection.Open();
-                BigfootSQL.SqlHelper DB = new BigfootSQL.SqlHelper(connection, Languages);
-                sql = sql.Replace("{TableName}", SQLDataProviderImpl.WrapBrackets(tableName));
-                if (CurrentSiteIdentity > 0)
-                    sql = sql.Replace("{__Site}", "[__Site] = " + CurrentSiteIdentity.ToString());
-                DB.RawBuilder.Append(sql);
-                return DB.ExecuteCollection<TYPE>();
-            }
+            BigfootSQL.SqlHelper DB = new BigfootSQL.SqlHelper(Conn, Languages);
+            sql = sql.Replace("{TableName}", SQLDataProviderImpl.WrapBrackets(tableName));
+            if (CurrentSiteIdentity > 0)
+                sql = sql.Replace("{__Site}", "[__Site] = " + CurrentSiteIdentity.ToString());
+            DB.RawBuilder.Append(sql);
+            return DB.ExecuteCollection<TYPE>();
         }
     }
 }

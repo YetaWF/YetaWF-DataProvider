@@ -17,7 +17,7 @@ namespace YetaWF.DataProvider {
 
     public partial class SQLDataProviderImpl {
 
-        protected bool CreateTable(SqlConnection conn, Database db, string tableName, string key1Name, string key2Name, string identityName, List<PropertyData> propData, Type tpProps,
+        protected bool CreateTable(Database db, string tableName, string key1Name, string key2Name, string identityName, List<PropertyData> propData, Type tpProps,
                 List<string> errorList, List<string> columns,
                 bool TopMost = false,
                 bool SiteSpecific = false,
@@ -46,7 +46,7 @@ namespace YetaWF.DataProvider {
                 if (TopMost)
                     SavedNewKeys = new List<ForeignKey>();
 
-                AddTableColumns(conn, db, updatingTable, origColumns, origIndexes, newTab, tableName, key1Name, key2Name, identityName, propData, tpProps, "", true, columns, errorList, savedColumnsWithConstraints, SubTable: SubTable);
+                AddTableColumns(db, updatingTable, origColumns, origIndexes, newTab, tableName, key1Name, key2Name, identityName, propData, tpProps, "", true, columns, errorList, savedColumnsWithConstraints, SubTable: SubTable);
 
                 // if this table (base class) has a derived type, add its table name and its derived type as a column
                 if (DerivedDataTableName != null) {
@@ -242,7 +242,7 @@ namespace YetaWF.DataProvider {
 
         List<ForeignKey> SavedNewKeys = null;
 
-        private void AddTableColumns(SqlConnection conn, Database db, bool updatingTable, List<string> origColumns, List<string> origIndexes, Table newTab,
+        private void AddTableColumns(Database db, bool updatingTable, List<string> origColumns, List<string> origIndexes, Table newTab,
                 string tableName, string key1Name, string key2Name, string identityName,
                 List<PropertyData> propData, Type tpContainer, string prefix, bool topMost, List<string> columns, List<string> errorList,
                 List<Column> savedColumnsWithConstraints,
@@ -322,14 +322,14 @@ namespace YetaWF.DataProvider {
                             // create a table that links the main table and this enumerated type using the key of the table
                             string subTableName = newTab.Name + "_" + pi.Name;
                             List<PropertyData> subPropData = ObjectSupport.GetPropertyData(subType);
-                            bool success = CreateTable(conn, db, subTableName, SubTableKeyColumn, null, identityName, subPropData, subType, errorList, columns,
+                            bool success = CreateTable(db, subTableName, SubTableKeyColumn, null, identityName, subPropData, subType, errorList, columns,
                                 TopMost: false,
                                 ForeignKeyTable: tableName, UseIdentity: false, SubTable: true, SiteSpecific: false);
                             if (!success)
                                 throw new InternalError("Creation of subtable failed");
                         } else if (pi.PropertyType.IsClass) {
                             List<PropertyData> subPropData = ObjectSupport.GetPropertyData(pi.PropertyType);
-                            AddTableColumns(conn, db, updatingTable, origColumns, origIndexes, newTab, tableName, null, null, identityName, subPropData, pi.PropertyType, prefix + prop.Name + "_", false, columns, errorList, savedColumnsWithConstraints);
+                            AddTableColumns(db, updatingTable, origColumns, origIndexes, newTab, tableName, null, null, identityName, subPropData, pi.PropertyType, prefix + prop.Name + "_", false, columns, errorList, savedColumnsWithConstraints);
                         } else
                             throw new InternalError("Unknown property type {2} used in class {0}, property {1}", tpContainer.FullName, prop.Name, pi.PropertyType.FullName);
                     }
