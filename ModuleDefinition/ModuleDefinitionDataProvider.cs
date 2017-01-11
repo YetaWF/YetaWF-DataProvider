@@ -113,6 +113,7 @@ namespace YetaWF.DataProvider
 
         public ModuleDefinitionDataProvider() : base(YetaWFManager.Manager.CurrentSite.Identity) { SetDataProvider(DataProvider); }
         public ModuleDefinitionDataProvider(int siteIdentity) : base(siteIdentity) { SetDataProvider(DataProvider); }
+        protected override void Dispose(bool disposing) { base.Dispose(disposing); }// technically not needed, but it shuts up code analysis (CA1063: Implement IDisposable correctly)
 
         // SQL, File
         private IDataProvider<KEY, TYPE> DataProvider {
