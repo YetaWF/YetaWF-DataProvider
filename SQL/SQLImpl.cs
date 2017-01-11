@@ -52,10 +52,13 @@ namespace YetaWF.DataProvider {
             Conn = new SqlConnection(ConnString);
             Conn.Open();
             this.DatabaseName = Conn.Database;
+
+            DisposableTracker.AddObject(this);
         }
         public void Dispose() { Dispose(true); }
         protected virtual void Dispose(bool disposing) {
             if (disposing) {
+                DisposableTracker.RemoveObject(this);
                 if (Conn != null) {
                     Conn.Close();
                     Conn.Dispose();
@@ -151,7 +154,7 @@ namespace YetaWF.DataProvider {
         }
         private string _identityName;
 
-        protected Database GetDatabase() {
+        public Database GetDatabase() {
             Server server = GetServer();
             if (server.Databases == null || !server.Databases.Contains(Conn.Database))
                 throw new InternalError("Can't connect to database {0}", Conn.Database);

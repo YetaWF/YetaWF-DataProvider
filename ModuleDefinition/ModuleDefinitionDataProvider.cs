@@ -87,7 +87,9 @@ namespace YetaWF.DataProvider
         }
         private void SaveModuleDefinition(ModuleDefinition mod, IModuleDefinitionIO dataProvider) {
             SetModule(mod);
-            dataProvider.SaveModuleDefinition(mod);
+            using (dataProvider) {
+                dataProvider.SaveModuleDefinition(mod);
+            }
         }
         private bool RemoveModuleDefinition(Guid guid) {
             RemoveModule(guid);
@@ -101,7 +103,7 @@ namespace YetaWF.DataProvider
     public class GenericModuleDefinitionDataProvider : ModuleDefinitionDataProvider<Guid, ModuleDefinition> { }
 
     // Loads/saves a specific module type
-    public class ModuleDefinitionDataProvider<KEY, TYPE> : DataProviderImpl, IModuleDefinitionIO /* Notice: No IDisposable interface here */ {
+    public class ModuleDefinitionDataProvider<KEY, TYPE> : DataProviderImpl, IModuleDefinitionIO {
 
         private static object _lockObject = new object();
 
@@ -274,19 +276,21 @@ namespace YetaWF.DataProvider
             }
         }
         private DesignedModulesDictionary GetDesignedModules_Sql() {
-            IDataProvider<Guid, TempDesignedModule> dataProvider = new SQLSimpleObjectDataProvider<Guid, TempDesignedModule>(ModuleDefinition.BaseFolderName, SQLDbo, SQLConn, CurrentSiteIdentity: SiteIdentity);
-            int total;
-            List<TempDesignedModule> modules = dataProvider.GetRecords(0, 0, null, null, out total);
-            DesignedModulesDictionary designedMods = new DesignedModulesDictionary();
-            foreach (TempDesignedModule mod in modules) {
-                designedMods.Add(mod.ModuleGuid, new DesignedModule {
-                    ModuleGuid = mod.ModuleGuid,
-                    Name = mod.Name,
-                    Description = mod.Description,
-                    AreaName = mod.DerivedAssemblyName.Replace(".", "_"),
-                });
+            using (SQLSimpleObjectDataProvider<Guid, TempDesignedModule> dp = new SQLSimpleObjectDataProvider<Guid, TempDesignedModule>(ModuleDefinition.BaseFolderName, SQLDbo, SQLConn, CurrentSiteIdentity: SiteIdentity)) {
+                IDataProvider<Guid, TempDesignedModule> dataProvider = dp;
+                int total;
+                List<TempDesignedModule> modules = dataProvider.GetRecords(0, 0, null, null, out total);
+                DesignedModulesDictionary designedMods = new DesignedModulesDictionary();
+                foreach (TempDesignedModule mod in modules) {
+                    designedMods.Add(mod.ModuleGuid, new DesignedModule {
+                        ModuleGuid = mod.ModuleGuid,
+                        Name = mod.Name,
+                        Description = mod.Description,
+                        AreaName = mod.DerivedAssemblyName.Replace(".", "_"),
+                    });
+                }
+                return designedMods;
             }
-            return designedMods;
         }
 
         private DesignedModulesDictionary GetDesignedModules_File() {

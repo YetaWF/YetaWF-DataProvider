@@ -35,7 +35,11 @@ namespace YetaWF.DataProvider {
             this.CurrentSiteIdentity = CurrentSiteIdentity;
             this.IdentitySeed = IdentitySeed == 0 ? FileIdentityCount.IDENTITY_SEED : IdentitySeed;
             this.CalculatedPropertyCallback = CalculatedPropertyCallback;
+            DisposableTracker.AddObject(this);
         }
+        public void Dispose() { Dispose(true); }
+        protected virtual void Dispose(bool disposing) { if (disposing) DisposableTracker.RemoveObject(this); }
+
         public string BaseFolder { get; private set; }
         public bool Cacheable { get; private set; }
         public int CurrentSiteIdentity { get; private set; }

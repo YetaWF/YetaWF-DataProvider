@@ -13,7 +13,7 @@ using YetaWF.Core.Views.Shared;
 
 namespace YetaWF.DataProvider.EF {
 
-    public abstract class EFDataProviderImpl<CONTAINERCLASS, TYPE, KEY> : IDisposable
+    public abstract class EFDataProviderImpl<CONTAINERCLASS, TYPE, KEY> : IDisposable //TODO: IDisposable tracker update
             where CONTAINERCLASS : IDisposable, new()
             where TYPE : class, new()
     {
