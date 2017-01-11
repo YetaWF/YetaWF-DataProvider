@@ -1,4 +1,4 @@
-﻿/* Copyright © 2016 Softel vdm, Inc. - http://yetawf.com/Documentation/YetaWF/Licensing */
+﻿/* Copyright © 2017 Softel vdm, Inc. - http://yetawf.com/Documentation/YetaWF/Licensing */
 
 using System.Reflection;
 using YetaWF.PackageAttributes;
@@ -7,7 +7,7 @@ using YetaWF.PackageAttributes;
 [assembly: AssemblyDescription("YetaWF Entity Framework Data Provider")]
 [assembly: AssemblyConfiguration("")]
 [assembly: AssemblyCompany("Softel vdm, Inc.")]
-[assembly: AssemblyCopyright("Copyright © 2016 - Softel vdm, Inc.")]
+[assembly: AssemblyCopyright("Copyright © 2017 - Softel vdm, Inc.")]
 [assembly: AssemblyProduct("EF")]
 [assembly: AssemblyTrademark("")]
 [assembly: AssemblyCulture("")]
