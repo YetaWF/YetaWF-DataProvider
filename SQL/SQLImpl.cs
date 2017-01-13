@@ -33,7 +33,9 @@ namespace YetaWF.DataProvider {
                 bool Logging = true, bool NoLanguages = false, bool Cacheable = false,
                 int CurrentSiteIdentity = 0, int IdentitySeed = 0, Func<string, string> CalculatedPropertyCallback = null) {
             DbOwner = dbOwner;
-            ConnString = connString;
+            SqlConnectionStringBuilder sqlsb = new SqlConnectionStringBuilder(connString);
+            sqlsb.MultipleActiveResultSets = true;
+            ConnString = sqlsb.ToString();
             this.TableName = tableName;
             this.Logging = Logging;
             this.Cacheable = Cacheable;
@@ -538,7 +540,7 @@ namespace YetaWF.DataProvider {
         protected Dictionary<string, string> GetVisibleColumns(Database database, string databaseName, string dbOwner, string tableName, Type objType, List<JoinData> joins) {
             Dictionary<string, string> visibleColumns = new Dictionary<string, string>();
             tableName = tableName.Trim(new char[] { '[', ']' });
-            if (databaseName.Trim(new char[] { '[', ']' }) != database.Name) throw new InternalError("Wrong database object for {0}", databaseName);
+            if (string.Compare(databaseName.Trim(new char[] { '[', ']' }), database.Name, true) != 0) throw new InternalError("Wrong database object for {0} - expected {1}", databaseName, database.Name);
             Table table = database.Tables[tableName];
             if (table == null) throw new InternalError("Table {0} doesn't exist", tableName);
             AddVisibleColumns(visibleColumns, databaseName, dbOwner, table);
