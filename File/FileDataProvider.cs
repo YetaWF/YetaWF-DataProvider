@@ -6,6 +6,7 @@ using System.IO;
 using System.Linq;
 using System.Linq.Dynamic;
 using System.Reflection;
+using YetaWF.Core;
 using YetaWF.Core.DataProvider;
 using YetaWF.Core.DataProvider.Attributes;
 using YetaWF.Core.IO;
@@ -172,7 +173,7 @@ namespace YetaWF.DataProvider {
                 BaseFolder = this.BaseFolder,
             };
             List<string> files = fd.GetNames();
-            files = (from string f in files where !f.StartsWith(InternalFilePrefix) select f).ToList<string>();
+            files = (from string f in files where !f.StartsWith(InternalFilePrefix) && f != Globals.DontDeployMarker select f).ToList<string>();
 
             if (typeof(KEYTYPE) == typeof(string))
                 return (List<KEYTYPE>)(object)files;
@@ -204,7 +205,7 @@ namespace YetaWF.DataProvider {
 
             foreach (string file in files) {
 
-                if (file.StartsWith(InternalFilePrefix)) // internal file
+                if (file.StartsWith(InternalFilePrefix) || file == Globals.DontDeployMarker) // internal file
                     continue;
 
                 KEYTYPE key;
@@ -263,7 +264,7 @@ namespace YetaWF.DataProvider {
 
             int total = 0;
             foreach (string file in files) {
-                if (file.StartsWith(InternalFilePrefix)) // internal file
+                if (file.StartsWith(InternalFilePrefix) || file == Globals.DontDeployMarker) // internal file
                     continue;
                 KEYTYPE key;
                 if (typeof(KEYTYPE) == typeof(string))
@@ -295,7 +296,7 @@ namespace YetaWF.DataProvider {
                 string[] files = Directory.GetFiles(path);
                 bool empty = true;
                 foreach (string file in files) {
-                    if (!Path.GetFileName(file).StartsWith(InternalFilePrefix)) {// internal file
+                    if (!Path.GetFileName(file).StartsWith(InternalFilePrefix) && file != Globals.DontDeployMarker) {// internal file
                         empty = false;
                         break;
                     }
