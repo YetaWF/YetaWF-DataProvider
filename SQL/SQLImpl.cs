@@ -312,11 +312,15 @@ namespace YetaWF.DataProvider {
                         ; // nothing
                     } else if (prop.HasAttribute(Data_BinaryAttribute.AttributeName)) {
                         object val = pi.GetValue(container);
-                        if (pi.PropertyType == typeof(byte[])) {
-                            sb.Append(DB.AddTempParam(val));
+                        if (val != null) {
+                            if (pi.PropertyType == typeof(byte[])) {
+                                sb.Append(DB.AddTempParam(val));
+                            } else {
+                                byte[] data = new GeneralFormatter().Serialize(val);
+                                sb.Append(DB.AddTempParam(data));
+                            }
                         } else {
-                            byte[] data = new GeneralFormatter().Serialize(val);
-                            sb.Append(DB.AddTempParam(data));
+                            sb.Append(DB.AddNullTempParam());
                         }
                         sb.Append(",");
                     } else if (pi.PropertyType == typeof(MultiString)) {
