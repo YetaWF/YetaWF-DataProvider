@@ -244,54 +244,5 @@ namespace BigfootSQL {
             }
             return false;
         }
-
-        private object CreateObject(object objectToFill, NameValueCollection values, string prefix, string suffix) {
-            // Make sure there are values to hydrate
-            if (values == null || values.HasKeys() == false) return objectToFill;
-
-            // Check weather the object is a value type
-            if (objectToFill.GetType().IsValueType) {
-                var value = GetValue(objectToFill.GetType(), values[0]);
-                if (value != null) objectToFill = value;
-                return objectToFill;
-            }
-            // Hydrate a complex type it
-            //  Get the fields for the type
-            List<PropertyInfo> props = GetProperties(objectToFill);
-            foreach (var prop in props) {
-                // Get the field name
-                string fieldName = prop.Name.ToUpperInvariant();
-                // Loop through the values
-                foreach (string formKey in values.Keys) {
-                    if ((prefix + fieldName + suffix) == formKey.ToUpperInvariant()) {
-                        prop.SetValue(objectToFill, GetValue(prop.PropertyType, values[formKey]), BindingFlags.Default, null, null, null);
-                        // Go to the next item
-                        break;
-                    }
-                }
-            }
-            return objectToFill;
-        }
-
-        /// <summary>
-        /// Get the properties to hydrate for an object.
-        /// </summary>
-        /// <param name="obj">Object to use to hydrate</param>
-        /// <returns>A list of properties</returns>
-        private List<PropertyInfo> GetProperties(object obj) {
-            List<PropertyInfo> properties = new List<PropertyInfo>();
-            Type type = obj.GetType();
-            List<PropertyData> propData = ObjectSupport.GetPropertyData(type);
-            foreach (PropertyData prop in propData) {
-                if (!prop.PropInfo.CanRead || !prop.PropInfo.CanWrite)
-                    continue;
-                if (prop.HasAttribute("DontSave"))
-                    continue;
-                if (prop.CalculatedProperty)
-                    continue;
-                properties.Add(prop.PropInfo);
-            }
-            return properties;
-        }
     }
 }
