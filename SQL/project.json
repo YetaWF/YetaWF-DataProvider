@@ -1,0 +1,22 @@
+{
+  "version": "2.0.0",
+  "description": "SQL DataProvider",
+  "authors": [ "default" ],
+  "dependencies": {
+    "Core": "2.0.0",
+    "Microsoft.SQLServer.SMO": "12.0.2000.8"
+  },
+  "frameworks": {
+    "net462": {
+      "frameworkAssemblies": {
+        "System.Data": "4.0.0.0",
+        "System.Data.Linq": "4.0.0.0",
+        "System.Transactions": "4.0.0.0"
+      }
+    }
+  },
+  "buildOptions": {
+    "outputName": "YetaWF.DataProvider.SQL",
+    "define": [ "MVC6" ]
+  }
+}

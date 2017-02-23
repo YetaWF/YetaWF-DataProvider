@@ -13,6 +13,10 @@ using YetaWF.Core.Packages;
 using YetaWF.Core.Serializers;
 using YetaWF.Core.Support;
 using YetaWF.Core.Support.Serializers;
+#if MVC6
+using Microsoft.Extensions.Caching.Memory;
+#else
+#endif
 
 namespace YetaWF.DataProvider
 {
@@ -40,7 +44,13 @@ namespace YetaWF.DataProvider
         private static object EmptyCachedObject = new object();
         private bool GetModule(Guid guid, out ModuleDefinition mod) {
             mod = null;
+#if MVC6
+            object o;
+            if (!YetaWFManager.MemoryCache.TryGetValue(CacheKey(guid), out o))
+                return false;
+#else
             object o = YetaWFManager.Manager.CurrentContext.Cache[CacheKey(guid)];
+#endif
             if (o == null)
                 return false;
             if (o == EmptyCachedObject)
@@ -49,13 +59,25 @@ namespace YetaWF.DataProvider
             return true;
         }
         private void SetModule(ModuleDefinition mod) {
+#if MVC6
+            YetaWFManager.MemoryCache.CreateEntry(CacheKey(mod.ModuleGuid)).SetValue(new GeneralFormatter().Serialize(mod));
+#else
             YetaWFManager.Manager.CurrentContext.Cache[CacheKey(mod.ModuleGuid)] = new GeneralFormatter().Serialize(mod);
+#endif
         }
         private void SetEmptyModule(Guid guid) {
+#if MVC6
+            YetaWFManager.MemoryCache.CreateEntry(CacheKey(guid)).SetValue(EmptyCachedObject);
+#else
             YetaWFManager.Manager.CurrentContext.Cache[CacheKey(guid)] = EmptyCachedObject;
+#endif
         }
         private void RemoveModule(Guid guid) {
+#if MVC6
+            YetaWFManager.MemoryCache.Remove(CacheKey(guid));
+#else
             YetaWFManager.Manager.CurrentContext.Cache.Remove(CacheKey(guid));
+#endif
         }
 
         // Implementation
@@ -186,7 +208,7 @@ namespace YetaWF.DataProvider
                         ModuleGuid = mod.ModuleGuid,
                         Description = mod.Description,
                         Name = mod.Name,
-                        AreaName = mod.AreaName,
+                        AreaName = mod.Area,
                     };
                     modules.Add(mod.ModuleGuid, desMod);
                 }
@@ -301,7 +323,7 @@ namespace YetaWF.DataProvider
                 ModuleDefinition mod = (ModuleDefinition) (object) DataProvider.Get((KEY)(object)modGuid);
                 if (mod == null)
                     throw new InternalError("No ModuleDefinition for guid {0}", modGuid);
-                DesignedModule desMod = new DesignedModule() { ModuleGuid = modGuid, Name = mod.Name, Description = mod.Description, AreaName = mod.AreaName, };
+                DesignedModule desMod = new DesignedModule() { ModuleGuid = modGuid, Name = mod.Name, Description = mod.Description, AreaName = mod.Area, };
                 modules.Add(modGuid, desMod);
             }
             return modules;
