@@ -3,7 +3,7 @@
   "description": "SQL DataProvider",
   "authors": [ "default" ],
   "dependencies": {
-    "Core": "2.0.0",
+    "Core": {"target": "project" },
     "Microsoft.SQLServer.SMO": "12.0.2000.8"
   },
   "frameworks": {
