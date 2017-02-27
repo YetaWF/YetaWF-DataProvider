@@ -638,7 +638,7 @@ namespace YetaWF.DataProvider {
         // Update column names for constructed names (as used in MultiString)
         protected List<DataProviderFilterInfo> NormalizeFilter(Type type, List<DataProviderFilterInfo> filters) {
             if (filters == null) return null;
-            filters = (from f in filters select new DataProviderFilterInfo { Field = f.Field, Filters = f.Filters, Logic = f.Logic, Operator = f.Operator, Value = f.Value }).ToList();// copy list
+            filters = (from f in filters select new DataProviderFilterInfo(f)).ToList();// copy list
             GridHelper.NormalizeFilters(type, filters);
             foreach (DataProviderFilterInfo filter in filters) {
                 if (filter.Filters != null)
@@ -652,7 +652,7 @@ namespace YetaWF.DataProvider {
             PropertyInfo prop = ObjectSupport.TryGetProperty(type, filter.Field);
             if (prop == null) return filter.Field; // could be a composite field, like Event.ImplementingAssembly
             if (prop.PropertyType == typeof(MultiString)) {
-                MultiString ms = (MultiString)filter.Value;
+                MultiString ms = new MultiString(filter.ValueAsString);
                 filter.Value = ms.ToString();
                 return ColumnFromPropertyWithLanguage(MultiString.ActiveLanguage, filter.Field);
             }
@@ -660,7 +660,7 @@ namespace YetaWF.DataProvider {
         }
         protected List<DataProviderSortInfo> NormalizeSort(Type type, List<DataProviderSortInfo> sorts) {
             if (sorts == null) return null;
-            sorts = (from s in sorts select new DataProviderSortInfo { Field = s.Field, Order = s.Order }).ToList();// copy list
+            sorts = (from s in sorts select new DataProviderSortInfo(s)).ToList();// copy list
             foreach (DataProviderSortInfo sort in sorts) {
                 PropertyInfo prop = ObjectSupport.GetProperty(type, sort.Field);
                 if (prop.PropertyType == typeof(MultiString))
