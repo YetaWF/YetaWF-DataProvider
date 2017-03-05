@@ -8,3 +8,4 @@
 **/bin/**/*.manifest
 
 **/project.lock.json
+*.csproj
