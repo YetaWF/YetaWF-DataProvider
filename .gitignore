@@ -1,11 +1,12 @@
 *.opt
 *.plg
 *.xml
+*.csproj
+packages.config
+app.config
 
 **/obj/
 **/bin/**/*.xml
 **/bin/**/*.config
 **/bin/**/*.manifest
 
-**/project.lock.json
-*.csproj
