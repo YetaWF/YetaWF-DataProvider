@@ -302,9 +302,7 @@ namespace YetaWF.DataProvider {
                     }
                 }
                 if (empty) {
-                    try {
-                        Directory.Delete(BaseFolder, true);
-                    } catch (Exception) { }
+                    DirectoryIO.DeleteFolder(BaseFolder);
                 }
             }
         }

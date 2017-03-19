@@ -235,12 +235,7 @@ namespace YetaWF.DataProvider
                 if (status) {
                     // remove the data folder (if any)
                     string dir = ModuleDefinition.GetModuleDataFolder(key);
-                    try {
-#if DEBUG // avoid exception spam
-                        if (Directory.Exists(dir))
-#endif
-                            Directory.Delete(dir, true);
-                    } catch (Exception) { }
+                    DirectoryIO.DeleteFolder(dir);
                 }
             });
             return status;
