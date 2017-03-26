@@ -49,7 +49,7 @@ namespace YetaWF.DataProvider
             if (!YetaWFManager.MemoryCache.TryGetValue(CacheKey(guid), out o))
                 return false;
 #else
-            object o = YetaWFManager.Manager.CurrentContext.Cache[CacheKey(guid)];
+            object o = System.Web.HttpRuntime.Cache[CacheKey(guid)];
 #endif
             if (o == null)
                 return false;
@@ -62,21 +62,21 @@ namespace YetaWF.DataProvider
 #if MVC6
             YetaWFManager.MemoryCache.CreateEntry(CacheKey(mod.ModuleGuid)).SetValue(new GeneralFormatter().Serialize(mod));
 #else
-            YetaWFManager.Manager.CurrentContext.Cache[CacheKey(mod.ModuleGuid)] = new GeneralFormatter().Serialize(mod);
+            System.Web.HttpRuntime.Cache[CacheKey(mod.ModuleGuid)] = new GeneralFormatter().Serialize(mod);
 #endif
         }
         private void SetEmptyModule(Guid guid) {
 #if MVC6
             YetaWFManager.MemoryCache.CreateEntry(CacheKey(guid)).SetValue(EmptyCachedObject);
 #else
-            YetaWFManager.Manager.CurrentContext.Cache[CacheKey(guid)] = EmptyCachedObject;
+            System.Web.HttpRuntime.Cache[CacheKey(guid)] = EmptyCachedObject;
 #endif
         }
         private void RemoveModule(Guid guid) {
 #if MVC6
             YetaWFManager.MemoryCache.Remove(CacheKey(guid));
 #else
-            YetaWFManager.Manager.CurrentContext.Cache.Remove(CacheKey(guid));
+            System.Web.HttpRuntime.Cache.Remove(CacheKey(guid));
 #endif
         }
 
