@@ -19,6 +19,7 @@ using YetaWF.Core.DataProvider;
 using YetaWF.Core.DataProvider.Attributes;
 using YetaWF.Core.Language;
 using YetaWF.Core.Models;
+using YetaWF.Core.Packages;
 using YetaWF.Core.Support;
 using YetaWF.Core.Support.Serializers;
 using YetaWF.Core.Views.Shared;
@@ -701,6 +702,48 @@ namespace YetaWF.DataProvider {
                 sql = sql.Replace("{__Site}", "[__Site] = " + CurrentSiteIdentity.ToString());
             DB.RawBuilder.Append(sql);
             return DB.ExecuteCollection<TYPE>();
+        }
+
+        // Index removal (for upgrades only)
+
+        private static List<string> DBsCompleted;
+
+        protected void RemoveIndexesIfNeeded(Database db) {
+            if (!Package.MajorDataChange) return;
+            if (DBsCompleted == null) DBsCompleted = new List<string>();
+            if (DBsCompleted.Contains(db.Name)) return; // already done
+            // do multiple passes until no more indexes available (we don't want to figure out the dependencies)
+            int passes = 0;
+            int drop = 0;
+            int lastPassDrop = 0;
+            for ( ; ; ++passes, lastPassDrop = drop) {
+                int failures = 0;
+                foreach (Table table in db.Tables) {
+                    for (int i = table.ForeignKeys.Count; i > 0; --i) {
+                        try {
+                            table.ForeignKeys[i - 1].Drop();
+                            ++drop;
+                        } catch (Exception) { ++failures; }
+                    }
+                    for (int i = table.Indexes.Count; i > 0; --i) {
+                        try {
+                            table.Indexes[i - 1].Drop();
+                            ++drop;
+                        } catch (Exception) { ++failures; }
+                    }
+                    foreach (Column column in table.Columns) {
+                        if (column.DefaultConstraint != null)
+                            column.DefaultConstraint.Drop();
+                    }
+                    table.Alter();
+                }
+                if (failures == 0)
+                    break;// successfully removed everything
+                if (drop == lastPassDrop) {
+                    throw new InternalError("No index/foreign keys could be dropped on the last pass in DB {0}", db.Name);
+                }
+            }
+            DBsCompleted.Add(db.Name);
         }
     }
 }

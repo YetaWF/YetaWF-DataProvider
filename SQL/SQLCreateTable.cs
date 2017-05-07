@@ -25,6 +25,7 @@ namespace YetaWF.DataProvider {
                 string DerivedDataTableName = null, string DerivedDataTypeName = null, string DerivedAssemblyName = null,
                 bool UseIdentity = false, bool SubTable = false) {
             try {
+                RemoveIndexesIfNeeded(db);
                 Table newTab = null;
                 List<string> origColumns, origIndexes;
                 bool updatingTable;
@@ -51,15 +52,15 @@ namespace YetaWF.DataProvider {
                 // if this table (base class) has a derived type, add its table name and its derived type as a column
                 if (DerivedDataTableName != null) {
                     Column newColumn = MakeColumn(origColumns, newTab, DerivedDataTableName);
-                    newColumn.DataType = Microsoft.SqlServer.Management.Smo.DataType.VarChar(80);
+                    newColumn.DataType = Microsoft.SqlServer.Management.Smo.DataType.NVarChar(80);
                     newColumn.Nullable = false;
 
                     newColumn = MakeColumn(origColumns, newTab, DerivedDataTypeName);
-                    newColumn.DataType = Microsoft.SqlServer.Management.Smo.DataType.VarChar(200);
+                    newColumn.DataType = Microsoft.SqlServer.Management.Smo.DataType.NVarChar(200);
                     newColumn.Nullable = false;
 
                     newColumn = MakeColumn(origColumns, newTab, DerivedAssemblyName);
-                    newColumn.DataType = Microsoft.SqlServer.Management.Smo.DataType.VarChar(200);
+                    newColumn.DataType = Microsoft.SqlServer.Management.Smo.DataType.NVarChar(200);
                     newColumn.Nullable = false;
                 }
                 if (SiteSpecific) {
@@ -284,10 +285,10 @@ namespace YetaWF.DataProvider {
                                 StringLengthAttribute attr = (StringLengthAttribute) pi.GetCustomAttribute(typeof(StringLengthAttribute));
                                 if (attr == null)
                                     throw new InternalError("StringLength attribute missing for property {0}", prefix + prop.Name);
-                                if (attr.MaximumLength >= 8000)
-                                    newColumn.DataType = Microsoft.SqlServer.Management.Smo.DataType.VarCharMax;
+                                if (attr.MaximumLength >= 4000)
+                                    newColumn.DataType = Microsoft.SqlServer.Management.Smo.DataType.NVarCharMax;
                                 else
-                                    newColumn.DataType = Microsoft.SqlServer.Management.Smo.DataType.VarChar(attr.MaximumLength);
+                                    newColumn.DataType = Microsoft.SqlServer.Management.Smo.DataType.NVarChar(attr.MaximumLength);
                                 if (colName != key1Name && colName != key2Name)
                                     newColumn.Nullable = true;
                             }
@@ -389,10 +390,10 @@ namespace YetaWF.DataProvider {
                 if (attr == null)
                     throw new InternalError("StringLength attribute missing for property {0} of type {1}", pi.Name, tp.FullName);
                 int len = attr.MaximumLength;
-                if (len == 0 || len >= 8000)
-                    return Microsoft.SqlServer.Management.Smo.DataType.VarCharMax;
+                if (len == 0 || len >= 4000)
+                    return Microsoft.SqlServer.Management.Smo.DataType.NVarCharMax;
                 else
-                    return Microsoft.SqlServer.Management.Smo.DataType.VarChar(len);
+                    return Microsoft.SqlServer.Management.Smo.DataType.NVarChar(len);
             }
             throw new InternalError("Unsupported property type {0} for property {1}", tp.FullName, pi.Name);
         }

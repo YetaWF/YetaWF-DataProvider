@@ -487,9 +487,9 @@ namespace BigfootSQL {
             get {
                 var value = "====NEW QUERY====\r\n";
                 foreach (SqlParameter param in _params) {
-                    var addQuotes = (param.SqlDbType == SqlDbType.NVarChar);
                     value += "DECLARE @" + param.ParameterName + " " + param.SqlDbType;
-                    if (param.SqlDbType == SqlDbType.NVarChar || param.SqlDbType == SqlDbType.VarChar)
+                    var addQuotes = (param.SqlDbType == SqlDbType.NVarChar);
+                    if (addQuotes)
                         value += "(" + param.Size.ToString() + ")";
                     if (param.Value == null)
                         value += " SET @" + param.ParameterName + " = NULL";
