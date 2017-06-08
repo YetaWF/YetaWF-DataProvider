@@ -2,7 +2,7 @@
 
   <PropertyGroup>
     <VersionPrefix>2.0.0</VersionPrefix>
-    <TargetFramework>net46</TargetFramework>
+    <TargetFramework>net461</TargetFramework>
     <DefineConstants>$(DefineConstants);MVC6</DefineConstants>
     <AssemblyName>YetaWF.DataProvider.SQL</AssemblyName>
     <PackageId>SQL</PackageId>
@@ -17,6 +17,10 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <PackageReference Include="NETStandard.Library.NETFramework" Version="2.0.0-*" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\..\CoreComponents\Core\Core.csproj" />
   </ItemGroup>
 
@@ -24,12 +28,9 @@
     <PackageReference Include="Microsoft.SQLServer.SMO" Version="12.0.2000.8" />
   </ItemGroup>
 
-  <ItemGroup Condition=" '$(TargetFramework)' == 'net46' ">
-    <Reference Include="System.Data" />
+  <ItemGroup>
     <Reference Include="System.Data.Linq" />
     <Reference Include="System.Transactions" />
-    <Reference Include="System" />
-    <Reference Include="Microsoft.CSharp" />
   </ItemGroup>
 
 </Project>
