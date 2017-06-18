@@ -714,32 +714,35 @@ namespace YetaWF.DataProvider {
             if (DBsCompleted.Contains(db.Name)) return; // already done
             // do multiple passes until no more indexes available (we don't want to figure out the dependencies)
             int passes = 0;
-            int drop = 0;
-            int lastPassDrop = 0;
-            for ( ; ; ++passes, lastPassDrop = drop) {
+            for ( ; ; ++passes) {
+                int drop = 0;
                 int failures = 0;
                 foreach (Table table in db.Tables) {
+                    int tableFailures = 0;
                     for (int i = table.ForeignKeys.Count; i > 0; --i) {
                         try {
                             table.ForeignKeys[i - 1].Drop();
                             ++drop;
-                        } catch (Exception) { ++failures; }
+                        } catch (Exception) { ++tableFailures; }
                     }
                     for (int i = table.Indexes.Count; i > 0; --i) {
                         try {
                             table.Indexes[i - 1].Drop();
                             ++drop;
-                        } catch (Exception) { ++failures; }
+                        } catch (Exception) { ++tableFailures; }
                     }
-                    foreach (Column column in table.Columns) {
-                        if (column.DefaultConstraint != null)
-                            column.DefaultConstraint.Drop();
+                    if (tableFailures == 0) {
+                        foreach (Column column in table.Columns) {
+                            if (column.DefaultConstraint != null)
+                                column.DefaultConstraint.Drop();
+                        }
+                        table.Alter();
                     }
-                    table.Alter();
+                    failures += tableFailures;
                 }
                 if (failures == 0)
                     break;// successfully removed everything
-                if (drop == lastPassDrop) {
+                if (drop == 0) {
                     throw new InternalError("No index/foreign keys could be dropped on the last pass in DB {0}", db.Name);
                 }
             }
