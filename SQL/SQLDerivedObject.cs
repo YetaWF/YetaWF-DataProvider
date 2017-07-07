@@ -62,6 +62,7 @@ namespace YetaWF.DataProvider
 
         public string ReplaceWithTableName(string text, string searchText) { return text.Replace(searchText, GetTableName()); }
         public string GetTableName() { return string.Format("[{0}].[{1}].[{2}]", DatabaseName, DbOwner, TableName); }
+        public string GetDatabaseName() { return Conn.Database; }
 
         public OBJTYPE Get(KEYTYPE key) {
             BigfootSQL.SqlHelper DB = new BigfootSQL.SqlHelper(Conn, Languages);
@@ -296,16 +297,13 @@ namespace YetaWF.DataProvider
         }
 
         public bool IsInstalled() {
-            bool status = false;
-            Database db = GetDatabase();
-            status = db.Tables.Contains(TableName);
-            return status;
+            return SqlCache.HasTable(Conn, DatabaseName, TableName);
         }
-
         public bool InstallModel(List<string> errorList) {
             bool success = false;
             Database db = GetDatabase();
             success = CreateTableWithBaseType(db, errorList);
+            SqlCache.ClearCache();
             return success;
         }
         private bool CreateTableWithBaseType(Database db, List<string> errorList) {
@@ -330,9 +328,11 @@ namespace YetaWF.DataProvider
             } catch (Exception exc) {
                 errorList.Add(string.Format("{0}: {1}", typeof(OBJTYPE).FullName, exc.Message));
                 return false;
+            } finally {
+                SqlCache.ClearCache();
             }
         }
-        public bool DropTableWithBaseType(Database db, List<string> errorList) {
+        private bool DropTableWithBaseType(Database db, List<string> errorList) {
             try {
                 if (db.Tables.Contains(TableName)) {
                     // Remove all records from the table (this removes the records in BaseTableName also)

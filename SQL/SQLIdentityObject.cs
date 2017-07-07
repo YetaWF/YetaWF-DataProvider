@@ -162,6 +162,7 @@ namespace YetaWF.DataProvider
             success = CreateTable(db, TableName, Key1Name, Key2Name, IdentityName, ObjectSupport.GetPropertyData(typeof(OBJTYPE)), typeof(OBJTYPE), errorList, columns,
                 SiteSpecific: CurrentSiteIdentity > 0,
                 TopMost: true, UseIdentity: UseIdentity);
+            SqlCache.ClearCache();
             return success;
         }
         public new bool UninstallModel(List<string> errorList) {

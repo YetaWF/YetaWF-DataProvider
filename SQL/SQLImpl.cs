@@ -88,10 +88,6 @@ namespace YetaWF.DataProvider {
         public const string SiteColumn = "__Site";
         public const string SubTableKeyColumn = "__Key";
 
-        private Server GetServer() {
-            return new Server(new ServerConnection(Conn));
-        }
-
         private TransactionScope Trans { get; set; }
 
         public DataProviderTransaction StartTransaction() {
@@ -157,11 +153,12 @@ namespace YetaWF.DataProvider {
         }
         private string _identityName;
 
-        public Database GetDatabase() {
-            Server server = GetServer();
+        internal Database GetDatabase() {
+            Server server = new Server(new ServerConnection(Conn));
             if (server.Databases == null || !server.Databases.Contains(Conn.Database))
                 throw new InternalError("Can't connect to database {0}", Conn.Database);
-            return server.Databases[Conn.Database];
+            Database db = server.Databases[Conn.Database];
+            return db;
         }
         public string ReplaceWithLanguage(string text, string searchText) {
             return text.Replace(searchText, GetLanguageSuffix());
@@ -205,6 +202,7 @@ namespace YetaWF.DataProvider {
                     }
                 }
             }
+            SqlCache.ClearCache();
         }
         protected bool DropTable(Database db, string tableName, List<string> errorList) {
             foreach (Table table in db.Tables) {
@@ -542,13 +540,11 @@ namespace YetaWF.DataProvider {
         }
         // Flatten the current table(with joins) and create a lookup table for all fields.
         // If a joined table has a field with the same name as the lookup table, it is not accessible.
-        protected Dictionary<string, string> GetVisibleColumns(Database database, string databaseName, string dbOwner, string tableName, Type objType, List<JoinData> joins) {
+        protected Dictionary<string, string> GetVisibleColumns(string databaseName, string dbOwner, string tableName, Type objType, List<JoinData> joins) {
             Dictionary<string, string> visibleColumns = new Dictionary<string, string>();
             tableName = tableName.Trim(new char[] { '[', ']' });
-            if (string.Compare(databaseName.Trim(new char[] { '[', ']' }), database.Name, true) != 0) throw new InternalError("Wrong database object for {0} - expected {1}", databaseName, database.Name);
-            Table table = database.Tables[tableName];
-            if (table == null) throw new InternalError("Table {0} doesn't exist", tableName);
-            AddVisibleColumns(visibleColumns, databaseName, dbOwner, table);
+            List<string> columns = SqlCache.GetColumns(Conn, databaseName, tableName);
+            AddVisibleColumns(visibleColumns, databaseName, dbOwner, tableName, columns);
             if (CalculatedPropertyCallback != null) {
                 List<PropertyData> props = ObjectSupport.GetPropertyData(objType);
                 props = (from p in props where p.CalculatedProperty select p).ToList();
@@ -558,30 +554,26 @@ namespace YetaWF.DataProvider {
             }
             if (joins != null) {
                 foreach (JoinData join in joins) {
-                    database = ((Database)join.MainDP.GetDatabase());
-                    databaseName = database.Name;
+                    databaseName = join.MainDP.GetDatabaseName();
                     dbOwner = join.MainDP.GetDbOwner();
                     tableName = join.MainDP.GetTableName();
                     tableName = tableName.Split(new char[] { '.' }).Last().Trim(new char[] { '[', ']' });
-                    table = database.Tables[tableName];
-                    if (table == null) throw new InternalError("Table {0} doesn't exist", tableName);
-                    AddVisibleColumns(visibleColumns, databaseName, dbOwner, table);
-                    database = ((Database)join.JoinDP.GetDatabase());
-                    databaseName = database.Name;
+                    columns = SqlCache.GetColumns(Conn, databaseName, tableName);
+                    AddVisibleColumns(visibleColumns, databaseName, dbOwner, tableName, columns);
+                    databaseName = join.JoinDP.GetDatabaseName();
                     dbOwner = join.JoinDP.GetDbOwner();
                     tableName = join.JoinDP.GetTableName();
                     tableName = tableName.Split(new char[] { '.' }).Last().Trim(new char[] { '[', ']' });
-                    table = database.Tables[tableName];
-                    if (table == null) throw new InternalError("Joined table {0} doesn't exist", tableName);
-                    AddVisibleColumns(visibleColumns, databaseName, dbOwner, table);
+                    columns = SqlCache.GetColumns(Conn, databaseName, tableName);
+                    AddVisibleColumns(visibleColumns, databaseName, dbOwner, tableName, columns);
                 }
             }
             return visibleColumns;
         }
-        private void AddVisibleColumns(Dictionary<string, string> visibleColumns, string databaseName, string dbOwner, Table table) {
-            foreach (Column column in table.Columns) {
-                if (!visibleColumns.ContainsKey(column.Name))
-                    visibleColumns.Add(column.Name, BuildFullColumnName(databaseName, dbOwner, table.Name, column.Name));
+        private void AddVisibleColumns(Dictionary<string, string> visibleColumns, string databaseName, string dbOwner, string tableName, List<string> columns) {
+            foreach (string column in columns) {
+                if (!visibleColumns.ContainsKey(column))
+                    visibleColumns.Add(column, BuildFullColumnName(databaseName, dbOwner, tableName, column));
             }
         }
 

@@ -69,6 +69,9 @@ namespace YetaWF.DataProvider {
         public string GetTableName() {
             throw new NotSupportedException("GetTableName is not supported");
         }
+        public string GetDatabaseName() {
+            throw new NotSupportedException("GetDatabaseName is not supported");
+        }
 
         private string GetKey1Name() {
             if (_key1Name == null) {

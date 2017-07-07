@@ -36,6 +36,7 @@ namespace YetaWF.DataProvider {
 
         public string ReplaceWithTableName(string text, string searchText) { return text.Replace(searchText, GetTableName()); }
         public string GetTableName() { return string.Format("[{0}].[{1}].[{2}]", DatabaseName, DbOwner, TableName); }
+        public string GetDatabaseName() { return Conn.Database; }
 
         public OBJTYPE Get(KEYTYPE key) {
             BigfootSQL.SqlHelper DB = new BigfootSQL.SqlHelper(Conn, Languages);
@@ -179,7 +180,7 @@ namespace YetaWF.DataProvider {
             // get total # of records (only if a subset is requested)
             Dictionary<string, string> visibleColumns = null;
             if (skip != 0 || take != 0) {
-                visibleColumns = GetVisibleColumns(GetDatabase(), DatabaseName, DbOwner, TableName, typeof(OBJTYPE), Joins);
+                visibleColumns = GetVisibleColumns(DatabaseName, DbOwner, TableName, typeof(OBJTYPE), Joins);
                 total = 0;
                 DB.Clear();
                 DB.SELECT("COUNT(*)").FROM(TableName);
@@ -190,7 +191,7 @@ namespace YetaWF.DataProvider {
             }
 
             if (visibleColumns == null)
-                visibleColumns = GetVisibleColumns(GetDatabase(), DatabaseName, DbOwner, TableName, typeof(OBJTYPE), Joins);
+                visibleColumns = GetVisibleColumns(DatabaseName, DbOwner, TableName, typeof(OBJTYPE), Joins);
             DB.Clear();
             DB.SELECT("*");
             AddCalculatedProperties(DB, typeof(OBJTYPE));
@@ -218,13 +219,8 @@ namespace YetaWF.DataProvider {
         }
 
         public bool IsInstalled() {
-            if (_IsInstalled == null) {
-                Database db = GetDatabase();
-                _IsInstalled = db.Tables.Contains(TableName);
-            }
-            return (bool)_IsInstalled;
+            return SqlCache.HasTable(Conn, DatabaseName, TableName);
         }
-        public bool? _IsInstalled { get; set; }
 
         public bool InstallModel(List<string> errorList) {
             bool success = false;
@@ -233,12 +229,11 @@ namespace YetaWF.DataProvider {
             success = CreateTable(db, TableName, Key1Name, null, IdentityName, ObjectSupport.GetPropertyData(typeof(OBJTYPE)), typeof(OBJTYPE), errorList, columns,
                 SiteSpecific: CurrentSiteIdentity > 0,
                 TopMost: true, UseIdentity: UseIdentity);
-            _IsInstalled = true;
+            SqlCache.ClearCache();
             return success;
         }
         public bool UninstallModel(List<string> errorList) {
             try {
-                _IsInstalled = false;
                 Database db = GetDatabase();
                 DropSubTables(db, TableName, errorList);
                 DropTable(db, TableName, errorList);
@@ -246,6 +241,8 @@ namespace YetaWF.DataProvider {
             } catch (Exception exc) {
                 errorList.Add(string.Format("{0}: {1}", typeof(OBJTYPE).FullName, exc.Message));
                 return false;
+            } finally {
+                SqlCache.ClearCache();
             }
         }
         public void AddSiteData() { }
