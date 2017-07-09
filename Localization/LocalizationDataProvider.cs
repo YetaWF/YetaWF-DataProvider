@@ -44,7 +44,7 @@ namespace YetaWF.Core.Models.DataProvider {
             } else
                 manager = YetaWFManager.Manager;
 
-            string addonUrl = VersionManager.GetAddOnModuleUrl(package.Domain, package.Product);
+            string addonUrl = VersionManager.GetAddOnPackageUrl(package.Domain, package.Product);
 
             string file = type.Split(new char[] { '+' }).First(); // use class name, not nested class name
             file = file.Trim(new char[] { '_' }); // generated templates have classes starting or ending in _
@@ -188,7 +188,7 @@ namespace YetaWF.Core.Models.DataProvider {
         public void Save(Package package, string type, LocalizationSupport.Location location, LocalizationData data) {
             if (!Startup.Started || !HaveManager) throw new InternalError("Can't save resource files during startup");
             if (!Manager.LocalizationSupportEnabled) throw new InternalError("Can't save resource files during startup");
-            string addonUrl = VersionManager.GetAddOnModuleUrl(package.Domain, package.Product);
+            string addonUrl = VersionManager.GetAddOnPackageUrl(package.Domain, package.Product);
 
             string file = type.Split(new char[] { '+' }).First(); // use class name, not nested class name
             file = file.Trim(new char[] { '_' }); // generated templates have classes starting or ending in _
@@ -285,7 +285,7 @@ namespace YetaWF.Core.Models.DataProvider {
             }
         }
         public List<string> GetFiles(Package package) {
-            string url = VersionManager.TryGetAddOnModuleUrl(package.Domain, package.Product);
+            string url = VersionManager.TryGetAddOnPackageUrl(package.Domain, package.Product);
             if (string.IsNullOrWhiteSpace(url)) return new List<string>();
             string path = Path.Combine(YetaWFManager.UrlToPhysical(url), LocalizationDataProvider.FolderName);
             FileData fdFolder = new FileData {
