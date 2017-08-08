@@ -357,9 +357,9 @@ namespace YetaWF.DataProvider
             obj = data;
 
             object mods;
-            bool status = DataProvider.ExportChunk(count, fileList, out mods);
+            bool status = DataProvider.ExportChunk(count, fileList, out mods, SpecificType: IOMode == WebConfigHelper.IOModeEnum.File);
             if (mods != null) {
-                data.ModList = (SerializableList<TYPE>)mods;
+                data.ModList = new SerializableList<TYPE>((List<TYPE>)mods);
                 foreach (TYPE m in data.ModList) {
                     ModuleDefinition mod = (ModuleDefinition)(object)m;
                     fileList.AddRange(Package.ProcessAllFiles(mod.ModuleDataFolder));

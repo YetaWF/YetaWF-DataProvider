@@ -64,7 +64,8 @@ namespace YetaWF.DataProvider
         public string GetTableName() { return string.Format("[{0}].[{1}].[{2}]", DatabaseName, DbOwner, TableName); }
         public string GetDatabaseName() { return Conn.Database; }
 
-        public OBJTYPE Get(KEYTYPE key) {
+        public OBJTYPE Get(KEYTYPE key, bool SpecificType = false) {
+            if (SpecificType) throw new InternalError("SpecificType not supported");
             BigfootSQL.SqlHelper DB = new BigfootSQL.SqlHelper(Conn, Languages);
             if (BaseTableName == TableName) {
                 // we're reading the generic type and have to find the derived type
@@ -251,7 +252,8 @@ namespace YetaWF.DataProvider
         public List<KEYTYPE> GetKeyList() {
             throw new InternalError("Not implemented");
         }
-        public List<OBJTYPE> GetRecords(int skip, int take, List<DataProviderSortInfo> sort, List<DataProviderFilterInfo> filters, out int total, List<JoinData> Join = null) {
+        public List<OBJTYPE> GetRecords(int skip, int take, List<DataProviderSortInfo> sort, List<DataProviderFilterInfo> filters, out int total, List<JoinData> Join = null, bool SpecificType = false) {
+            if (SpecificType) throw new InternalError("SpecificType not supported");
             // IMPORTANT: THIS ONLY SUPPORTS THE PRIMARY (non-derived) DATA
             filters = NormalizeFilter(typeof(OBJTYPE), filters);
             sort = NormalizeSort(typeof(OBJTYPE), sort);
@@ -365,7 +367,8 @@ namespace YetaWF.DataProvider
                 DB.DELETEFROM(BaseTableName).WHERE(SiteColumn, CurrentSiteIdentity).AND("DerivedDataTableName", TableName).ExecuteScalar();
             }
         }
-        public bool ExportChunk(int chunk, SerializableList<SerializableFile> fileList, out object obj) {
+        public bool ExportChunk(int chunk, SerializableList<SerializableFile> fileList, out object obj, bool SpecificType = false) {
+            if (SpecificType) throw new InternalError("SpecificType not supported");
             BigfootSQL.SqlHelper DB = new BigfootSQL.SqlHelper(Conn, Languages);
             DB.SELECT("*")
                 .FROM(TableName)
@@ -383,6 +386,9 @@ namespace YetaWF.DataProvider
             if (count == 0)
                 obj = null;
             return (count >= ChunkSize);
+        }
+        public bool ExportChunk(int chunk, SerializableList<SerializableFile> fileList, Type type, out object obj) {
+            throw new InternalError("Typed ExportChunk not supported");
         }
         public void ImportChunk(int chunk, SerializableList<SerializableFile> fileList, object obj) {
             if (CurrentSiteIdentity > 0 || YetaWFManager.Manager.ImportChunksNonSiteSpecifics) {

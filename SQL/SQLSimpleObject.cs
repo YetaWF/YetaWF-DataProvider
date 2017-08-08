@@ -38,7 +38,8 @@ namespace YetaWF.DataProvider {
         public string GetTableName() { return string.Format("[{0}].[{1}].[{2}]", DatabaseName, DbOwner, TableName); }
         public string GetDatabaseName() { return Conn.Database; }
 
-        public OBJTYPE Get(KEYTYPE key) {
+        public OBJTYPE Get(KEYTYPE key, bool SpecificType = false) {
+            if (SpecificType) throw new InternalError("SpecificType not supported");
             BigfootSQL.SqlHelper DB = new BigfootSQL.SqlHelper(Conn, Languages);
 
             DB.SELECT("TOP 1 *");
@@ -140,7 +141,8 @@ namespace YetaWF.DataProvider {
             throw new InternalError("Not implemented");
         }
 
-        public List<OBJTYPE> GetRecords(int skip, int take, List<DataProviderSortInfo> sort, List<DataProviderFilterInfo> filters, out int total, List<JoinData> Joins = null) {
+        public List<OBJTYPE> GetRecords(int skip, int take, List<DataProviderSortInfo> sort, List<DataProviderFilterInfo> filters, out int total, List<JoinData> Joins = null, bool SpecificType = false) {
+            if (SpecificType) throw new InternalError("SpecificType not supported");
             filters = NormalizeFilter(typeof(OBJTYPE), filters);
             sort = NormalizeSort(typeof(OBJTYPE), sort);
             BigfootSQL.SqlHelper DB = new BigfootSQL.SqlHelper(Conn, Languages);
@@ -252,7 +254,8 @@ namespace YetaWF.DataProvider {
                 DB.DELETEFROM(TableName).WHERE(SiteColumn, CurrentSiteIdentity).ExecuteScalar();
             }
         }
-        public bool ExportChunk(int chunk, SerializableList<SerializableFile> fileList, out object obj) {
+        public bool ExportChunk(int chunk, SerializableList<SerializableFile> fileList, out object obj, bool SpecificType = false) {
+            if (SpecificType) throw new InternalError("SpecificType not supported");
             BigfootSQL.SqlHelper DB = new BigfootSQL.SqlHelper(Conn, Languages);
 
             DB.SELECT("*");
@@ -270,6 +273,9 @@ namespace YetaWF.DataProvider {
             if (count == 0)
                 obj = null;
             return (count >= ChunkSize);
+        }
+        public bool ExportChunk(int chunk, SerializableList<SerializableFile> fileList, Type type, out object obj) {
+            throw new InternalError("Typed ExportChunk not supported");
         }
         public void ImportChunk(int chunk, SerializableList<SerializableFile> fileList, object obj) {
             if (CurrentSiteIdentity > 0 || YetaWFManager.Manager.ImportChunksNonSiteSpecifics) {

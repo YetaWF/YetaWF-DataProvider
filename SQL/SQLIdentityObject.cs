@@ -143,7 +143,8 @@ namespace YetaWF.DataProvider
             IDataProvider<KEYTYPE, OBJTYPE> dp = (IDataProvider<KEYTYPE, OBJTYPE>) this;
             return dp.RemoveRecords(filters);
         }
-        public new List<OBJTYPE> GetRecords(int skip, int take, List<DataProviderSortInfo> sort, List<DataProviderFilterInfo> filters, out int total, List<JoinData> Joins = null) {
+        public new List<OBJTYPE> GetRecords(int skip, int take, List<DataProviderSortInfo> sort, List<DataProviderFilterInfo> filters, out int total, List<JoinData> Joins = null, bool SpecificType = false) {
+            if (SpecificType) throw new InternalError("SpecificType not supported");
             IDataProvider<KEYTYPE, OBJTYPE> dp = (IDataProvider<KEYTYPE, OBJTYPE>) this;
             return dp.GetRecords(skip, take, sort, filters, out total, Joins: Joins);
         }
@@ -177,7 +178,8 @@ namespace YetaWF.DataProvider
             IDataProvider<KEYTYPE, OBJTYPE> dp = (IDataProvider<KEYTYPE, OBJTYPE>) this;
             dp.RemoveSiteData();
         }
-        public new bool ExportChunk(int chunk, SerializableList<SerializableFile> fileList, out object obj) {
+        public new bool ExportChunk(int chunk, SerializableList<SerializableFile> fileList, out object obj, bool SpecificType = false) {
+            if (SpecificType) throw new InternalError("SpecificType not supported");
             BigfootSQL.SqlHelper DB = new BigfootSQL.SqlHelper(Conn, Languages);
             DB.SELECT("*").FROM(TableName);
             if (CurrentSiteIdentity > 0)
