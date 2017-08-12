@@ -353,20 +353,10 @@ namespace YetaWF.DataProvider {
         public void AddSiteData() { }
         public void RemoveSiteData() { } // remove site-specific data is performed globally by removing the site data folder
 
-        public bool ExportChunk(int chunk, SerializableList<SerializableFile> fileList, out object obj) {
-            IDataProvider<KEYTYPE, OBJTYPE> iData = (IDataProvider<KEYTYPE, OBJTYPE>)this;
-            int total;
-            List<OBJTYPE> serList = iData.GetRecords(chunk * ChunkSize, ChunkSize, null, null, out total);
-            obj = serList;
-            int count = serList.Count();
-            if (count == 0)
-                obj = null;
-            return (count >= ChunkSize);
-        }
         public bool ExportChunk(int chunk, SerializableList<SerializableFile> fileList, out object obj, bool SpecificType = false) {
             IDataProvider<KEYTYPE, OBJTYPE> iData = (IDataProvider<KEYTYPE, OBJTYPE>)this;
             int total;
-            List<OBJTYPE> serList = iData.GetRecords(chunk * ChunkSize, ChunkSize, null, null, out total, SpecificType: SpecificType);
+            SerializableList<OBJTYPE> serList = new SerializableList<OBJTYPE>(iData.GetRecords(chunk * ChunkSize, ChunkSize, null, null, out total, SpecificType: SpecificType));
             obj = serList;
             int count = serList.Count();
             if (count == 0)
