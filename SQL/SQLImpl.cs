@@ -564,7 +564,7 @@ namespace YetaWF.DataProvider {
                     dbOwner = join.JoinDP.GetDbOwner();
                     tableName = join.JoinDP.GetTableName();
                     tableName = tableName.Split(new char[] { '.' }).Last().Trim(new char[] { '[', ']' });
-                    columns = SqlCache.GetColumns(Conn, databaseName, tableName);
+                    columns = SqlCache.GetColumns(join.JoinDP.DataProviderObject.Conn, databaseName, tableName);
                     AddVisibleColumns(visibleColumns, databaseName, dbOwner, tableName, columns);
                 }
             }
