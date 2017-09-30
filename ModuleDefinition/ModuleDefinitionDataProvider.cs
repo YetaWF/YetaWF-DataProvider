@@ -108,10 +108,10 @@ namespace YetaWF.DataProvider
             }
         }
         private void SaveModuleDefinition(ModuleDefinition mod, IModuleDefinitionIO dataProvider) {
-            SetModule(mod);
             using (dataProvider) {
                 dataProvider.SaveModuleDefinition(mod);
             }
+            SetModule(mod);
         }
         private bool RemoveModuleDefinition(Guid guid) {
             RemoveModule(guid);
