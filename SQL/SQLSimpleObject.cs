@@ -278,7 +278,7 @@ namespace YetaWF.DataProvider {
             throw new InternalError("Typed ExportChunk not supported");
         }
         public void ImportChunk(int chunk, SerializableList<SerializableFile> fileList, object obj) {
-            if (CurrentSiteIdentity > 0 || YetaWFManager.Manager.ImportChunksNonSiteSpecifics) {
+            if (CurrentSiteIdentity > 0 || YetaWFManager.Manager.ImportChunksNonSiteSpecifics) { // Should eliminate use of YetaWFManager.Manager (.ImportChunksNonSiteSpecifics)
                 SerializableList<OBJTYPE> serList = (SerializableList<OBJTYPE>)obj;
                 int total = serList.Count();
                 if (total > 0) {
