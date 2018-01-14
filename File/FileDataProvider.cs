@@ -24,7 +24,7 @@ namespace YetaWF.DataProvider {
         public int Count { get; set; }
     }
 
-    public partial class FileDataProvider<KEYTYPE, OBJTYPE> : IDataProvider<KEYTYPE, OBJTYPE> {
+    public partial class FileDataProvider<KEYTYPE, OBJTYPE> : IDataProvider<KEYTYPE, OBJTYPE>, IDataProviderTransactions {
 
         private const int ChunkSize = 100;
 

@@ -29,9 +29,9 @@ namespace YetaWF.Core.Models.DataProvider {
 
         public const string FolderName = "Localization";
 
-        // LOAD/SAVE
-        // LOAD/SAVE
-        // LOAD/SAVE
+        // API
+        // API
+        // API
 
         public LocalizationData Load(Package package, string type, LocalizationSupport.Location location) {
 

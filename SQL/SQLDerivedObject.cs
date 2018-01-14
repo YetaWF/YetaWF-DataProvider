@@ -60,10 +60,6 @@ namespace YetaWF.DataProvider
         }
         List<PropertyData> _propertyData;
 
-        public string ReplaceWithTableName(string text, string searchText) { return text.Replace(searchText, GetTableName()); }
-        public string GetTableName() { return string.Format("[{0}].[{1}].[{2}]", DatabaseName, DbOwner, TableName); }
-        public string GetDatabaseName() { return Conn.Database; }
-
         public OBJTYPE Get(KEYTYPE key, bool SpecificType = false) {
             if (SpecificType) throw new InternalError("SpecificType not supported");
             BigfootSQL.SqlHelper DB = new BigfootSQL.SqlHelper(Conn, Languages);

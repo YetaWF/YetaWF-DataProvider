@@ -26,7 +26,7 @@ using YetaWF.Core.Views.Shared;
 
 namespace YetaWF.DataProvider {
 
-    public partial class SQLDataProviderImpl : IDisposable {
+    public partial class SQLDataProviderImpl : IDisposable, ISQLTableInfo, IDataProviderTransactions {
 
         public static readonly int IDENTITY_SEED = 1000;
 
@@ -192,7 +192,7 @@ namespace YetaWF.DataProvider {
             // don't do any logging here - we might be deleting the tables needed for logging
             Database db = GetDatabase();
             int maxTimes = 5;
-            for (int time = maxTimes ; time > 0 && db.Tables.Count > 0 ; --time) {
+            for (int time = maxTimes; time > 0 && db.Tables.Count > 0; --time) {
                 List<Table> tables = (from Table t in db.Tables select t).ToList<Table>();
                 foreach (Table table in tables) {
                     if (table.Schema == DbOwner) {
@@ -299,7 +299,7 @@ namespace YetaWF.DataProvider {
             return sb.ToString();
         }
         protected string GetValueList(BigfootSQL.SqlHelper DB, string tableName, List<PropertyData> propData, object container, Type tpContainer,
-                string prefix="", bool topMost=false,
+                string prefix = "", bool topMost = false,
                 bool SiteSpecific = false,
                 Type DerivedType = null, string DerivedTableName = null,
                 bool SubTable = false) {
@@ -324,7 +324,7 @@ namespace YetaWF.DataProvider {
                         sb.Append(",");
                     } else if (pi.PropertyType == typeof(MultiString)) {
                         if (Languages.Count == 0) throw new InternalError("We need Languages for MultiString support");
-                        MultiString ms = (MultiString) pi.GetValue(container);
+                        MultiString ms = (MultiString)pi.GetValue(container);
                         foreach (var lang in Languages) {
                             sb.Append(DB.AddTempParam(ms[lang.Id] ?? ""));
                             sb.Append(",");
@@ -338,7 +338,7 @@ namespace YetaWF.DataProvider {
                         }
                         sb.Append(",");
                     } else if (pi.PropertyType == typeof(TimeSpan)) {
-                        TimeSpan val = (TimeSpan) pi.GetValue(container);
+                        TimeSpan val = (TimeSpan)pi.GetValue(container);
                         long ticks = val.Ticks;
                         sb.Append(DB.AddTempParam(ticks));
                         sb.Append(",");
@@ -383,7 +383,7 @@ namespace YetaWF.DataProvider {
                 sb.Append(",");
                 sb.Append(DB.AddTempParam(DerivedType.FullName));
                 sb.Append(",");
-                sb.Append(DB.AddTempParam(DerivedType.Assembly.FullName.Split(new char[]{','}, 2).First()));
+                sb.Append(DB.AddTempParam(DerivedType.Assembly.FullName.Split(new char[] { ',' }, 2).First()));
                 sb.Append(",");
             }
             if (SubTable) {
@@ -420,7 +420,7 @@ namespace YetaWF.DataProvider {
                         // get the identity value
                         PropertyInfo piIdent = ObjectSupport.TryGetProperty(tpContainer, identityName);
                         if (piIdent == null) throw new InternalError("Can't determine identity value");
-                        int identityValue = (int) piIdent.GetValue(container);
+                        int identityValue = (int)piIdent.GetValue(container);
 
                         // find the Add method for the collection so we can add each item as its read
                         MethodInfo addMethod = pi.PropertyType.GetMethod("Add", new Type[] { subType });
@@ -486,7 +486,7 @@ namespace YetaWF.DataProvider {
                         }
                     } else if (pi.PropertyType == typeof(MultiString)) {
                         if (Languages.Count == 0) throw new InternalError("We need Languages for MultiString support");
-                        MultiString ms = (MultiString) pi.GetValue(container);
+                        MultiString ms = (MultiString)pi.GetValue(container);
                         foreach (var lang in Languages) {
                             DB.SET(prefix + ColumnFromPropertyWithLanguage(lang.Id, prop.Name), ms[lang.Id]);
                         }
@@ -498,7 +498,7 @@ namespace YetaWF.DataProvider {
                             DB.SET(prefix + prop.Name, ms.ToArray());
                         }
                     } else if (pi.PropertyType == typeof(TimeSpan)) {
-                        TimeSpan val = (TimeSpan) pi.GetValue(container);
+                        TimeSpan val = (TimeSpan)pi.GetValue(container);
                         long ticks = val.Ticks;
                         DB.SET(prefix + prop.Name, ticks);
                     } else if (TryGetDataType(pi.PropertyType)) {
@@ -511,11 +511,11 @@ namespace YetaWF.DataProvider {
                         // get the identity value
                         PropertyInfo piIdent = ObjectSupport.TryGetProperty(tpContainer, identityName);
                         if (piIdent == null) throw new InternalError("Can't determine identity value");
-                        int identityValue = (int) piIdent.GetValue(container);
+                        int identityValue = (int)piIdent.GetValue(container);
                         // create an insert statement for the subtable
                         List<PropertyData> subPropData = ObjectSupport.GetPropertyData(subType);
                         string subTableName = tableName + "_" + pi.Name;
-                        IEnumerable ienum = (IEnumerable) pi.GetValue(container);;
+                        IEnumerable ienum = (IEnumerable)pi.GetValue(container); ;
                         BigfootSQL.SqlHelper subDB = new BigfootSQL.SqlHelper(DB.SqlConnection, DB.SqlTransaction, Languages);
                         // delete all existing entries from subtable
                         subDB.DELETEFROM(subTableName).WHERE(SubTableKeyColumn, identityValue).ExecuteNonquery();
@@ -564,7 +564,7 @@ namespace YetaWF.DataProvider {
                     dbOwner = join.JoinDP.GetDbOwner();
                     tableName = join.JoinDP.GetTableName();
                     tableName = tableName.Split(new char[] { '.' }).Last().Trim(new char[] { '[', ']' });
-                    columns = SqlCache.GetColumns(join.JoinDP.DataProviderObject.Conn, databaseName, tableName);
+                    columns = SqlCache.GetColumns(join.JoinDP.GetDataProvider().Conn, databaseName, tableName);
                     AddVisibleColumns(visibleColumns, databaseName, dbOwner, tableName, columns);
                 }
             }
@@ -603,7 +603,7 @@ namespace YetaWF.DataProvider {
             }
         }
 
-        protected void MakeFilter(BigfootSQL.SqlHelper DB, List<DataProviderFilterInfo> filters, Dictionary<string,string> visibleColumns = null) {
+        protected void MakeFilter(BigfootSQL.SqlHelper DB, List<DataProviderFilterInfo> filters, Dictionary<string, string> visibleColumns = null) {
             if (filters != null && filters.Count() > 0) {
                 if (CurrentSiteIdentity > 0) {
                     DB.WHERE().OP();
@@ -706,7 +706,7 @@ namespace YetaWF.DataProvider {
             if (DBsCompleted.Contains(db.Name)) return; // already done
             // do multiple passes until no more indexes available (we don't want to figure out the dependencies)
             int passes = 0;
-            for ( ; ; ++passes) {
+            for (; ; ++passes) {
                 int drop = 0;
                 int failures = 0;
                 foreach (Table table in db.Tables) {
@@ -740,5 +740,11 @@ namespace YetaWF.DataProvider {
             }
             DBsCompleted.Add(db.Name);
         }
+
+        public string GetConnectionString() { return ConnString; }
+        public string GetDbOwner() { return DbOwner; }
+        public string GetTableName() { return string.Format("[{0}].[{1}].[{2}]", DatabaseName, DbOwner, TableName); }
+        public string GetDatabaseName() { return Conn.Database; }
+        public string ReplaceWithTableName(string text, string searchText) { return text.Replace(searchText, GetTableName()); }
     }
 }
