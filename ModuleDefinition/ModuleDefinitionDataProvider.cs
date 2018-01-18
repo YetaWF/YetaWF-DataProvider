@@ -141,7 +141,8 @@ namespace YetaWF.DataProvider
 
         // SQL, File
         private IDataProvider<KEY, TYPE> CreateDataProvider() {
-            return MakeDataProvider(ModuleDefinition.BaseFolderName,
+            Package package = YetaWF.Core.Packages.Package.GetPackageFromType(typeof(ModuleDefinitionDataProvider<KEY, TYPE>));
+            return MakeDataProvider(package, ModuleDefinition.BaseFolderName,
                 () => { // File
                     OverrideArea();
                     return new FileDataProvider<KEY, TYPE>(
@@ -151,21 +152,21 @@ namespace YetaWF.DataProvider
                 },
                 (dbo, conn) => {  // SQL
                     OverrideArea();
-                    return new SQLDerivedObjectDataProvider<KEY, TYPE, ModuleDefinition>(AreaName, dbo, conn,
+                    return new SQLDerivedObjectDataProvider<KEY, TYPE, ModuleDefinition>(Dataset, dbo, conn,
                         ModuleDefinition.BaseFolderName,
                         CurrentSiteIdentity: SiteIdentity,
                         Cacheable: true);
                 },
                 () => { // External
                     OverrideArea();
-                    return MakeExternalDataProvider(new { AreaName = AreaName, CurrentSiteIdentity = SiteIdentity, Cacheable = true });
+                    return MakeExternalDataProvider(new { Package = Package, Dataset = Dataset, CurrentSiteIdentity = SiteIdentity, Cacheable = true });
                 }
             );
         }
         private void OverrideArea() {
             if (typeof(TYPE).Name != "ModuleDefinition") {
                 Package package = Package.GetPackageFromAssembly(typeof(TYPE).Assembly);
-                AreaName = ModuleDefinition.BaseFolderName + "_" + package.AreaName + "_" + typeof(TYPE).Name;
+                Dataset = ModuleDefinition.BaseFolderName + "_" + package.AreaName + "_" + typeof(TYPE).Name;
             }
         }
 
