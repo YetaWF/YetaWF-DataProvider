@@ -1,0 +1,439 @@
+﻿using System;
+using System.Collections;
+using System.Collections.Generic;
+using System.Data;
+using System.Data.SqlClient;
+using System.Drawing;
+using System.IO;
+using System.Reflection;
+using YetaWF.Core.DataProvider;
+using YetaWF.Core.DataProvider.Attributes;
+using YetaWF.Core.Language;
+using YetaWF.Core.Models;
+using YetaWF.Core.Support;
+using YetaWF.Core.Support.Serializers;
+
+namespace YetaWF.DataProvider.SQL2 {
+
+    public class SQLHelper {
+
+        public SqlConnection SqlConnection;
+        public SqlTransaction SqlTransaction;
+        private List<LanguageData> Languages { get; set; }
+        private List<SqlParameter> Params = new List<SqlParameter>();
+
+        public SQLHelper(SqlConnection conn, SqlTransaction trans, List<LanguageData> languages) {
+            SqlConnection = conn;
+            SqlTransaction = trans;
+            Languages = languages;
+        }
+
+        public object DebugInfo {
+            get {
+#if DEBUG
+                SQLBuilder sb = new SQLBuilder();
+                sb.Add("-- Debug"); sb.Add(Environment.NewLine);
+                foreach (var p in Params) {
+                    string val = p.Value?.ToString();
+                    if (val != null) val = val.Replace('\r', ' ').Replace('\n', ' ');
+                    sb.Add($"-- {p.ParameterName} - {val}"); sb.Add(Environment.NewLine);
+                }
+                sb.Add("--"); sb.Add(Environment.NewLine);
+                return sb.ToString();
+#endif
+            }
+        }
+
+        // Create,Fill
+        // Create,Fill
+        // Create,Fill
+
+        public T CreateObject<T>(IDataReader dr) {
+            return (T) CreateObject(dr, typeof(T));
+        }
+        public object CreateObject(IDataReader dr, Type tp) {
+            object obj = Activator.CreateInstance(tp);
+            FillObject(dr, obj);
+            return obj;
+        }
+        public void FillObject(IDataReader dr, object obj) {
+            var columns = new Hashtable();
+            for (var ci = 0; ci < dr.FieldCount; ci++)
+                columns[dr.GetName(ci)] = "";
+            FillObject(dr, obj, columns);
+        }
+        private void FillObject(IDataReader dr, object container, Hashtable columns, string prefix = "") {
+            Type tpContainer = container.GetType();
+            List<PropertyData> propData = ObjectSupport.GetPropertyData(tpContainer);
+            foreach (PropertyData prop in propData) {
+                PropertyInfo pi = prop.PropInfo;
+                if (pi.CanRead && pi.CanWrite && !prop.HasAttribute("DontSave")) {
+                    string colName = prefix + prop.Name;
+                    if (prop.HasAttribute(Data_BinaryAttribute.AttributeName)) {
+                        if (columns.ContainsKey(colName)) {
+                            object val = dr[colName];
+                            if (!(val is System.DBNull)) {
+                                byte[] btes = (byte[])val;
+                                if (pi.PropertyType == typeof(byte[])) { // truly binary
+                                    if (btes.Length > 0)
+                                        pi.SetValue(container, btes, null);
+                                } else {
+                                    object data = new GeneralFormatter().Deserialize(btes);
+                                    pi.SetValue(container, data, null);
+                                }
+                            }
+                        }
+                    } else if (pi.PropertyType == typeof(MultiString)) {
+                        MultiString ms = prop.GetPropertyValue<MultiString>(container);
+                        foreach (var lang in Languages) {
+                            string key = colName + "_" + lang.Id.Replace("-", "_");
+                            if (columns.ContainsKey(key)) {
+                                object value = dr[key];
+                                if (!(value is System.DBNull)) {
+                                    string s = (string)value;
+                                    if (!string.IsNullOrWhiteSpace(s))
+                                        ms[lang.Id] = s;
+                                }
+                            }
+                        }
+                    } else if (pi.PropertyType == typeof(Image)) {
+                        if (columns.ContainsKey(colName)) {
+                            byte[] btes = (byte[])dr[colName];
+                            if (btes.Length > 1) {
+                                using (MemoryStream ms = new MemoryStream(btes)) {
+                                    Image img = Image.FromStream(ms);
+                                    pi.SetValue(container, img, null);
+                                }
+                            }
+                        }
+                    } else if (pi.PropertyType.IsClass && ComplexTypeInColumns(columns, colName + "_")) {
+                        object propVal = pi.GetValue(container);
+                        if (propVal != null)
+                            FillObject(dr, propVal, columns, colName + "_");
+                    } else {
+                        if (columns.ContainsKey(prefix + pi.Name)) {
+                            object value = dr[prefix + pi.Name];
+                            pi.SetValue(container, GetValue(pi.PropertyType, value), BindingFlags.Default, null, null, null);
+                        }
+                    }
+                }
+            }
+        }
+        private bool ComplexTypeInColumns(Hashtable columns, string prefix) {
+            foreach (var column in columns.Keys) {
+                if (column.ToString().StartsWith(prefix))
+                    return true;
+            }
+            return false;
+        }
+        public object GetValue(Type fieldType, object value) {
+
+            object newValue = null;
+            Type baseType = fieldType.BaseType;
+            Type underlyingType = Nullable.GetUnderlyingType(fieldType);
+
+            // Check if an empty value or an empty string
+            if (value == null || value.ToString() == String.Empty)
+                return newValue;
+
+            if (fieldType.Equals(value.GetType())) {
+                newValue = value;
+            } else if (fieldType == typeof(bool)) {
+                newValue = (value.ToString() == "1" ||
+                            value.ToString().ToLower() == "on" ||
+                            value.ToString().ToLower() == "true" ||
+                            value.ToString().ToLower() == "yes") ? true : false;
+            } else if (underlyingType != null) {// Nullable types 
+                if (underlyingType == typeof(DateTime))
+                    newValue = Convert.ToDateTime(value);
+                else if (underlyingType == typeof(TimeSpan))
+                    newValue = new TimeSpan(Convert.ToInt64(value));
+                else if (underlyingType == typeof(bool))
+                    newValue = Convert.ToBoolean(value);
+                else if (underlyingType == typeof(short))
+                    newValue = Convert.ToInt16(value);
+                else if (underlyingType == typeof(int))
+                    newValue = Convert.ToInt32(value);
+                else if (underlyingType == typeof(long))
+                    newValue = Convert.ToInt64(value);
+                else if (underlyingType == typeof(decimal))
+                    newValue = Convert.ToDecimal(value);
+                else if (underlyingType == typeof(double))
+                    newValue = Convert.ToDouble(value);
+                else if (underlyingType == typeof(float))
+                    newValue = Convert.ToSingle(value);
+                else if (underlyingType == typeof(ushort))
+                    newValue = Convert.ToUInt16(value);
+                else if (underlyingType == typeof(uint))
+                    newValue = Convert.ToUInt32(value);
+                else if (underlyingType == typeof(ulong))
+                    newValue = Convert.ToUInt64(value);
+                else if (underlyingType == typeof(sbyte))
+                    newValue = Convert.ToSByte(value);
+                else if (underlyingType == typeof(Guid))
+                    newValue = new Guid(Convert.ToString(value));
+                else
+                    throw new InternalError($"Unsupported type {fieldType.FullName}");
+            } else if (fieldType == typeof(Guid)) {
+                newValue = new Guid(value.ToString());
+            } else if (fieldType  == typeof(TimeSpan)) {
+                newValue = new TimeSpan(Convert.ToInt64(value));
+            } else if (baseType != null && fieldType.BaseType == typeof(Enum)) {
+                int intEnum;
+                if (int.TryParse(value.ToString(), out intEnum))
+                    newValue = intEnum;
+                else {
+                    try {
+                        newValue = Enum.Parse(fieldType, value.ToString());
+                    } catch (Exception) {
+                        newValue = Enum.ToObject(fieldType, value);
+                    }
+                }
+            } else {
+                try {
+                    newValue = Convert.ChangeType(value, fieldType);
+                } catch (Exception) { }
+            }
+            return newValue;
+        }
+
+        private bool HasParams {
+            get { return Params.Count > 0; }
+        }
+
+        // Execute...
+
+        public SqlDataReader ExecuteReader(string text) {
+            return ExecuteReader(SqlConnection, SqlTransaction, CommandType.Text, text, Params);
+        }
+        public object ExecuteScalar(string text) {
+            return ExecuteScalar(SqlConnection, SqlTransaction, CommandType.Text, text, Params);
+        }        
+        public int ExecuteNonQuery(string text) {
+            return ExecuteNonQuery(SqlConnection, SqlTransaction, CommandType.Text, text, Params);
+        }
+
+        private static SqlDataReader ExecuteReader(SqlConnection connection, SqlTransaction transaction, CommandType commandType, string commandText, List<SqlParameter> sqlParms) {
+            SqlCommand cmd = new SqlCommand();
+            PrepareCommand(cmd, connection, transaction, commandType, commandText, sqlParms);
+            return cmd.ExecuteReader();
+        }
+        private static object ExecuteScalar(SqlConnection connection, SqlTransaction transaction, CommandType commandType, string commandText, List<SqlParameter> sqlParms) {
+            SqlCommand cmd = new SqlCommand();
+            PrepareCommand(cmd, connection, transaction, commandType, commandText, sqlParms);
+            return cmd.ExecuteScalar();
+        }
+        private static int ExecuteNonQuery(SqlConnection connection, SqlTransaction transaction, CommandType commandType, string commandText, List<SqlParameter> sqlParms) {
+            SqlCommand cmd = new SqlCommand();
+            PrepareCommand(cmd, connection, transaction, commandType, commandText, sqlParms);
+            return cmd.ExecuteNonQuery();
+        }
+
+        private static void PrepareCommand(SqlCommand command, SqlConnection connection, SqlTransaction transaction, CommandType commandType, string commandText, List<SqlParameter> sqlParms) {
+
+            command.Connection = connection;
+            command.CommandText = commandText;
+            command.CommandTimeout = 300;
+            command.CommandType = commandType;
+
+            if (transaction != null) {
+                if (transaction.Connection == null) throw new InternalError("The transaction was rolled back or committed");
+                command.Transaction = transaction;
+            }
+
+            if (sqlParms != null)
+                AttachParameters(command, sqlParms);
+        }
+        private static void AttachParameters(SqlCommand command, List<SqlParameter> sqlParms) {
+            if (sqlParms != null) {
+                foreach (SqlParameter p in sqlParms) {
+                    if (p != null) {
+                        if ((p.Direction == ParameterDirection.InputOutput || p.Direction == ParameterDirection.Input) && p.Value == null)
+                            p.Value = DBNull.Value;
+                        command.Parameters.Add(p);
+                    }
+                }
+            }
+        }
+
+        // EXPR
+        // EXPR
+        // EXPR
+
+        public void AddWhereExpr(SQLBuilder sb, string tableName, List<DataProviderFilterInfo> filters, Dictionary<string, string> visibleColumns) {
+            List<DataProviderFilterInfo> list = new List<DataProviderFilterInfo>(filters);
+            if (list.Count == 1 && list[0].Filters != null && list[0].Logic == "&&") {
+                // topmost entry is just one filter, remove it - it's redundant
+                list = new List<DataProviderFilterInfo>(list[0].Filters);
+            }
+            AddFiltersExpr(sb, tableName, list, "and", visibleColumns);
+        }
+        private void AddFiltersExpr(SQLBuilder sb, string tableName, List<DataProviderFilterInfo> filter, string logic, Dictionary<string, string> visibleColumns) {
+            bool firstDone = false;
+            foreach (var f in filter) {
+                if (firstDone) {
+                    if (logic == "and" || logic == "&&") sb.Add(" AND ");
+                    else if (logic == "or" || logic == "||") sb.Add(" OR ");
+                    else throw new InternalError("Invalid logic operator {0}", logic);
+                }
+                bool? isNull = null;
+                if (f.Filters != null) {
+                    sb.Add("(");
+                    AddFiltersExpr(sb, tableName, new List<DataProviderFilterInfo>(f.Filters), f.Logic, visibleColumns);
+                    sb.Add(")");
+                } else {
+                    string oper = "";
+                    object val = f.Value;
+                    if (val != null && val.GetType() == typeof(DateTime)) {
+                        val = ((DateTime)val).ToString("yyyy-MM-dd HH:mm:ss");
+                    }
+                    switch (f.Operator.ToLower()) {
+                        case "eq":
+                        case "==":
+                        case "=":
+                            oper = "="; break;
+                        case "neq":
+                        case "<>":
+                        case "!=":
+                            if (val != null)
+                                isNull = true;
+                            oper = "<>"; break;
+                        case "lt":
+                        case "<":
+                            isNull = true;
+                            oper = "<"; break;
+                        case "lte":
+                        case "le":
+                        case "<=":
+                            isNull = true;
+                            oper = "<="; break;
+                        case "gt":
+                        case ">":
+                            isNull = false;
+                            oper = ">"; break;
+                        case "gte":
+                        case "ge":
+                        case ">=":
+                            isNull = false;
+                            oper = ">="; break;
+                        case "startswith":
+                            oper = "LIKE"; val = SQLBuilder.EscapeForLike((val ?? "").ToString(), false) + "%"; break;
+                        case "notstartswith":
+                            isNull = true;
+                            oper = "NOT LIKE"; val = SQLBuilder.EscapeForLike((val ?? "").ToString(), false) + "%"; break;
+                        case "endswith":
+                            oper = "LIKE"; val = "%" + SQLBuilder.EscapeForLike((val ?? "").ToString(), false); break;
+                        case "notendswith":
+                            isNull = true;
+                            oper = "NOT LIKE"; val = "%" + SQLBuilder.EscapeForLike((val ?? "").ToString(), false); break;
+                        case "contains":
+                            oper = "LIKE"; val = "%" + SQLBuilder.EscapeForLike((val ?? "").ToString(), false) + "%"; break;
+                        case "notcontains":
+                            isNull = true;
+                            oper = "NOT LIKE"; val = "%" + SQLBuilder.EscapeForLike((val ?? "").ToString(), false) + "%"; break;
+                        default:
+                            throw new InternalError("Invalid operator {0}", f.Operator);
+                    }
+                    if (isNull != null) {
+                        string s = SQLBuilder.BuildFullColumnName(f.Field, visibleColumns);
+                        AddExpr(sb, s, oper, val);
+                        if (isNull == true)
+                            sb.Add($" OR {s} IS NULL");
+                        else
+                            sb.Add($" AND {s} IS NOT NULL");
+                    } else {
+                        AddExpr(sb, SQLBuilder.BuildFullColumnName(f.Field, visibleColumns), oper, val);
+                    }
+                }
+                firstDone = true;
+            }
+        }
+        public string Expr(string wherecolumn, string @operator, object value, bool isSet = false) {
+            SQLBuilder sb = new SQLBuilder();
+            AddExpr(sb, wherecolumn, @operator, value, isSet);
+            return sb.ToString();
+        }
+        /// <summary>
+        /// Add a parameter to a WHERE statement. Will generate ColumnName {Operator} 'Value' (quotes only added if it is a string)
+        /// </summary>
+        /// <param name="wherecolumn">The name of the column</param>
+        /// <param name="operator">The operator, e.g. = <= LIKE <> etc.</param>
+        /// <param name="value">The value. If it is a string it is properly escaped etc.</param>
+        /// <param name="isSet">Identifies this comparison as a set statement. Needed for setting null values.</param>
+        protected void AddExpr(SQLBuilder sb, string wherecolumn, string @operator, object value, bool isSet = false) {
+            if (!wherecolumn.Contains(".") && !wherecolumn.StartsWith("["))
+                wherecolumn = SQLBuilder.WrapBrackets(wherecolumn);
+
+            if (value == null) {
+                sb.Add(wherecolumn);
+                if (@operator == "=") {
+                    if (isSet) sb.Add("= NULL"); else sb.Add("IS NULL");
+                } else if (@operator == "<>") {
+                    if (isSet) sb.Add("<> NULL"); else sb.Add("IS NOT NULL");
+                } else
+                    throw new InternalError("Invalid operator {0}", @operator);
+            } else
+                sb.Add($"{wherecolumn} {@operator} {AddTempParam(value)}");
+        }
+        /// <summary>
+        /// Adds a parameter with the provided value and returns the created parameter name
+        /// Used when creating dynamic queries and the parameter is not important outside of the immediate query
+        /// Used internally to auto created parameters for the WHERE AND OR and other statements
+        /// </summary>
+        /// <param name="value">The value of the parameter</param>
+        /// <returns>The generated name for the parameter</returns>
+        public string AddTempParam(object value) {
+            var name = "_tempParam" + Params.Count;
+            AddParam(name, value);
+            return "@" + name;
+        }
+        /// <summary>
+        /// Adds a null value parameter and returns the created parameter name
+        /// Used when creating dynamic queries and the parameter is not important outside of the immediate query
+        /// </summary>
+        /// <returns>The generated name for the parameter</returns>
+        public string AddNullTempParam(ParameterDirection direction = ParameterDirection.Input) {
+            var name = "_tempParam" + Params.Count;
+            SqlParameter parm = new SqlParameter(name, SqlDbType.Binary);
+            parm.Direction = direction;
+            Params.Add(parm);
+            return "@" + name;
+        }
+        /// <summary>
+        /// Adds a named parameter to the query
+        /// </summary>
+        /// <param name="name">The name of the parameter</param>
+        /// <param name="value">The value of the parameter</param>
+        public void AddParam(string name, object value, ParameterDirection direction = ParameterDirection.Input)/*<<<*/ {
+            if (name.StartsWith("@")) name = name.Substring(1);
+
+            SqlParameter parm;
+
+            // special handling
+            if (value is System.Drawing.Image) {
+                // for image parameters - Note that images will always be saves as jpeg (this could be changed)
+                System.Drawing.Image img = (System.Drawing.Image)value;
+                System.IO.MemoryStream ms = new System.IO.MemoryStream();
+                img.Save(ms, System.Drawing.Imaging.ImageFormat.Jpeg);
+                ms.Close();
+                value = ms.ToArray();
+                parm = new SqlParameter(name, value);
+            } else if (value is System.Data.Linq.Binary) {
+                // for Linq.Binary parameters
+                System.Data.Linq.Binary lb = (System.Data.Linq.Binary)value;
+                parm = new SqlParameter(name, lb.ToArray());
+            } else if (value is System.String) {
+                string s = (string)value ?? "";
+                parm = new SqlParameter(name, SqlDbType.NVarChar, s.Length);
+                parm.Value = s;
+            } else if (value is DateTime) {
+                parm = new SqlParameter(name, SqlDbType.DateTime2);
+                parm.Value = value;
+            } else {
+                parm = new SqlParameter(name, value);
+            }
+            parm.Direction = direction;//<<<
+            Params.Add(parm);
+        }
+    }
+}
