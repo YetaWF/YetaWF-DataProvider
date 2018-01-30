@@ -192,7 +192,7 @@ namespace YetaWF.DataProvider
         /// </summary>
         /// <returns>ModuleDefinition or null if module doesn't exist</returns>
         public ModuleDefinition LoadModuleDefinition(Guid key) {
-            return (ModuleDefinition) (object) DataProvider.Get((KEY)(object) key, SpecificType: false);//$$
+            return (ModuleDefinition) (object) DataProvider.Get((KEY)(object) key);
         }
 
         /// <summary>
@@ -301,7 +301,7 @@ namespace YetaWF.DataProvider
             obj = data;
 
             object mods;
-            bool status = DataProvider.ExportChunk(count, fileList, out mods, SpecificType: true);
+            bool status = DataProvider.ExportChunk(count, fileList, out mods);
             if (mods != null) {
                 data.ModList = new SerializableList<TYPE>((List<TYPE>)mods);
                 foreach (TYPE m in data.ModList) {

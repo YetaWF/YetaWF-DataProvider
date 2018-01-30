@@ -23,12 +23,7 @@ namespace YetaWF.DataProvider.SQL2 {
 
         public string BaseDataset { get; protected set; }
 
-        public OBJTYPE Get(KEY key) {
-            return Get(key, SpecificType: false);
-        }
-        public new OBJTYPE Get(KEY key, bool SpecificType = false) { //$$$remove specifictype?
-
-            if (SpecificType) throw new InternalError("SpecificType not supported");
+        public new OBJTYPE Get(KEY key) {
 
             SQLHelper sqlHelper = new SQLHelper(Conn, null, Languages);
 
@@ -233,9 +228,7 @@ DROP TABLE #BASETABLE
             throw new NotImplementedException();
         }
 
-        //$$$remove  SpecificType
-        public new List<OBJTYPE> GetRecords(int skip, int take, List<DataProviderSortInfo> sorts, List<DataProviderFilterInfo> filters, out int total, List<JoinData> Joins = null, bool SpecificType = false) {
-            if (SpecificType) throw new InternalError("SpecificType not supported");
+        public new List<OBJTYPE> GetRecords(int skip, int take, List<DataProviderSortInfo> sorts, List<DataProviderFilterInfo> filters, out int total, List<JoinData> Joins = null) {
             if (Dataset != BaseDataset) throw new InternalError("Only base dataset is supported");
             return base.GetRecords(skip, take, sorts, filters, out total, Joins: Joins);
         }
@@ -382,9 +375,7 @@ DELETE FROM {BaseDataset} WHERE [DerivedDataTableName] = '{Dataset}' AND [{SiteC
             }
         }
 
-        //$$remove specifictype
-        public new bool ExportChunk(int chunk, SerializableList<SerializableFile> fileList, out object obj, bool SpecificType = false) {
-            if (SpecificType) throw new InternalError("SpecificType not supported");
+        public new bool ExportChunk(int chunk, SerializableList<SerializableFile> fileList, out object obj) {
             if (Dataset == BaseDataset) throw new InternalError("Base dataset is not supported");
 
             List<DataProviderSortInfo> sorts = new List<DataProviderSortInfo> { new DataProviderSortInfo { Field = Key1Name, Order = DataProviderSortInfo.SortDirection.Ascending } };

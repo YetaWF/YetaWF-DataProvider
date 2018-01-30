@@ -31,14 +31,10 @@ namespace YetaWF.DataProvider.SQL2 {
 
         protected const int ChunkSize = 100;
 
-        public OBJTYPE Get(KEYTYPE key, bool SpecificType = false) { //$$$remove specifictype?
-            return Get(key, default(KEYTYPE2), SpecificType: SpecificType);
+        public OBJTYPE Get(KEYTYPE key) {
+            return Get(key, default(KEYTYPE2));
         }
         public OBJTYPE Get(KEYTYPE key, KEYTYPE2 key2) {
-            return Get(key, default(KEYTYPE2), false);
-        }
-        public OBJTYPE Get(KEYTYPE key, KEYTYPE2 key2, bool SpecificType = false) {
-            if (SpecificType) throw new InternalError("SpecificType not supported");
 
             SQLHelper sqlHelper = new SQLHelper(Conn, null, Languages);
 
@@ -262,9 +258,7 @@ SELECT @@ROWCOUNT --- result set
             return obj;
         }
 
-        public List<OBJTYPE> GetRecords(int skip, int take, List<DataProviderSortInfo> sorts, List<DataProviderFilterInfo> filters, out int total, List<JoinData> Joins = null, bool SpecificType = false) {
-            if (SpecificType) throw new InternalError("SpecificType not supported");
-
+        public List<OBJTYPE> GetRecords(int skip, int take, List<DataProviderSortInfo> sorts, List<DataProviderFilterInfo> filters, out int total, List<JoinData> Joins = null) {
             filters = NormalizeFilter(typeof(OBJTYPE), filters);
             sorts = NormalizeSort(typeof(OBJTYPE), sorts);
             return GetMainTableRecords(skip, take, sorts, filters, out total, Joins: Joins);
@@ -616,9 +610,7 @@ DELETE FROM {fullTableName} {AndSiteIdentity}";
             }
         }
 
-        public bool ExportChunk(int chunk, SerializableList<SerializableFile> fileList, out object obj, bool SpecificType = false) {
-            if (SpecificType) throw new InternalError("SpecificType not supported");
-
+        public bool ExportChunk(int chunk, SerializableList<SerializableFile> fileList, out object obj) {
             List<DataProviderSortInfo> sorts = new List<DataProviderSortInfo> { new DataProviderSortInfo { Field = Key1Name, Order = DataProviderSortInfo.SortDirection.Ascending } };
             int total;
             List<OBJTYPE> list = GetRecords(chunk * ChunkSize, ChunkSize, sorts, null, out total);

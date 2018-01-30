@@ -136,15 +136,11 @@ namespace YetaWF.DataProvider {
             };
             return fd;
         }
-
-        public OBJTYPE Get(KEYTYPE key, bool SpecificType = false) {
+        public OBJTYPE Get(KEYTYPE key) {
             FileData<OBJTYPE> fd = GetFileDataObject(key);
-            if (SpecificType) {
-                OBJTYPE o = fd.Load(SpecificType: SpecificType);
-                if (o == null) return default(OBJTYPE);
-                return UpdateCalculatedProperties(o);
-            } else
-                return UpdateCalculatedProperties(fd.Load());
+            OBJTYPE o = fd.Load();
+            if (o == null) return default(OBJTYPE);
+            return UpdateCalculatedProperties(o);
         }
 
         public bool Add(OBJTYPE obj) {
@@ -217,7 +213,7 @@ namespace YetaWF.DataProvider {
             List<OBJTYPE> objs = iData.GetRecords(0, 1, null, filters, out total);
             return UpdateCalculatedProperties(objs.FirstOrDefault());
         }
-        public List<OBJTYPE> GetRecords(int skip, int take, List<DataProviderSortInfo> sort, List<DataProviderFilterInfo> filters, out int total, List<JoinData> Joins = null, bool SpecificType = false) {
+        public List<OBJTYPE> GetRecords(int skip, int take, List<DataProviderSortInfo> sort, List<DataProviderFilterInfo> filters, out int total, List<JoinData> Joins = null) {
             if (Joins != null) throw new InternalError("Joins not supported");
             FileData fd = new FileData {
                 BaseFolder = this.BaseFolder,
@@ -241,15 +237,10 @@ namespace YetaWF.DataProvider {
                     key = (KEYTYPE)(object)Convert.ToInt32(file);
                 else
                     throw new InternalError("FileDataProvider only supports object keys of type string, int or Guid");
-                OBJTYPE obj = iData.Get(key, SpecificType: SpecificType);
+                OBJTYPE obj = iData.Get(key);
 
-                if (SpecificType) {
-                    if (obj == null || typeof(OBJTYPE) != obj.GetType())
-                        continue;
-                } else {
-                    if (obj == null)
-                        throw new InternalError("Object in file {0} is invalid", file);
-                }
+                if (obj == null)
+                    continue;
                 objects.Add(obj);
 
                 if (skip == 0 && sort == null && filters == null) {
@@ -369,10 +360,10 @@ namespace YetaWF.DataProvider {
         public void AddSiteData() { }
         public void RemoveSiteData() { } // remove site-specific data is performed globally by removing the site data folder
 
-        public bool ExportChunk(int chunk, SerializableList<SerializableFile> fileList, out object obj, bool SpecificType = false) {
+        public bool ExportChunk(int chunk, SerializableList<SerializableFile> fileList, out object obj) {
             IDataProvider<KEYTYPE, OBJTYPE> iData = (IDataProvider<KEYTYPE, OBJTYPE>)this;
             int total;
-            SerializableList<OBJTYPE> serList = new SerializableList<OBJTYPE>(iData.GetRecords(chunk * ChunkSize, ChunkSize, null, null, out total, SpecificType: SpecificType));
+            SerializableList<OBJTYPE> serList = new SerializableList<OBJTYPE>(iData.GetRecords(chunk * ChunkSize, ChunkSize, null, null, out total));
             obj = serList;
             int count = serList.Count();
             if (count == 0)
