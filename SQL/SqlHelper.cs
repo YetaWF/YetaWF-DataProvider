@@ -303,7 +303,7 @@ namespace BigfootSQL {
             bool first = true;
             foreach (DataProviderSortInfo sortInfo in sorts) {
                 if (!first) Add(",");
-                Add(MakeFullColumnName(sortInfo.Field, visibleColumns) + " " + sortInfo.GetOrder());
+                Add(MakeFullColumnName(sortInfo.Field, visibleColumns) + " " + "xxx");//removed  sortInfo.GetOrder());
                 first = false;
             }
             if (Offset > 0 || Next > 0)

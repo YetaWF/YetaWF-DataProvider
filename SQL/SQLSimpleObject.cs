@@ -133,10 +133,6 @@ namespace YetaWF.DataProvider {
             return deleted;
         }
 
-        public List<KEYTYPE> GetKeyList() {
-            throw new InternalError("Not implemented");
-        }
-
         public List<OBJTYPE> GetRecords(int skip, int take, List<DataProviderSortInfo> sort, List<DataProviderFilterInfo> filters, out int total, List<JoinData> Joins = null, bool SpecificType = false) {
             if (SpecificType) throw new InternalError("SpecificType not supported");
             filters = NormalizeFilter(typeof(OBJTYPE), filters);

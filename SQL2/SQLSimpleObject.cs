@@ -15,10 +15,7 @@ using YetaWF.Core.Support;
 
 namespace YetaWF.DataProvider.SQL2 {
 
-    public partial class SQLSimple2Object<KEYTYPE, KEYTYPE2, OBJTYPE> : SQLSimpleObjectBase<KEYTYPE, KEYTYPE2, OBJTYPE> {
-        public SQLSimple2Object(Dictionary<string, object> options) : base(options, HasKey2: true) { }
-    }
-    public partial class SQLSimpleObject<KEYTYPE, OBJTYPE> : SQLSimpleObjectBase<KEYTYPE, KEYTYPE, OBJTYPE> {
+    public partial class SQLSimpleObject<KEYTYPE, OBJTYPE> : SQLSimpleObjectBase<KEYTYPE, object, OBJTYPE> {
         public SQLSimpleObject(Dictionary<string, object> options) : base(options) { }
     }
     public partial class SQLSimpleObjectBase<KEYTYPE, KEYTYPE2, OBJTYPE> : SQL2Base, IDataProvider<KEYTYPE, OBJTYPE>, ISQLTableInfo {
@@ -34,7 +31,13 @@ namespace YetaWF.DataProvider.SQL2 {
 
         protected const int ChunkSize = 100;
 
-        public OBJTYPE Get(KEYTYPE key/*$$$, KEYTYPE2 key2 = default(KEYTYPE2)*/, bool SpecificType = false) {
+        public OBJTYPE Get(KEYTYPE key, bool SpecificType = false) { //$$$remove specifictype?
+            return Get(key, default(KEYTYPE2), SpecificType: SpecificType);
+        }
+        public OBJTYPE Get(KEYTYPE key, KEYTYPE2 key2) {
+            return Get(key, default(KEYTYPE2), false);
+        }
+        public OBJTYPE Get(KEYTYPE key, KEYTYPE2 key2, bool SpecificType = false) {
             if (SpecificType) throw new InternalError("SpecificType not supported");
 
             SQLHelper sqlHelper = new SQLHelper(Conn, null, Languages);
@@ -42,7 +45,7 @@ namespace YetaWF.DataProvider.SQL2 {
             string joins = null;// RFFU
             string fullTableName = SQLBuilder.GetTable(Database, Dbo, Dataset);
             string calcProps = CalculatedProperties(typeof(OBJTYPE));
-            string andKey2 = null;//$$HasKey2 ? "AND " + sqlHelper.Expr(Key2Name, "=", key2) : null;
+            string andKey2 = HasKey2 ? "AND " + sqlHelper.Expr(Key2Name, "=", key2) : null;
 
             List <PropertyData> propData = ObjectSupport.GetPropertyData(typeof(OBJTYPE));
             string subTablesSelects = SubTablesSelects(Dataset, propData, typeof(OBJTYPE));
@@ -59,7 +62,7 @@ WHERE {sqlHelper.Expr(Key1Name, "=", key)} {andKey2} {AndSiteIdentity}
 SELECT TOP 1 *
 INTO #TEMPTABLE
 FROM {fullTableName} WITH(NOLOCK) {joins}
-WHERE {sqlHelper.Expr(Key1Name, "=", key)} {AndSiteIdentity}
+WHERE {sqlHelper.Expr(Key1Name, "=", key)} {andKey2} {AndSiteIdentity}
 ;
 SELECT * FROM #TEMPTABLE --- result set
 ;
@@ -146,19 +149,24 @@ DECLARE @__IDENTITY int = @@IDENTITY
         }
 
         public UpdateStatusEnum Update(KEYTYPE origKey, KEYTYPE newKey, OBJTYPE obj) {
+            return Update(origKey, default(KEYTYPE2), newKey, default(KEYTYPE2), obj);
+        }
+
+        public UpdateStatusEnum Update(KEYTYPE origKey, KEYTYPE2 origKey2, KEYTYPE newKey, KEYTYPE2 newKey2, OBJTYPE obj) {
 
             SQLHelper sqlHelper = new SQLHelper(Conn, null, Languages);
 
             string fullTableName = SQLBuilder.GetTable(Database, Dbo, Dataset);
             List<PropertyData> propData = ObjectSupport.GetPropertyData(typeof(OBJTYPE));
             string setColumns = SetColumns(sqlHelper, Dataset, IdentityName, propData, obj, typeof(OBJTYPE));
+            string andKey2 = HasKey2 ? "AND " + sqlHelper.Expr(Key2Name, "=", origKey2) : null;
 
             string subTablesUpdates = SubTablesUpdates(sqlHelper, Dataset, obj, propData, typeof(OBJTYPE));
 
             string scriptMain = $@"
 UPDATE {fullTableName} 
 SET {setColumns}
-WHERE {sqlHelper.Expr(Key1Name, "=", origKey)} {AndSiteIdentity}
+WHERE {sqlHelper.Expr(Key1Name, "=", origKey)} {andKey2} {AndSiteIdentity}
 ;
 SELECT @@ROWCOUNT --- result set
 
@@ -167,7 +175,7 @@ SELECT @@ROWCOUNT --- result set
             string scriptWithSub = $@"
 DECLARE @__IDENTITY int;
 SELECT @__IDENTITY = [{IdentityName}] FROM {fullTableName} 
-WHERE {sqlHelper.Expr(Key1Name, "=", origKey)} {AndSiteIdentity}
+WHERE {sqlHelper.Expr(Key1Name, "=", origKey)} {andKey2} {AndSiteIdentity}
 
 UPDATE {fullTableName} 
 SET {setColumns}
@@ -202,18 +210,22 @@ SELECT @@ROWCOUNT --- result set
         }
 
         public bool Remove(KEYTYPE key) {
+            return Remove(key, default(KEYTYPE2));
+        }
+        public bool Remove(KEYTYPE key, KEYTYPE2 key2) {
 
             SQLHelper sqlHelper = new SQLHelper(Conn, null, Languages);
 
             string fullTableName = SQLBuilder.GetTable(Database, Dbo, Dataset);
-            List<PropertyData> propData = ObjectSupport.GetPropertyData(typeof(OBJTYPE));
+            string andKey2 = HasKey2 ? "AND " + sqlHelper.Expr(Key2Name, "=", key2) : null;
 
+            List<PropertyData> propData = ObjectSupport.GetPropertyData(typeof(OBJTYPE));
             string subTablesDeletes = SubTablesDeletes(fullTableName, propData, typeof(OBJTYPE));
 
             string scriptMain = $@"
 DELETE
 FROM {fullTableName} 
-WHERE {sqlHelper.Expr(Key1Name, "=", key)} {AndSiteIdentity}
+WHERE {sqlHelper.Expr(Key1Name, "=", key)} {andKey2} {AndSiteIdentity}
 ;
 SELECT @@ROWCOUNT --- result set
 
@@ -222,7 +234,7 @@ SELECT @@ROWCOUNT --- result set
             string scriptWithSub = $@"
 DECLARE @ident int;
 SELECT @ident = [{IdentityName}] FROM {fullTableName} 
-WHERE {sqlHelper.Expr(Key1Name, "=", key)} {AndSiteIdentity}
+WHERE {sqlHelper.Expr(Key1Name, "=", key)} {andKey2} {AndSiteIdentity}
 
 DELETE
 FROM {fullTableName} 
@@ -241,10 +253,6 @@ SELECT @@ROWCOUNT --- result set
             if (deleted > 1)
                 throw new InternalError($"More than 1 record deleted by {nameof(Remove)} method");
             return deleted > 0;
-        }
-
-        public List<KEYTYPE> GetKeyList() {//$$$$ REMOVE
-            throw new NotImplementedException();
         }
 
         public OBJTYPE GetOneRecord(List<DataProviderFilterInfo> filters, List<JoinData> Joins = null) {
@@ -595,7 +603,7 @@ DELETE FROM {fullTableName} {AndSiteIdentity}";
         }
 
         public void ImportChunk(int chunk, SerializableList<SerializableFile> fileList, object obj) {
-            if (SiteIdentity > 0 || YetaWFManager.Manager.ImportChunksNonSiteSpecifics) { // $$$$ Should eliminate use of YetaWFManager.Manager (.ImportChunksNonSiteSpecifics)
+            if (SiteIdentity > 0 || YetaWFManager.Manager.ImportChunksNonSiteSpecifics) {
                 SerializableList<OBJTYPE> serList = (SerializableList<OBJTYPE>)obj;
                 int total = serList.Count();
                 if (total > 0) {

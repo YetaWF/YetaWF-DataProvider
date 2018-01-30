@@ -37,7 +37,7 @@ namespace YetaWF.DataProvider.SQL2 {
         public Dictionary<string, object> Options { get; private set; }
 
         public Package Package { get; private set; }
-        public string Dataset { get; private set; }
+        public string Dataset { get; protected set; }
         public string Database { get; private set; }
         public string TypeName { get; protected set; }
         public int SiteIdentity { get; private set; }
@@ -73,8 +73,8 @@ namespace YetaWF.DataProvider.SQL2 {
             if (!Options.ContainsKey("Dataset") || string.IsNullOrWhiteSpace((string)Options["Dataset"]))
                 throw new InternalError($"No Dataset for data provider {GetType().FullName}");
             Dataset = (string)Options["Dataset"];
-            if (Options.ContainsKey("CurrentSiteIdentity") && Options["CurrentSiteIdentity"] is int)
-                SiteIdentity = Convert.ToInt32(Options["CurrentSiteIdentity"]);
+            if (Options.ContainsKey("SiteIdentity") && Options["SiteIdentity"] is int)
+                SiteIdentity = Convert.ToInt32(Options["SiteIdentity"]);
             if (Options.ContainsKey("IdentitySeed") && Options["IdentitySeed"] is int)
                 IdentitySeed = Convert.ToInt32(Options["IdentitySeed"]);
             if (Options.ContainsKey("Cacheable") && Options["Cacheable"] is bool)
@@ -295,8 +295,10 @@ namespace YetaWF.DataProvider.SQL2 {
             SQLBuilder sb = new SQL2.SQLBuilder();
             if (joins != null) {
                 foreach (JoinData join in joins) {
-                    string joinTable = join.JoinDP.GetTableName();
-                    string mainTable = join.MainDP.GetTableName();
+                    ISQLTableInfo joinInfo = (ISQLTableInfo)join.JoinDP.GetDataProvider();
+                    string joinTable = joinInfo.GetTableName();
+                    ISQLTableInfo mainInfo = (ISQLTableInfo)join.MainDP.GetDataProvider();
+                    string mainTable = mainInfo.GetTableName();
                     if (join.JoinType == JoinData.JoinTypeEnum.Left)
                         sb.Add($"LEFT JOIN {joinTable}");
                     else
@@ -360,15 +362,17 @@ namespace YetaWF.DataProvider.SQL2 {
             }
             if (joins != null) {
                 foreach (JoinData join in joins) {
-                    databaseName = join.MainDP.GetDatabaseName();//$$
-                    dbOwner = join.MainDP.GetDbOwner();
-                    tableName = join.MainDP.GetTableName();
+                    ISQLTableInfo mainInfo = (ISQLTableInfo)join.MainDP.GetDataProvider();
+                    databaseName = mainInfo.GetDatabaseName();
+                    dbOwner = mainInfo.GetDbOwner();
+                    tableName = mainInfo.GetTableName();
                     tableName = tableName.Split(new char[] { '.' }).Last().Trim(new char[] { '[', ']' });
                     columns = SQLCache.GetColumns(Conn, databaseName, tableName);
                     AddVisibleColumns(visibleColumns, databaseName, dbOwner, tableName, columns);
-                    databaseName = join.JoinDP.GetDatabaseName();
-                    dbOwner = join.JoinDP.GetDbOwner();
-                    tableName = join.JoinDP.GetTableName();
+                    ISQLTableInfo joinInfo = (ISQLTableInfo)join.JoinDP.GetDataProvider();
+                    databaseName = joinInfo.GetDatabaseName();
+                    dbOwner = joinInfo.GetDbOwner();
+                    tableName = joinInfo.GetTableName();
                     tableName = tableName.Split(new char[] { '.' }).Last().Trim(new char[] { '[', ']' });
                     columns = SQLCache.GetColumns(join.JoinDP.GetDataProvider().Conn, databaseName, tableName);
                     AddVisibleColumns(visibleColumns, databaseName, dbOwner, tableName, columns);
@@ -636,10 +640,6 @@ namespace YetaWF.DataProvider.SQL2 {
             }
             return list;
         }
-
-        // ISQLInfo
-        // ISQLInfo
-        // ISQLInfo
 
         public string GetConnectionString() {
             return ConnectionString;

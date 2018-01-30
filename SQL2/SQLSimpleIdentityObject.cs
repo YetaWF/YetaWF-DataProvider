@@ -13,7 +13,7 @@ namespace YetaWF.DataProvider.SQL2 {
     public partial class SQLSimpleIdentityObject<KEYTYPE, OBJTYPE> : SQLSimpleIdentityObjectBase<KEYTYPE, object, OBJTYPE> {
         public SQLSimpleIdentityObject(Dictionary<string, object> options) : base(options) { }
     }
-    public partial class SQLSimpleIdentityObjectBase<KEYTYPE, KEYTYPE2, OBJTYPE> : SQLSimpleObjectBase<KEYTYPE, KEYTYPE2, OBJTYPE>, YetaWF.Core.DataProvider.IDataProviderIdentity<KEYTYPE, KEYTYPE2, int, OBJTYPE> {
+    public partial class SQLSimpleIdentityObjectBase<KEYTYPE, KEYTYPE2, OBJTYPE> : SQLSimpleObjectBase<KEYTYPE, KEYTYPE2, OBJTYPE>, YetaWF.Core.DataProvider.IDataProviderIdentity<KEYTYPE, KEYTYPE2, OBJTYPE> {
     
         public SQLSimpleIdentityObjectBase(Dictionary<string, object> options, bool HasKey2 = false) : base(options) {
             this.HasKey2 = HasKey2;
@@ -76,16 +76,6 @@ DROP TABLE #TEMPTABLE
             }
         }
 
-        public OBJTYPE Get(KEYTYPE key, KEYTYPE2 key2) {
-            //$$$ LIKE Get()
-            throw new NotImplementedException();
-        }
-
-        public bool Remove(KEYTYPE key, KEYTYPE2 key2) {
-            //$$$ LIKE Remove()
-            throw new NotImplementedException();
-        }
-
         public bool RemoveByIdentity(int identity) {
 
             SQLHelper sqlHelper = new SQLHelper(Conn, null, Languages);
@@ -124,11 +114,6 @@ SELECT @@ROWCOUNT --- result set
             if (deleted > 1)
                 throw new InternalError($"More than 1 record deleted by {nameof(Remove)} method");
             return deleted > 0;
-        }
-
-        public UpdateStatusEnum Update(KEYTYPE origKey, KEYTYPE2 origKey2, KEYTYPE newKey, KEYTYPE2 newKey2, OBJTYPE obj) {
-            //$$ LIKE UPDATE
-            throw new NotImplementedException();
         }
 
         public UpdateStatusEnum UpdateByIdentity(int identity, OBJTYPE obj) {

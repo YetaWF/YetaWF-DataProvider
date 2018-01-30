@@ -51,6 +51,16 @@ namespace YetaWF.DataProvider.SQL2 {
         public T CreateObject<T>(IDataReader dr) {
             return (T) CreateObject(dr, typeof(T));
         }
+        public T CreateObject<T>(IDataReader dr, string dataType, string assemblyName) {
+            Type t = null;
+            try {
+                Assembly asm = Assemblies.Load(assemblyName);
+                t = asm.GetType(dataType, true);
+            } catch (Exception exc) {
+                throw new InternalError($"Invalid Type {dataType}/{assemblyName} requested - {exc.Message}");
+            }
+            return (T)CreateObject(dr, t);
+        }
         public object CreateObject(IDataReader dr, Type tp) {
             object obj = Activator.CreateInstance(tp);
             FillObject(dr, obj);

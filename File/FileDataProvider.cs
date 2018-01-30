@@ -18,7 +18,7 @@ namespace YetaWF.DataProvider {
 
     public class FileIdentityCount {
 
-        public const int IDENTITY_SEED = 1000; //$$$ remove
+        public const int IDENTITY_SEED = 1000;
 
         public FileIdentityCount() { Count = IDENTITY_SEED; }
         public FileIdentityCount(int seed) { Count = seed; }
@@ -26,14 +26,14 @@ namespace YetaWF.DataProvider {
     }
 
     public class FileDataProviderBase {
-        public static readonly string ExternalName = "File2";//$$
+        public static readonly string ExternalName = "File";
     }
 
     public class FileDataProvider<KEYTYPE, OBJTYPE> : FileDataProviderBase, IDataProvider<KEYTYPE, OBJTYPE>, IDataProviderTransactions {
 
         public Dictionary<string, object> Options { get; private set; }
         public Package Package { get; private set; }
-        public string Dataset { get; private set; }
+        public string Dataset { get; protected set; }
         public string BaseFolder { get; private set; }
         public int SiteIdentity { get; private set; }
         public bool UseIdentity { get; set; }
@@ -53,8 +53,8 @@ namespace YetaWF.DataProvider {
             if (!Options.ContainsKey("Dataset") || !(Options["Dataset"] is string))
                 throw new InternalError($"No Dataset for data provider {GetType().FullName}");
             Dataset = (string)Options["Dataset"];
-            if (Options.ContainsKey("CurrentSiteIdentity") && Options["CurrentSiteIdentity"] is int)
-                SiteIdentity = Convert.ToInt32(Options["CurrentSiteIdentity"]);
+            if (Options.ContainsKey("SiteIdentity") && Options["SiteIdentity"] is int)
+                SiteIdentity = Convert.ToInt32(Options["SiteIdentity"]);
             if (Options.ContainsKey("IdentitySeed") && Options["IdentitySeed"] is int)
                 IdentitySeed = Convert.ToInt32(Options["IdentitySeed"]);
             if (Options.ContainsKey("Cacheable") && Options["Cacheable"] is bool)
@@ -73,17 +73,6 @@ namespace YetaWF.DataProvider {
 
         public virtual string GetBaseFolder() { throw new InternalError($"Override GetBaseFolder() in {GetType().FullName}"); }
 
-        //$$$remove
-        public FileDataProvider(string baseFolder, int dummy = 0, bool Cacheable = false, int CurrentSiteIdentity = 0, int IdentitySeed = 0, Func<string, object, object> CalculatedPropertyCallback = null) {
-            this.BaseFolder = baseFolder;
-            this.Cacheable = Cacheable;
-            UseIdentity = !string.IsNullOrWhiteSpace(IdentityName);
-            this.SiteIdentity = CurrentSiteIdentity;
-            this.IdentitySeed = IdentitySeed == 0 ? FileIdentityCount.IDENTITY_SEED : IdentitySeed;
-            this.CalculatedPropertyCallback = CalculatedPropertyCallback;
-            DisposableTracker.AddObject(this);
-        }
-
         public void Dispose() { Dispose(true); }
         protected virtual void Dispose(bool disposing) { if (disposing) DisposableTracker.RemoveObject(this); }
 
@@ -91,26 +80,13 @@ namespace YetaWF.DataProvider {
         public string IdentityName { get { return GetIdentityName(); } }
 
         public DataProviderTransaction StartTransaction() {
-            throw new NotSupportedException("StartTransaction is not supported");
+            throw new NotSupportedException($"{nameof(StartTransaction)} is not supported");
         }
         public void CommitTransaction() {
-            throw new NotSupportedException("CommitTransaction is not supported");
+            throw new NotSupportedException($"{nameof(CommitTransaction)} is not supported");
         }
         public void AbortTransaction() {
-            throw new NotSupportedException("AbortTransaction is not supported");
-        }
-
-        public string ReplaceWithTableName(string text, string searchText) {
-            throw new NotSupportedException("ReplaceWithTableName is not supported");
-        }
-        public string ReplaceWithLanguage(string text, string searchText) {
-            throw new NotSupportedException("ReplaceWithLanguage is not supported");
-        }
-        public string GetTableName() {
-            throw new NotSupportedException("GetTableName is not supported");
-        }
-        public string GetDatabaseName() {
-            throw new NotSupportedException("GetDatabaseName is not supported");
+            throw new NotSupportedException($"{nameof(AbortTransaction)} is not supported");
         }
 
         private string GetKey1Name() {
@@ -215,21 +191,6 @@ namespace YetaWF.DataProvider {
         public bool Remove(KEYTYPE key) {
             FileData<OBJTYPE> fd = GetFileDataObject(key);
             return fd.TryRemove();
-        }
-        //$$$ remove - use GetListOfKeys from IOMode dependent code
-        public List<KEYTYPE> GetKeyList() {
-            FileData fd = new FileData {
-                BaseFolder = this.BaseFolder,
-            };
-            List<string> files = fd.GetNames();
-            files = (from string f in files where !f.StartsWith(InternalFilePrefix) && f != Globals.DontDeployMarker select f).ToList<string>();
-
-            if (typeof(KEYTYPE) == typeof(string))
-                return (List<KEYTYPE>)(object)files;
-            else if (typeof(KEYTYPE) == typeof(Guid))
-                return (from string f in files select (KEYTYPE)(object)new Guid(f)).ToList<KEYTYPE>();
-            else
-                throw new InternalError("FileDataProvider only supports object keys of type string or Guid");
         }
         public static List<KEYTYPE> GetListOfKeys(string baseFolder) {
             FileData fd = new FileData {
