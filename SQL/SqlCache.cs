@@ -7,13 +7,13 @@ using YetaWF.Core.Support;
 using System.Data.SqlClient;
 using Microsoft.SqlServer.Management.Common;
 
-namespace YetaWF.DataProvider {
+namespace YetaWF.DataProvider.SQL {
 
     /// <summary>
     /// Used to cache db info (table names, column names) as these are costly operations and the table names/column names are quite static.
     /// </summary>
     /// <remarks>To minimize startup time, we collect table names and column names as they are accessed the first time (lazy loading).</remarks>
-    public static class SqlCache {
+    public static class SQLCache {
 
         private class DBEntry {
             public Dictionary<string, TableEntry> Tables { get; set; }

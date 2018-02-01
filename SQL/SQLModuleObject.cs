@@ -12,7 +12,7 @@ using YetaWF.Core.Packages;
 using YetaWF.Core.Serializers;
 using YetaWF.Core.Support;
 
-namespace YetaWF.DataProvider.SQL2 {
+namespace YetaWF.DataProvider.SQL {
 
     public partial class SQLModuleObject<KEY, OBJTYPE> : SQLSimpleObject<KEY, OBJTYPE>, IDataProvider<KEY, OBJTYPE> {
 
@@ -297,7 +297,7 @@ DROP TABLE #BASETABLE
                     SiteSpecific: SiteIdentity > 0,
                     DerivedDataTableName: "DerivedDataTableName", DerivedDataTypeName: "DerivedDataType", DerivedAssemblyName: "DerivedAssemblyName"))
                 return false;
-            return sqlCreate.CreateTable(db, Dbo, Dataset, Key1Name, null, SQL2Base.IdentityColumn, GetPropertyData(), typeof(OBJTYPE), errorList, columns,
+            return sqlCreate.CreateTable(db, Dbo, Dataset, Key1Name, null, SQLBase.IdentityColumn, GetPropertyData(), typeof(OBJTYPE), errorList, columns,
                 TopMost: true,
                 SiteSpecific: SiteIdentity > 0,
                 ForeignKeyTable: BaseDataset);
@@ -321,7 +321,7 @@ DROP TABLE #BASETABLE
                 if (db.Tables.Contains(Dataset)) {
                     // Remove all records from the table (this removes the records in BaseTableName also)
                     SQLHelper sqlHelper = new SQLHelper(Conn, null, Languages);
-                    SQLBuilder sb = new SQL2.SQLBuilder();
+                    SQLBuilder sb = new SQL.SQLBuilder();
                     sb.Add($@"
 DELETE {BaseDataset} FROM {BaseDataset}
     INNER JOIN {Dataset} ON {BaseDataset}.[{Key1Name}] = {Dataset}.[{Key1Name}]
@@ -332,7 +332,7 @@ DELETE {BaseDataset} FROM {BaseDataset}
                 }
                 if (db.Tables.Contains(BaseDataset)) {
                     SQLHelper sqlHelper = new SQLHelper(Conn, null, Languages);
-                    SQLBuilder sb = new SQL2.SQLBuilder();
+                    SQLBuilder sb = new SQL.SQLBuilder();
                     sb.Add($@"
 SELECT COUNT(*) FROM  {BaseDataset}
 ");
@@ -352,7 +352,7 @@ SELECT COUNT(*) FROM  {BaseDataset}
             if (Dataset == BaseDataset) throw new InternalError("Base dataset is not supported");
             if (SiteIdentity > 0) {
                 SQLHelper sqlHelper = new SQLHelper(Conn, null, Languages);
-                SQLBuilder sb = new SQL2.SQLBuilder();
+                SQLBuilder sb = new SQL.SQLBuilder();
                 sb.Add($@"
 DELETE FROM {Dataset} WHERE [{SiteColumn}] = {SiteIdentity}
 DELETE FROM {BaseDataset} WHERE [DerivedDataTableName] = '{Dataset}' AND [{SiteColumn}] = {SiteIdentity}

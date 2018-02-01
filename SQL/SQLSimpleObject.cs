@@ -1,71 +1,204 @@
-﻿/* Copyright © 2018 Softel vdm, Inc. - https://yetawf.com/Documentation/YetaWF/Licensing */
-
-using Microsoft.SqlServer.Management.Smo;
+﻿using Microsoft.SqlServer.Management.Smo;
 using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.Data.SqlClient;
+using System.Drawing;
 using System.Linq;
 using System.Reflection;
 using YetaWF.Core.DataProvider;
+using YetaWF.Core.DataProvider.Attributes;
 using YetaWF.Core.Models;
 using YetaWF.Core.Packages;
 using YetaWF.Core.Serializers;
 using YetaWF.Core.Support;
 
-// This SQL data provider doesn't offer specific methods for access by identity in order to make it compatible with the File data provider
-// For full identity support use SQLIdentityObject instead
+namespace YetaWF.DataProvider.SQL {
 
-namespace YetaWF.DataProvider {
-    public partial class SQLSimpleObjectDataProvider<KEYTYPE, OBJTYPE> : SQLDataProviderImpl, IDataProvider<KEYTYPE, OBJTYPE>
-    {
-        private const int ChunkSize = 100;
-
-        public SQLSimpleObjectDataProvider(string table, string dbOwner, string connString, int dummy = 0,
-                int CurrentSiteIdentity = 0,
-                bool NoLanguages = false,
-                bool Cacheable = false,
-                bool Logging = true,
-                int IdentitySeed = 0,
-                Func<string, string> CalculatedPropertyCallback = null)
-            : base(dbOwner, connString, table, Logging, NoLanguages, Cacheable, CurrentSiteIdentity, IdentitySeed, CalculatedPropertyCallback) {
-            this.UseIdentity = !string.IsNullOrWhiteSpace(IdentityName);
+    public partial class SQLSimpleObject<KEYTYPE, OBJTYPE> : SQLSimpleObjectBase<KEYTYPE, object, OBJTYPE> {
+        public SQLSimpleObject(Dictionary<string, object> options) : base(options) { }
+    }
+    public partial class SQLSimpleObjectBase<KEYTYPE, KEYTYPE2, OBJTYPE> : SQLBase, IDataProvider<KEYTYPE, OBJTYPE>, ISQLTableInfo {
+    
+        public SQLSimpleObjectBase(Dictionary<string, object> options, bool HasKey2 = false) : base(options) {
+            this.HasKey2 = HasKey2;
         }
 
-        public string Key1Name { get { return GetKey1Name(TableName, ObjectSupport.GetPropertyData(typeof(OBJTYPE))); } }
-        public string IdentityName { get { return GetIdentityName(TableName, ObjectSupport.GetPropertyData(typeof(OBJTYPE))); } }
+        public bool HasKey2 { get; protected set; }
+        public string Key1Name { get { return GetKey1Name(Dataset, GetPropertyData()); } }
+        public string Key2Name { get { return GetKey2Name(Dataset, GetPropertyData()); } }
+        public string IdentityName { get { return GetIdentityName(Dataset, GetPropertyData()); } }
 
-        public OBJTYPE Get(KEYTYPE key, bool SpecificType = false) {
-            if (SpecificType) throw new InternalError("SpecificType not supported");
-            BigfootSQL.SqlHelper DB = new BigfootSQL.SqlHelper(Conn, Languages);
+        protected const int ChunkSize = 100;
 
-            DB.SELECT("TOP 1 *");
-            AddCalculatedProperties(DB, typeof(OBJTYPE));
-            DB.FROM(TableName);
-            DB.Add("WITH(NOLOCK)");
-            MakeJoins(DB, null);
-            DB.WHERE(Key1Name, key);
-            if (CurrentSiteIdentity > 0)
-                DB.AND(SiteColumn, CurrentSiteIdentity);
-
-            OBJTYPE obj = DB.ExecuteObject<OBJTYPE>();
-            if (obj != null)
-                ReadSubTables(DB, TableName, IdentityName, ObjectSupport.GetPropertyData(typeof(OBJTYPE)), obj, typeof(OBJTYPE));
-            return obj;
+        protected List<PropertyData> GetPropertyData() {
+            if (_propertyData == null)
+                _propertyData = ObjectSupport.GetPropertyData(typeof(OBJTYPE));
+            return _propertyData;
         }
-        public UpdateStatusEnum Update(KEYTYPE origKey, KEYTYPE newKey, OBJTYPE obj) {
-            BigfootSQL.SqlHelper DB = new BigfootSQL.SqlHelper(Conn, Languages);
-            DB.UPDATE(TableName);
-            AddSetColumns(DB, TableName, IdentityName, ObjectSupport.GetPropertyData(typeof(OBJTYPE)), obj, typeof(OBJTYPE));
-            DB.WHERE(Key1Name, origKey);
-            if (CurrentSiteIdentity > 0)
-                DB.AND(SiteColumn, CurrentSiteIdentity);
-            DB.SELECT("@@ROWCOUNT");
+        List<PropertyData> _propertyData;
+
+        public OBJTYPE Get(KEYTYPE key) {
+            return Get(key, default(KEYTYPE2));
+        }
+        public OBJTYPE Get(KEYTYPE key, KEYTYPE2 key2) {
+
+            SQLHelper sqlHelper = new SQLHelper(Conn, null, Languages);
+
+            string joins = null;// RFFU
+            string fullTableName = SQLBuilder.GetTable(Database, Dbo, Dataset);
+            string calcProps = CalculatedProperties(typeof(OBJTYPE));
+            string andKey2 = HasKey2 ? "AND " + sqlHelper.Expr(Key2Name, "=", key2) : null;
+
+            List <PropertyData> propData = GetPropertyData();
+            string subTablesSelects = SubTablesSelects(Dataset, propData, typeof(OBJTYPE));
+
+            string scriptMain = $@"
+SELECT TOP 1 * -- result set
+    {calcProps} 
+FROM {fullTableName} WITH(NOLOCK) {joins}
+WHERE {sqlHelper.Expr(Key1Name, "=", key)} {andKey2} {AndSiteIdentity}
+
+{sqlHelper.DebugInfo}";
+
+            string scriptWithSub = $@"
+SELECT TOP 1 *
+INTO #TEMPTABLE
+FROM {fullTableName} WITH(NOLOCK) {joins}
+WHERE {sqlHelper.Expr(Key1Name, "=", key)} {andKey2} {AndSiteIdentity}
+;
+SELECT * FROM #TEMPTABLE --- result set
+;
+DECLARE @MyCursor CURSOR;
+DECLARE @ident int;
+
+SET @MyCursor = CURSOR FOR
+SELECT [{IdentityName}] FROM #TEMPTABLE
+
+OPEN @MyCursor
+FETCH NEXT FROM @MyCursor
+INTO @ident
+ 
+{subTablesSelects}
+
+CLOSE @MyCursor ;
+DEALLOCATE @MyCursor;
+DROP TABLE #TEMPTABLE
+
+{sqlHelper.DebugInfo}";
+
+            string script = (string.IsNullOrWhiteSpace(subTablesSelects)) ? scriptMain : scriptWithSub;
+
+            using (SqlDataReader reader = sqlHelper.ExecuteReader(script)) {
+                if (!reader.Read()) return default(OBJTYPE);
+                OBJTYPE obj = sqlHelper.CreateObject<OBJTYPE>(reader);
+                if (!string.IsNullOrWhiteSpace(subTablesSelects)) {
+                    ReadSubTables(sqlHelper, reader, Dataset, IdentityName, obj, propData, typeof(OBJTYPE));
+                }
+                return obj;
+            }
+        }
+
+        public bool Add(OBJTYPE obj) {
+
+            SQLHelper sqlHelper = new SQLHelper(Conn, null, Languages);
+
+            string fullTableName = SQLBuilder.GetTable(Database, Dbo, Dataset);
+            List<PropertyData> propData = GetPropertyData();
+            string columns = GetColumnList(propData, obj.GetType(), "", true, SiteSpecific: SiteIdentity > 0);
+            string values = GetValueList(sqlHelper, Dataset, obj, propData, typeof(OBJTYPE), SiteSpecific: SiteIdentity > 0);
+
+            string subTablesInserts = SubTablesInserts(sqlHelper, Dataset, obj, propData, typeof(OBJTYPE));
+
+            string scriptMain = $@"
+INSERT INTO {fullTableName} ({columns})
+VALUES ({values})
+;
+SELECT @@IDENTITY -- result set
+
+{sqlHelper.DebugInfo}";
+
+            string scriptWithSub = $@"
+INSERT INTO {fullTableName} ({columns})
+VALUES ({values})
+;
+SELECT @@IDENTITY -- result set
+;
+DECLARE @__IDENTITY int = @@IDENTITY
+;
+{subTablesInserts}
+
+{sqlHelper.DebugInfo}";
+
+            string script = (string.IsNullOrWhiteSpace(subTablesInserts)) ? scriptMain : scriptWithSub;
+
+            int identity = 0;
             try {
-                int changed = DB.ExecuteScalarInt();
+                object val = sqlHelper.ExecuteScalar(script);
+                identity = Convert.ToInt32(val);
+            } catch (Exception exc) {
+                SqlException sqlExc = exc as SqlException;
+                if (sqlExc != null && sqlExc.Number == 2627) // already exists
+                    return false;
+                throw new InternalError("Add failed for type {0} - {1}", typeof(OBJTYPE).FullName, exc.Message);
+            }
+
+            if (HasIdentity(IdentityName)) {
+                PropertyInfo piIdent = ObjectSupport.GetProperty(typeof(OBJTYPE), IdentityName);
+                if (piIdent.PropertyType != typeof(int)) throw new InternalError($"Object identities must be of type int in {typeof(OBJTYPE).FullName}");
+                piIdent.SetValue(obj, identity);
+            }
+            return true;
+        }
+
+        public UpdateStatusEnum Update(KEYTYPE origKey, KEYTYPE newKey, OBJTYPE obj) {
+            return Update(origKey, default(KEYTYPE2), newKey, default(KEYTYPE2), obj);
+        }
+
+        public UpdateStatusEnum Update(KEYTYPE origKey, KEYTYPE2 origKey2, KEYTYPE newKey, KEYTYPE2 newKey2, OBJTYPE obj) {
+
+            SQLHelper sqlHelper = new SQLHelper(Conn, null, Languages);
+
+            string fullTableName = SQLBuilder.GetTable(Database, Dbo, Dataset);
+            List<PropertyData> propData = GetPropertyData();
+            string setColumns = SetColumns(sqlHelper, Dataset, IdentityName, propData, obj, typeof(OBJTYPE));
+            string andKey2 = HasKey2 ? "AND " + sqlHelper.Expr(Key2Name, "=", origKey2) : null;
+
+            string subTablesUpdates = SubTablesUpdates(sqlHelper, Dataset, obj, propData, typeof(OBJTYPE));
+
+            string scriptMain = $@"
+UPDATE {fullTableName} 
+SET {setColumns}
+WHERE {sqlHelper.Expr(Key1Name, "=", origKey)} {andKey2} {AndSiteIdentity}
+;
+SELECT @@ROWCOUNT --- result set
+
+{sqlHelper.DebugInfo}";
+
+            string scriptWithSub = $@"
+DECLARE @__IDENTITY int;
+SELECT @__IDENTITY = [{IdentityName}] FROM {fullTableName} 
+WHERE {sqlHelper.Expr(Key1Name, "=", origKey)} {andKey2} {AndSiteIdentity}
+
+UPDATE {fullTableName} 
+SET {setColumns}
+WHERE [{IdentityName}] = @__IDENTITY
+;
+SELECT @@ROWCOUNT --- result set
+
+{subTablesUpdates}
+
+{sqlHelper.DebugInfo}";
+
+            string script = (string.IsNullOrWhiteSpace(subTablesUpdates)) ? scriptMain : scriptWithSub;
+
+            try {
+                object val = sqlHelper.ExecuteScalar(script);
+                int changed = Convert.ToInt32(val);
                 if (changed == 0)
                     return UpdateStatusEnum.RecordDeleted;
                 if (changed > 1)
-                    throw new InternalError("Update failed - {0} records updated", changed);
+                    throw new InternalError($"Update failed - {changed} records updated");
             } catch (Exception exc) {
                 if (!newKey.Equals(origKey)) {
                     SqlException sqlExc = exc as SqlException;
@@ -74,231 +207,426 @@ namespace YetaWF.DataProvider {
                         return UpdateStatusEnum.NewKeyExists;
                     }
                 }
-                throw new InternalError("Update failed for type {0} - {1}", typeof(OBJTYPE).FullName, exc.Message);
+                throw new InternalError($"Update failed for type {typeof(OBJTYPE).FullName} - {exc.Message}");
             }
             return UpdateStatusEnum.OK;
         }
-        public bool Add(OBJTYPE obj) {
-            subDBs = new List<BigfootSQL.SqlHelper>();
-            BigfootSQL.SqlHelper DB = new BigfootSQL.SqlHelper(Conn, Languages);
-            DB.INSERTINTO(TableName, GetColumnList(DB, ObjectSupport.GetPropertyData(typeof(OBJTYPE)), obj.GetType(), "", true, SiteSpecific: CurrentSiteIdentity > 0))
-                    .VALUES(GetValueList(DB, TableName, ObjectSupport.GetPropertyData(typeof(OBJTYPE)), obj, typeof(OBJTYPE), SiteSpecific: CurrentSiteIdentity > 0));
-            int identity = 0;
-            try {
-                if (UseIdentity)
-                    identity = DB.ExecuteScalarIdentity();
-                else
-                    DB.ExecuteNonquery();
-            } catch (Exception exc) {
-                SqlException sqlExc = exc as SqlException;
-                if (sqlExc != null && sqlExc.Number == 2627) // already exists
-                    return false;
-                throw new InternalError("Add failed for type {0} - {1}", typeof(OBJTYPE).FullName, exc.Message);
-            }
 
-            if (subDBs.Count > 0) {
-                if (!UseIdentity)
-                    throw new InternalError("A subtable was encountered but the main table {0} doesn't use an identity", TableName);
-                foreach (BigfootSQL.SqlHelper db in subDBs) {
-                    db.AddParam("__Identity", identity);
-                    db.ExecuteNonquery();
-                }
-            }
-
-            if (UseIdentity) {
-                PropertyInfo piIdent = ObjectSupport.GetProperty(typeof(OBJTYPE), IdentityName);
-                if (piIdent.PropertyType != typeof(int)) throw new InternalError("SQLSimpleObject only supports object identities of type int");
-                piIdent.SetValue(obj, identity);
-            }
-            return true;
-        }
         public bool Remove(KEYTYPE key) {
-            BigfootSQL.SqlHelper DB = new BigfootSQL.SqlHelper(Conn, Languages);
-            DB.DELETEFROM(TableName);
-            DB.WHERE(Key1Name, key);
-            if (CurrentSiteIdentity > 0)
-                DB.AND(SiteColumn, CurrentSiteIdentity);
-            DB.SELECT("@@ROWCOUNT");
-            int deleted = DB.ExecuteScalarInt();
-            if (deleted > 1) throw new InternalError("More than 1 record deleted by Remove() method");
+            return Remove(key, default(KEYTYPE2));
+        }
+        public bool Remove(KEYTYPE key, KEYTYPE2 key2) {
+
+            SQLHelper sqlHelper = new SQLHelper(Conn, null, Languages);
+
+            string fullTableName = SQLBuilder.GetTable(Database, Dbo, Dataset);
+            string andKey2 = HasKey2 ? "AND " + sqlHelper.Expr(Key2Name, "=", key2) : null;
+
+            List<PropertyData> propData = GetPropertyData();
+            string subTablesDeletes = SubTablesDeletes(fullTableName, propData, typeof(OBJTYPE));
+
+            string scriptMain = $@"
+DELETE
+FROM {fullTableName} 
+WHERE {sqlHelper.Expr(Key1Name, "=", key)} {andKey2} {AndSiteIdentity}
+;
+SELECT @@ROWCOUNT --- result set
+
+{sqlHelper.DebugInfo}";
+
+            string scriptWithSub = $@"
+DECLARE @ident int;
+SELECT @ident = [{IdentityName}] FROM {fullTableName} 
+WHERE {sqlHelper.Expr(Key1Name, "=", key)} {andKey2} {AndSiteIdentity}
+
+DELETE
+FROM {fullTableName} 
+WHERE [{IdentityName}] = @ident
+;
+SELECT @@ROWCOUNT --- result set
+
+{subTablesDeletes}
+
+{sqlHelper.DebugInfo}";
+
+            string script = (string.IsNullOrWhiteSpace(subTablesDeletes)) ? scriptMain : scriptWithSub;
+
+            object val = sqlHelper.ExecuteScalar(script);
+            int deleted = Convert.ToInt32(val);
+            if (deleted > 1)
+                throw new InternalError($"More than 1 record deleted by {nameof(Remove)} method");
             return deleted > 0;
         }
-        public int RemoveRecords(List<DataProviderFilterInfo> filters) {
-            filters = NormalizeFilter(typeof(OBJTYPE), filters);
-            BigfootSQL.SqlHelper DB = new BigfootSQL.SqlHelper(Conn, Languages);
-            DB.DELETEFROM(TableName);
-            MakeFilter(DB, filters);
-            DB.SELECT("@@ROWCOUNT");
-            int deleted = DB.ExecuteScalarInt();
-            return deleted;
-        }
 
-        public List<OBJTYPE> GetRecords(int skip, int take, List<DataProviderSortInfo> sort, List<DataProviderFilterInfo> filters, out int total, List<JoinData> Joins = null, bool SpecificType = false) {
-            if (SpecificType) throw new InternalError("SpecificType not supported");
-            filters = NormalizeFilter(typeof(OBJTYPE), filters);
-            sort = NormalizeSort(typeof(OBJTYPE), sort);
-            BigfootSQL.SqlHelper DB = new BigfootSQL.SqlHelper(Conn, Languages);
-            List<OBJTYPE> serList = GetMainTableRecords(DB, skip, take, sort, filters, out total, Joins: Joins);
-            return serList;
-        }
         public OBJTYPE GetOneRecord(List<DataProviderFilterInfo> filters, List<JoinData> Joins = null) {
             filters = NormalizeFilter(typeof(OBJTYPE), filters);
-            BigfootSQL.SqlHelper DB = new BigfootSQL.SqlHelper(Conn, Languages);
             int total;
-            OBJTYPE obj = GetMainTableRecords(DB, 0, 1, null, filters, out total, Joins: Joins).FirstOrDefault();
+            OBJTYPE obj = GetMainTableRecords(0, 1, null, filters, out total, Joins: Joins).FirstOrDefault();
             return obj;
         }
 
-        // DIRECT QUERY
-        // DIRECT QUERY
-        // DIRECT QUERY
-
-        public List<OBJTYPE> Direct_QueryList(string sql) {
-            return base.Direct_QueryList<OBJTYPE>(TableName, sql);
+        public List<OBJTYPE> GetRecords(int skip, int take, List<DataProviderSortInfo> sorts, List<DataProviderFilterInfo> filters, out int total, List<JoinData> Joins = null) {
+            filters = NormalizeFilter(typeof(OBJTYPE), filters);
+            sorts = NormalizeSort(typeof(OBJTYPE), sorts);
+            return GetMainTableRecords(skip, take, sorts, filters, out total, Joins: Joins);
         }
 
-        public int Direct_ScalarInt(string sql) {
-            return base.Direct_ScalarInt(TableName, sql);
-        }
-        public void Direct_Query(string sql) {
-             base.Direct_Query(TableName, sql);
-        }
-        public int Direct_QueryRetVal(string sql) {
-            return base.Direct_QueryRetVal(TableName, sql);
+        public int RemoveRecords(List<DataProviderFilterInfo> filters) {
+            filters = NormalizeFilter(typeof(OBJTYPE), filters);
+
+            SQLHelper sqlHelper = new SQLHelper(Conn, null, Languages);
+
+            string fullTableName = SQLBuilder.GetTable(Database, Dbo, Dataset);
+            List<PropertyData> propData = GetPropertyData();
+            string filter = MakeFilter(sqlHelper, filters);
+
+            string subTablesDeletes = SubTablesDeletes(Dataset, propData, typeof(OBJTYPE));
+
+            string scriptMain = $@"
+DELETE
+FROM {fullTableName} 
+{filter} 
+
+{sqlHelper.DebugInfo}";
+
+            string scriptWithSub = $@"
+SELECT [{IdentityName}]
+INTO #TEMPTABLE
+FROM {fullTableName} WITH(NOLOCK) 
+{filter} 
+;
+DELETE
+FROM {fullTableName} WITH(NOLOCK) 
+{filter} 
+;
+SELECT @@ROWCOUNT --- result set
+;
+SELECT * FROM #TEMPTABLE --- result set
+;
+DECLARE @MyCursor CURSOR;
+DECLARE @ident int;
+
+SET @MyCursor = CURSOR FOR
+SELECT [{IdentityName}] FROM #TEMPTABLE
+
+OPEN @MyCursor
+FETCH NEXT FROM @MyCursor
+INTO @ident
+ 
+WHILE @@FETCH_STATUS = 0
+BEGIN
+	{subTablesDeletes}
+    FETCH NEXT FROM @MyCursor INTO @ident
+END; 
+
+CLOSE @MyCursor ;
+DEALLOCATE @MyCursor;
+DROP TABLE #TEMPTABLE
+
+{sqlHelper.DebugInfo}";
+
+            string script = (string.IsNullOrWhiteSpace(subTablesDeletes)) ? scriptMain : scriptWithSub;
+
+            object val = sqlHelper.ExecuteScalar(script);
+            int deleted = Convert.ToInt32(val);
+            return deleted;
         }
 
-        private List<OBJTYPE> GetMainTableRecords(BigfootSQL.SqlHelper DB, int skip, int take, List<DataProviderSortInfo> sort, List<DataProviderFilterInfo> filters, out int total,
-                 List<JoinData> Joins = null) {
+        protected List<OBJTYPE> GetMainTableRecords(int skip, int take, List<DataProviderSortInfo> sorts, List<DataProviderFilterInfo> filters, out int total, List<JoinData> Joins = null) {
+
+            SQLHelper sqlHelper = new SQLHelper(Conn, null, Languages);
 
             total = 0;
             // get total # of records (only if a subset is requested)
-            Dictionary<string, string> visibleColumns = null;
+            string fullTableName = SQLBuilder.GetTable(Database, Dbo, Dataset);
+            List<PropertyData> propData = GetPropertyData();
+            Dictionary<string, string> visibleColumns = GetVisibleColumns(Database, Dbo, Dataset, typeof(OBJTYPE), Joins);
+            string columnList = MakeColumnList(sqlHelper, visibleColumns, Joins);
+            string joins = MakeJoins(sqlHelper, Joins);
+            string filter = MakeFilter(sqlHelper, filters, visibleColumns);
+            string calcProps = CalculatedProperties(typeof(OBJTYPE));
+            string selectCount = null;
             if (skip != 0 || take != 0) {
-                visibleColumns = GetVisibleColumns(DatabaseName, DbOwner, TableName, typeof(OBJTYPE), Joins);
                 total = 0;
-                DB.Clear();
-                DB.SELECT("COUNT(*)").FROM(TableName);
-                DB.Add("WITH(NOLOCK)");
-                MakeJoins(DB, Joins);
-                MakeFilter(DB, filters, visibleColumns);
-                total = DB.ExecuteScalarInt();
+                SQLBuilder sb = new SQL.SQLBuilder();
+                sb.Add($"SELECT COUNT(*) FROM {fullTableName} WITH(NOLOCK) {joins} {filter} ");
+                selectCount = sb.ToString();
             }
 
-            if (visibleColumns == null)
-                visibleColumns = GetVisibleColumns(DatabaseName, DbOwner, TableName, typeof(OBJTYPE), Joins);
-            DB.Clear();
-            DB.SELECT("*");
-            AddCalculatedProperties(DB, typeof(OBJTYPE));
+            string orderBy = null;
+            {
+                SQLBuilder sb = new SQL.SQLBuilder();
+                if (sorts == null || sorts.Count == 0)
+                    sorts = new List<DataProviderSortInfo> { new DataProviderSortInfo { Field = Key1Name, Order = DataProviderSortInfo.SortDirection.Ascending } };
+                sb.AddOrderBy(visibleColumns, sorts, skip, take);
+                orderBy = sb.ToString();
+            }
 
-            DB.FROM(TableName);
-            DB.Add("WITH(NOLOCK)");
-            MakeJoins(DB, Joins);
-            MakeFilter(DB, filters, visibleColumns);
+            string subTablesSelects = SubTablesSelects(Dataset, propData, typeof(OBJTYPE));
 
-            if (sort == null || sort.Count() == 0)
-                sort = new List<DataProviderSortInfo> { new DataProviderSortInfo { Field = Key1Name, Order = DataProviderSortInfo.SortDirection.Ascending } };
-            DB.ORDERBY(visibleColumns, sort, Offset: skip, Next: take);// we can sort by all fields, including joined tables
-            List<OBJTYPE> list = DB.ExecuteCollection<OBJTYPE>();
-            if (skip == 0 && take == 0)
-                total = list.Count();
-            ReadSubTableRecords(DB, list);
+            string scriptMain = $@"
+{selectCount} --- result set
+SELECT {columnList} --- result set
+    {calcProps} 
+FROM {fullTableName} WITH(NOLOCK) 
+{joins} 
+{filter} 
+{orderBy}
+
+{sqlHelper.DebugInfo}";
+
+
+            string scriptWithSub = $@"
+{selectCount} --- result set
+SELECT {columnList}
+INTO #TEMPTABLE
+FROM {fullTableName} WITH(NOLOCK) 
+{joins} 
+{filter} 
+{orderBy}
+;
+SELECT * FROM #TEMPTABLE --- result set
+;
+DECLARE @MyCursor CURSOR;
+DECLARE @ident int;
+
+SET @MyCursor = CURSOR FOR
+SELECT [{IdentityName}] FROM #TEMPTABLE
+
+OPEN @MyCursor
+FETCH NEXT FROM @MyCursor
+INTO @ident
+ 
+WHILE @@FETCH_STATUS = 0
+BEGIN
+	{subTablesSelects}
+END; 
+
+CLOSE @MyCursor ;
+DEALLOCATE @MyCursor;
+DROP TABLE #TEMPTABLE
+
+{sqlHelper.DebugInfo}";
+
+            string script = (string.IsNullOrWhiteSpace(subTablesSelects)) ? scriptMain : scriptWithSub;
+
+            List<OBJTYPE> list = new List<OBJTYPE>();
+            using (SqlDataReader reader = sqlHelper.ExecuteReader(script)) {
+                if (skip != 0 || take != 0) {
+                    if (!reader.Read()) throw new InternalError("Expected # of records");
+                    total = reader.GetInt32(0);
+                    if (!reader.NextResult()) throw new InternalError("Expected next result set (main table)");
+                }
+                while (reader.Read())
+                    list.Add(sqlHelper.CreateObject<OBJTYPE>(reader));
+                if (!string.IsNullOrWhiteSpace(subTablesSelects)) {
+                    foreach (var obj in list) {
+                        ReadSubTables(sqlHelper, reader, Dataset, IdentityName, obj, propData, typeof(OBJTYPE));
+                    }
+                }
+                if (skip == 0 && take == 0)
+                    total = list.Count;
+                return list;
+            }
+        }
+
+        public class SubTableInfo {
+            public string Name { get; set; }
+            public Type Type { get; set; }
+            public PropertyInfo PropInfo { get; set; } // the container's property that hold this subtable
+        }
+
+        // TODO: Could add caching
+        protected List<SubTableInfo> GetSubTables(string tableName, List<PropertyData> propData) {
+            List<SubTableInfo> list = new List<SubTableInfo>();
+            foreach (PropertyData prop in propData) {
+                PropertyInfo pi = prop.PropInfo;
+                if (pi.CanRead && pi.CanWrite && !prop.HasAttribute("DontSave") && !prop.CalculatedProperty && !prop.HasAttribute(Data_DontSave.AttributeName)) {
+                    if (prop.HasAttribute(Data_Identity.AttributeName)) {
+                        ; // nothing
+                    } else if (prop.HasAttribute(Data_BinaryAttribute.AttributeName)) {
+                        ; // nothing
+                    } else if (pi.PropertyType == typeof(MultiString)) {
+                        ; // nothing
+                    } else if (pi.PropertyType == typeof(Image)) {
+                        ; // nothing
+                    } else if (pi.PropertyType == typeof(TimeSpan)) {
+                        ; // nothing
+                    } else if (TryGetDataType(pi.PropertyType)) {
+                        ; // nothing
+                    } else if (pi.PropertyType.IsClass && typeof(IEnumerable).IsAssignableFrom(pi.PropertyType)) {
+                        // enumerated type -> subtable
+                        Type subType = pi.PropertyType.GetInterfaces().Where(t => t.IsGenericType == true && t.GetGenericTypeDefinition() == typeof(IEnumerable<>))
+                                .Select(t => t.GetGenericArguments()[0]).FirstOrDefault();
+                        string subTableName = SQLBuilder.BuildFullTableName(tableName + "_" + pi.Name);
+                        list.Add(new SubTableInfo {
+                            Name = subTableName,
+                            Type = subType,
+                            PropInfo = pi,
+                        });
+                    }
+                }
+            }
             return list;
         }
 
-        private void ReadSubTableRecords(BigfootSQL.SqlHelper DB, List<OBJTYPE> list) {
-            foreach (var obj in list) {
-                DB.Clear();
-                ReadSubTables(DB, TableName, IdentityName, ObjectSupport.GetPropertyData(typeof(OBJTYPE)), obj, typeof(OBJTYPE));
+        protected string SubTablesSelects(string tableName, List<PropertyData> propData, Type tpContainer) {
+            SQLBuilder sb = new SQL.SQLBuilder();
+            List<SubTableInfo> subTables = GetSubTables(tableName, propData);
+            if (subTables.Count > 0) {
+                foreach (SubTableInfo subTable in subTables) {
+                    sb.Add($@"
+    SELECT * FROM {SQLBuilder.BuildFullTableName(Database, Dbo, subTable.Name)} WHERE {SQLBuilder.BuildFullColumnName(subTable.Name, SubTableKeyColumn)} = @ident ; --- result set
+");
+                }
+                sb.Add(@"
+    FETCH NEXT FROM @MyCursor INTO @ident
+    ;
+");
+            }
+            return sb.ToString();
+        }
+
+        protected void ReadSubTables(SQLHelper sqlHelper, SqlDataReader reader, string tableName, string identityName, OBJTYPE container, List<PropertyData> propData, Type tpContainer) {
+            List<SubTableInfo> subTables = GetSubTables(tableName, propData);
+            foreach (SubTableInfo subTable in subTables) {
+                object subContainer = subTable.PropInfo.GetValue(container);
+                if (subContainer == null) throw new InternalError($"{nameof(ReadSubTables)} encountered a enumeration property that is null");
+
+                // find the Add method for the collection so we can add each item as its read
+                MethodInfo addMethod = subTable.PropInfo.PropertyType.GetMethod("Add", new Type[] { subTable.Type });
+                if (addMethod == null) throw new InternalError($"{nameof(ReadSubTables)} encountered a enumeration property that doesn't have an Add method");
+
+                if (!reader.NextResult()) throw new InternalError("Expected next result set (subtable)");
+                while (reader.Read()) {
+                    object obj = sqlHelper.CreateObject(reader, subTable.Type);
+                    addMethod.Invoke(subContainer, new object[] { obj });
+                }
             }
         }
 
+        protected string SubTablesInserts(SQLHelper sqlHelper, string tableName, object container, List<PropertyData> propData, Type tpContainer) {
+            SQLBuilder sb = new SQL.SQLBuilder();
+            List<SubTableInfo> subTables = GetSubTables(tableName, propData);
+            foreach (SubTableInfo subTable in subTables) {
+                List<PropertyData> subPropData = ObjectSupport.GetPropertyData(subTable.Type);
+                IEnumerable ienum = (IEnumerable)subTable.PropInfo.GetValue(container);
+                foreach (var obj in ienum) {
+                    string columns = GetColumnList(subPropData, subTable.Type, "", false, SubTable: true);
+                    string values = GetValueList(sqlHelper, Dataset, obj, subPropData, subTable.Type, "", false, SubTable: true);
+                    sb.Add($@"
+    INSERT INTO {subTable.Name} ({columns})
+    VALUES ({values}) ;
+");
+                }
+            }
+            return sb.ToString();
+        }
+        protected string SubTablesUpdates(SQLHelper sqlHelper, string tableName, object container, List<PropertyData> propData, Type tpContainer) {
+            SQLBuilder sb = new SQL.SQLBuilder();
+            List<SubTableInfo> subTables = GetSubTables(tableName, propData);
+            foreach (SubTableInfo subTable in subTables) {
+                sb.Add($@"
+    DELETE FROM {subTable.Name} WHERE {SQLBase.SubTableKeyColumn} = @__IDENTITY ;
+");
+                List<PropertyData> subPropData = ObjectSupport.GetPropertyData(subTable.Type);
+                IEnumerable ienum = (IEnumerable)subTable.PropInfo.GetValue(container);
+                foreach (var obj in ienum) {
+                    string columns = GetColumnList(subPropData, subTable.Type, "", false, SubTable: true);
+                    string values = GetValueList(sqlHelper, Dataset, obj, subPropData, subTable.Type, "", false, SubTable: true);
+                    sb.Add($@"
+    INSERT INTO {subTable.Name} 
+        ({columns})
+        VALUES ({values}) ;
+");
+                }
+            }
+            return sb.ToString();
+        }
+
+        protected string SubTablesDeletes(string tableName, List<PropertyData> propData, Type tpContainer) {
+            SQLBuilder sb = new SQL.SQLBuilder();
+            List<SubTableInfo> subTables = GetSubTables(tableName, propData);
+            foreach (SubTableInfo subTable in subTables) {
+                sb.Add($@"
+    DELETE FROM {SQLBuilder.BuildFullTableName(Database, Dbo, subTable.Name)} WHERE {SQLBuilder.BuildFullColumnName(subTable.Name, SubTableKeyColumn)} = @ident ;
+");
+            }
+            return sb.ToString();
+        }
+
+        // IINSTALLMODEL
+        // IINSTALLMODEL
+        // IINSTALLMODEL
+
         public bool IsInstalled() {
-            return SqlCache.HasTable(Conn, DatabaseName, TableName);
+            return SQLCache.HasTable(Conn, Database, Dataset);
         }
 
         public bool InstallModel(List<string> errorList) {
             bool success = false;
             Database db = GetDatabase();
             List<string> columns = new List<string>();
-            success = CreateTable(db, TableName, Key1Name, null, IdentityName, ObjectSupport.GetPropertyData(typeof(OBJTYPE)), typeof(OBJTYPE), errorList, columns,
-                SiteSpecific: CurrentSiteIdentity > 0,
-                TopMost: true, UseIdentity: UseIdentity);
-            SqlCache.ClearCache();
+            SQLCreate sqlCreate = new SQLCreate(Languages, IdentitySeed, Logging);
+            success = sqlCreate.CreateTable(db, Dbo, Dataset, Key1Name, HasKey2 ? Key2Name : null, IdentityName, GetPropertyData(), typeof(OBJTYPE), errorList, columns,
+                SiteSpecific: SiteIdentity > 0,
+                TopMost: true);
+            SQLCache.ClearCache();
             return success;
         }
+
         public bool UninstallModel(List<string> errorList) {
             try {
                 Database db = GetDatabase();
-                DropSubTables(db, TableName, errorList);
-                DropTable(db, TableName, errorList);
+                SQLCreate sqlCreate = new SQLCreate(Languages, IdentitySeed, Logging);
+                //$$$ DropSubTables is questionable because we have models that use the package name and other models use packagename_xxxx
+                sqlCreate.DropSubTables(db, Dbo, Dataset, errorList);
+                sqlCreate.DropTable(db, Dbo, Dataset, errorList);
                 return true;
             } catch (Exception exc) {
                 errorList.Add(string.Format("{0}: {1}", typeof(OBJTYPE).FullName, exc.Message));
                 return false;
             } finally {
-                SqlCache.ClearCache();
+                SQLCache.ClearCache();
             }
         }
+
         public void AddSiteData() { }
         public void RemoveSiteData() { // remove site-specific data
-            if (CurrentSiteIdentity > 0) {
-                BigfootSQL.SqlHelper DB = new BigfootSQL.SqlHelper(Conn, Languages);
-                DB.DELETEFROM(TableName).WHERE(SiteColumn, CurrentSiteIdentity).ExecuteScalar();
+            if (SiteIdentity > 0) {
+                string fullTableName = SQLBuilder.GetTable(Database, Dbo, Dataset);
+                SQLHelper sqlHelper = new SQLHelper(Conn, null, Languages);
+                string script = $@"
+DELETE FROM {fullTableName} {AndSiteIdentity}";
+//$$$ delete subtable data
+                sqlHelper.ExecuteScalar(script);
             }
         }
-        public bool ExportChunk(int chunk, SerializableList<SerializableFile> fileList, out object obj, bool SpecificType = false) {
-            if (SpecificType) throw new InternalError("SpecificType not supported");
-            BigfootSQL.SqlHelper DB = new BigfootSQL.SqlHelper(Conn, Languages);
 
-            DB.SELECT("*");
-            DB.FROM(DatabaseName, DbOwner, TableName);
-            MakeJoins(DB, null);
-            MakeFilter(DB, null);
-
-            List<DataProviderSortInfo> sort = new List<DataProviderSortInfo> { new DataProviderSortInfo { Field = Key1Name, Order = DataProviderSortInfo.SortDirection.Ascending } };
-            DB.ORDERBY(null, sort, Offset: chunk * ChunkSize, Next: ChunkSize);
-            List<OBJTYPE> list = DB.ExecuteCollection<OBJTYPE>();
-            ReadSubTableRecords(DB, list);
-            SerializableList<OBJTYPE> serList = new SerializableList<OBJTYPE>(list);
-            obj = serList;
-            int count = serList.Count();
-            if (count == 0)
-                obj = null;
-            return (count >= ChunkSize);
-        }
-        public bool ExportChunk(int chunk, SerializableList<SerializableFile> fileList, Type type, out object obj) {
-            throw new InternalError("Typed ExportChunk not supported");
-        }
         public void ImportChunk(int chunk, SerializableList<SerializableFile> fileList, object obj) {
-            if (CurrentSiteIdentity > 0 || YetaWFManager.Manager.ImportChunksNonSiteSpecifics) { // Should eliminate use of YetaWFManager.Manager (.ImportChunksNonSiteSpecifics)
+            if (SiteIdentity > 0 || YetaWFManager.Manager.ImportChunksNonSiteSpecifics) {
                 SerializableList<OBJTYPE> serList = (SerializableList<OBJTYPE>)obj;
                 int total = serList.Count();
                 if (total > 0) {
-                    for (int processed = 0 ; processed < total ; ++processed) {
-                        using (SqlTransaction tr = Conn.BeginTransaction()) {
-                            subDBs = new List<BigfootSQL.SqlHelper>();
-                            BigfootSQL.SqlHelper DB = new BigfootSQL.SqlHelper(Conn, tr, Languages);
-                            OBJTYPE item = serList[processed];
-                            DB.INSERTINTO(TableName, GetColumnList(DB, ObjectSupport.GetPropertyData(typeof(OBJTYPE)), typeof(OBJTYPE), "", true, SiteSpecific: CurrentSiteIdentity > 0))
-                                    .VALUES(GetValueList(DB, TableName, ObjectSupport.GetPropertyData(typeof(OBJTYPE)), item, typeof(OBJTYPE), SiteSpecific: CurrentSiteIdentity > 0));
-                            int identity = 0;
-                            if (UseIdentity)
-                                identity = DB.ExecuteScalarIdentity();
-                            else
-                                DB.ExecuteNonquery();
-                            if (subDBs.Count > 0) {
-                                if (!UseIdentity)
-                                    throw new InternalError("A subtable was encountered but the main table {0} doesn't use an identity", TableName);
-                                foreach (BigfootSQL.SqlHelper db in subDBs) {
-                                    db.AddParam("__Identity", identity);
-                                    db.ExecuteNonquery();
-                                }
-                            }
-                            tr.Commit();
-                        }
+                    for (int processed = 0; processed < total; ++processed) {
+                        OBJTYPE item = serList[processed];
+                        if (!Add(item))
+                            throw new InternalError("Add failed - item already exists");
                     }
                 }
             }
+        }
+
+        public bool ExportChunk(int chunk, SerializableList<SerializableFile> fileList, out object obj) {
+            List<DataProviderSortInfo> sorts = new List<DataProviderSortInfo> { new DataProviderSortInfo { Field = Key1Name, Order = DataProviderSortInfo.SortDirection.Ascending } };
+            int total;
+            List<OBJTYPE> list = GetRecords(chunk * ChunkSize, ChunkSize, sorts, null, out total);
+            obj = new SerializableList<OBJTYPE>(list);
+
+            int count = list.Count();
+            if (count == 0)
+                obj = null;
+            return (count >= ChunkSize);
         }
     }
 }

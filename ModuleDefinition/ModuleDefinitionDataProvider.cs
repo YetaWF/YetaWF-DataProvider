@@ -13,7 +13,6 @@ using YetaWF.Core.Packages;
 using YetaWF.Core.Serializers;
 using YetaWF.Core.Support;
 using YetaWF.Core.Support.Serializers;
-using YetaWF.DataProvider.SQL2;
 #if MVC6
 using Microsoft.Extensions.Caching.Memory;
 #else
@@ -160,7 +159,7 @@ namespace YetaWF.DataProvider
             return CreateDataProviderIOMode(package, ModuleDefinition.BaseFolderName, SiteIdentity: SiteIdentity, Cacheable: true, 
                 Callback: (ioMode, options) => {
                     switch (ioMode) {
-                        case "SQL2": {
+                        case "SQL": {
                                 options.Add("WebConfigArea", ModuleDefinition.BaseFolderName);
                                 return new SQL.SQLDataProvider.ModuleDefinitionDataProvider<KEY, TYPE>(options);
                             }

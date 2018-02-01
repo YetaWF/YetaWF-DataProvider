@@ -5,7 +5,7 @@ using YetaWF.Core.DataProvider;
 using YetaWF.Core.Models;
 using YetaWF.Core.Support;
 
-namespace YetaWF.DataProvider.SQL2 {
+namespace YetaWF.DataProvider.SQL {
 
     public partial class SQLSimple2IdentityObject<KEYTYPE, KEYTYPE2, OBJTYPE> : SQLSimpleIdentityObjectBase<KEYTYPE, KEYTYPE2, OBJTYPE> {
         public SQLSimple2IdentityObject(Dictionary<string, object> options) : base(options, HasKey2: true) { }

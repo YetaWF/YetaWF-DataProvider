@@ -3,7 +3,6 @@
 using System;
 using System.Collections.Generic;
 using YetaWF.Core.Modules;
-using YetaWF.DataProvider.SQL2;
 
 namespace YetaWF.DataProvider.SQL {
 

@@ -4,26 +4,45 @@ using Microsoft.SqlServer.Management.Smo;
 using System;
 using System.Collections;
 using System.Collections.Generic;
-using System.Data.SqlClient;
 using System.Drawing;
 using System.Linq;
 using System.Reflection;
 using YetaWF.Core.DataProvider.Attributes;
+using YetaWF.Core.Language;
 using YetaWF.Core.Models;
 using YetaWF.Core.Models.Attributes;
+using YetaWF.Core.Packages;
 using YetaWF.Core.Support;
+using YetaWF.DataProvider.SQL;
 
 namespace YetaWF.DataProvider {
 
-    public partial class SQLDataProviderImpl {
+    public class SQLCreate {
 
-        protected bool CreateTable(Database db, string tableName, string key1Name, string key2Name, string identityName, List<PropertyData> propData, Type tpProps,
+        public int IdentitySeed { get; private set; }
+        public bool Logging { get; private set; }
+        public List<LanguageData> Languages { get; private set; }
+
+        public SQLCreate(List<LanguageData> languages, int identitySeed, bool logging) {
+            Languages = languages;
+            IdentitySeed = identitySeed;
+            Logging = logging;
+        }
+
+        List<ForeignKey> SavedNewKeys = null;
+        private static List<string> DBsCompleted;
+
+        protected bool HasIdentity(string identityName) {
+            return !string.IsNullOrWhiteSpace(identityName);
+        }
+
+        public bool CreateTable(Database db, string dbOwner, string tableName, string key1Name, string key2Name, string identityName, List<PropertyData> propData, Type tpProps,
                 List<string> errorList, List<string> columns,
                 bool TopMost = false,
                 bool SiteSpecific = false,
                 string ForeignKeyTable = null,
                 string DerivedDataTableName = null, string DerivedDataTypeName = null, string DerivedAssemblyName = null,
-                bool UseIdentity = false, bool SubTable = false) {
+                bool SubTable = false) {
             try {
                 RemoveIndexesIfNeeded(db);
                 Table newTab = null;
@@ -32,14 +51,14 @@ namespace YetaWF.DataProvider {
                 if (db.Tables.Contains(tableName)) {
                     updatingTable = true;
                     newTab = db.Tables[tableName];
-                    if (newTab.Schema != DbOwner)
-                        throw new InternalError("Can't change table {0} schema {1} to {2}", tableName, newTab.Schema, DbOwner);
+                    if (newTab.Schema != dbOwner)
+                        throw new InternalError("Can't change table {0} schema {1} to {2}", tableName, newTab.Schema, dbOwner);
                     origIndexes = (from Index i in newTab.Indexes select i.Name).ToList();
                     origColumns = (from Column c in newTab.Columns select c.Name).ToList();
                 } else {
                     updatingTable = false;
                     newTab = new Table(db, tableName);
-                    newTab.Schema = DbOwner;
+                    newTab.Schema = dbOwner;
                     origIndexes = new List<string>();
                     origColumns = new List<string>();
                 }
@@ -47,7 +66,7 @@ namespace YetaWF.DataProvider {
                 if (TopMost)
                     SavedNewKeys = new List<ForeignKey>();
 
-                AddTableColumns(db, updatingTable, origColumns, origIndexes, newTab, tableName, key1Name, key2Name, identityName, propData, tpProps, "", true, columns, errorList, savedColumnsWithConstraints, SubTable: SubTable);
+                bool hasSubTable = AddTableColumns(db, dbOwner, updatingTable, origColumns, origIndexes, newTab, tableName, key1Name, key2Name, identityName, propData, tpProps, "", true, columns, errorList, savedColumnsWithConstraints, SubTable: SubTable);
 
                 // if this table (base class) has a derived type, add its table name and its derived type as a column
                 if (DerivedDataTableName != null) {
@@ -64,23 +83,14 @@ namespace YetaWF.DataProvider {
                     newColumn.Nullable = false;
                 }
                 if (SiteSpecific) {
-                    Column newColumn = MakeColumn(origColumns, newTab, SiteColumn);
+                    Column newColumn = MakeColumn(origColumns, newTab, SQLBase.SiteColumn);
                     newColumn.DataType = Microsoft.SqlServer.Management.Smo.DataType.Int;
                     newColumn.Nullable = false;
                 }
                 // PK Index
-                if (ForeignKeyTable == null) {
+                if (!SubTable) //$$ was ForeignKeyTable == null) 
+                {
                     Index index = MakeIndex(origIndexes, newTab, "PK_" + tableName, key1Name, ColumnName2: key2Name, AddSiteKey: SiteSpecific);
-                    index.IndexKeyType = Microsoft.SqlServer.Management.Smo.IndexKeyType.DriPrimaryKey;
-                } else if (string.IsNullOrWhiteSpace(identityName)) {
-                    Column newColumn = MakeColumn(origColumns, newTab, "Identity"); // weed need a primary key for replication
-                    newColumn.DataType = Microsoft.SqlServer.Management.Smo.DataType.Int;
-                    newColumn.Nullable = false;
-                    newColumn.Identity = true;
-                    newColumn.IdentityIncrement = 1;
-                    newColumn.IdentitySeed = IdentitySeed;
-
-                    Index index = MakeIndex(origIndexes, newTab, "PK_" + tableName + "_Identity", "Identity");
                     index.IndexKeyType = Microsoft.SqlServer.Management.Smo.IndexKeyType.DriPrimaryKey;
                 }
                 // Other indexes
@@ -95,7 +105,7 @@ namespace YetaWF.DataProvider {
                                 if (Languages.Count == 0) throw new InternalError("We need Languages for MultiString support");
                                 MultiString ms = new MultiString();
                                 foreach (var lang in Languages) {
-                                    string col = ColumnFromPropertyWithLanguage(lang.Id, propIndex.Name);
+                                    string col = SQLBase.ColumnFromPropertyWithLanguage(lang.Id, propIndex.Name);
                                     Index index = MakeIndex(origIndexes, newTab, "K_" + tableName + "_" + col, col);
                                     index.IndexKeyType = Microsoft.SqlServer.Management.Smo.IndexKeyType.None;
                                 }
@@ -106,34 +116,55 @@ namespace YetaWF.DataProvider {
                         }
                     }
                 }
-                if (ForeignKeyTable != null) {
-                    if (SubTable) {
-                        // a subtable uses the identity of the main table as key so we have to create the column as it's not part of the data
-                        Column newColumn = MakeColumn(origColumns, newTab, SubTableKeyColumn);
-                        newColumn.DataType = Microsoft.SqlServer.Management.Smo.DataType.Int;
-                        newColumn.Nullable = false;
+                if (SubTable) { // for replication
+                    Column newColumn = MakeColumn(origColumns, newTab, SQLBase.IdentityColumn);
+                    newColumn.DataType = Microsoft.SqlServer.Management.Smo.DataType.Int;
+                    newColumn.Nullable = false;
+                    newColumn.Identity = true;
+                    newColumn.IdentityIncrement = 1;
+                    newColumn.IdentitySeed = 0;
 
-                        Index index = MakeIndex(origIndexes, newTab, "K_" + tableName + "_" + SubTableKeyColumn, SubTableKeyColumn);
-                        index.IndexKeyType = Microsoft.SqlServer.Management.Smo.IndexKeyType.None;
-                    }
-                }
-
-                if (ForeignKeyTable != null) {
-                    if (SubTable) {
-                        if (TopMost) throw new InternalError("Topmost CreateTable call can't define a SubTable");
-                        if (string.IsNullOrWhiteSpace(identityName)) throw new InternalError("Main table doesn't have Identity which is needed for a subtable");
-                        // a subtable uses the identity of the main table as key
-                        MakeForeignKey(newTab, "FK_" + tableName + SubTableKeyColumn + "_" + ForeignKeyTable + "_" + identityName, SubTableKeyColumn, ForeignKeyTable, identityName);
-
-                        Column newColumn = MakeColumn(origColumns, newTab, "Identity"); // subtable needs a primary key for replication
+                    Index index = MakeIndex(origIndexes, newTab, "K_" + tableName + "_" + SQLBase.IdentityColumn, SQLBase.IdentityColumn);
+                    index.IndexKeyType = Microsoft.SqlServer.Management.Smo.IndexKeyType.DriUniqueKey;
+                } else {
+                    if (HasIdentity(identityName)) {
+                        Column newColumn = MakeColumn(origColumns, newTab, identityName);
                         newColumn.DataType = Microsoft.SqlServer.Management.Smo.DataType.Int;
                         newColumn.Nullable = false;
                         newColumn.Identity = true;
                         newColumn.IdentityIncrement = 1;
                         newColumn.IdentitySeed = IdentitySeed;
 
-                        Index index = MakeIndex(origIndexes, newTab, "PK_" + tableName + "_Identity", "Identity");
-                        index.IndexKeyType = Microsoft.SqlServer.Management.Smo.IndexKeyType.DriPrimaryKey;
+                        Index index = MakeIndex(origIndexes, newTab, "K_" + tableName + "_" + identityName, identityName);
+                        index.IndexKeyType = Microsoft.SqlServer.Management.Smo.IndexKeyType.DriUniqueKey;
+                    } else {
+                        if (hasSubTable) {
+                            Column newColumn = MakeColumn(origColumns, newTab, SQLBase.IdentityColumn);
+                            newColumn.DataType = Microsoft.SqlServer.Management.Smo.DataType.Int;
+                            newColumn.Nullable = false;
+                            newColumn.Identity = true;
+                            newColumn.IdentityIncrement = 1;
+                            newColumn.IdentitySeed = 0;
+
+                            Index index = MakeIndex(origIndexes, newTab, "K_" + tableName + "_" + SQLBase.IdentityColumn, SQLBase.IdentityColumn);
+                            index.IndexKeyType = Microsoft.SqlServer.Management.Smo.IndexKeyType.DriUniqueKey;
+                        }
+                    }
+                }
+                if (ForeignKeyTable != null) {
+                    if (SubTable) {
+                        // a subtable uses the identity of the main table as key so we have to create the column as it's not part of the data
+                        Column newColumn = MakeColumn(origColumns, newTab, SQLBase.SubTableKeyColumn);
+                        newColumn.DataType = Microsoft.SqlServer.Management.Smo.DataType.Int;
+                        newColumn.Nullable = false;
+
+                        Index index = MakeIndex(origIndexes, newTab, "K_" + tableName + "_" + SQLBase.SubTableKeyColumn, SQLBase.SubTableKeyColumn);
+                        index.IndexKeyType = Microsoft.SqlServer.Management.Smo.IndexKeyType.None;
+
+                        if (TopMost) throw new InternalError("Topmost CreateTable call can't define a SubTable");
+                        if (!HasIdentity(identityName)) throw new InternalError("Identity required");
+                        // a subtable uses the identity of the main table as key
+                        MakeForeignKey(newTab, "FK_" + tableName + SQLBase.SubTableKeyColumn + "_" + ForeignKeyTable + "_" + identityName, SQLBase.SubTableKeyColumn, ForeignKeyTable, identityName);
                     } else {
                         if (key2Name != null) throw new InternalError("Only a single key can be used with foreign keys");
                         MakeForeignKey(newTab, "FK_" + tableName + "_" + key1Name + "_" + ForeignKeyTable + "_" + key1Name, key1Name, ForeignKeyTable, key1Name, AddSiteKey: true);
@@ -203,7 +234,7 @@ namespace YetaWF.DataProvider {
                     if (!newIndex.IndexedColumns.Contains(ColumnName2))
                         throw new InternalError("Changing index/column name is not supported");
                 }
-                if (AddSiteKey && !newIndex.IndexedColumns.Contains(SiteColumn))
+                if (AddSiteKey && !newIndex.IndexedColumns.Contains(SQLBase.SiteColumn))
                     throw new InternalError("Changing site dependency is not supported");
             } else {
                 newIndex = new Index(table, indexName);
@@ -212,7 +243,7 @@ namespace YetaWF.DataProvider {
                 if (!string.IsNullOrWhiteSpace(ColumnName2))
                     newIndex.IndexedColumns.Add(new IndexedColumn(newIndex, ColumnName2));
                 if (AddSiteKey)
-                    newIndex.IndexedColumns.Add(new IndexedColumn(newIndex, SiteColumn));
+                    newIndex.IndexedColumns.Add(new IndexedColumn(newIndex, SQLBase.SiteColumn));
             }
             if (origIndexes.Contains(indexName))
                 origIndexes.Remove(indexName);
@@ -224,7 +255,7 @@ namespace YetaWF.DataProvider {
                 fk = table.ForeignKeys[fkName];
                 if (!fk.Columns.Contains(column))
                     throw new InternalError("Changing existing foreign key columns is not supported");
-                if (AddSiteKey && !fk.Columns.Contains(SiteColumn))
+                if (AddSiteKey && !fk.Columns.Contains(SQLBase.SiteColumn))
                     throw new InternalError("Changing existing foreign key site dependency is not supported");
             } else {
                 fk = new ForeignKey(table, fkName);
@@ -233,7 +264,7 @@ namespace YetaWF.DataProvider {
                 fk.ReferencedTable = referencedTable;
                 fk.DeleteAction = ForeignKeyAction.Cascade;
                 if (AddSiteKey) {
-                    ForeignKeyColumn fkcSite = new ForeignKeyColumn(fk, SiteColumn, SiteColumn);
+                    ForeignKeyColumn fkcSite = new ForeignKeyColumn(fk, SQLBase.SiteColumn, SQLBase.SiteColumn);
                     fk.Columns.Add(fkcSite);
                 }
                 SavedNewKeys.Add(fk);
@@ -241,14 +272,13 @@ namespace YetaWF.DataProvider {
             return fk;
         }
 
-        List<ForeignKey> SavedNewKeys = null;
-
-        private void AddTableColumns(Database db, bool updatingTable, List<string> origColumns, List<string> origIndexes, Table newTab,
+        private bool AddTableColumns(Database db, string dbOwner, bool updatingTable, List<string> origColumns, List<string> origIndexes, Table newTab,
                 string tableName, string key1Name, string key2Name, string identityName,
                 List<PropertyData> propData, Type tpContainer, string prefix, bool topMost, List<string> columns, List<string> errorList,
                 List<Column> savedColumnsWithConstraints,
                 bool SubTable = false) {
 
+            bool hasSubTable = false;
             foreach (PropertyData prop in propData) {
                 PropertyInfo pi = prop.PropInfo;
                 if (pi.CanRead && pi.CanWrite && !prop.HasAttribute("DontSave") && !prop.CalculatedProperty && !prop.HasAttribute(Data_DontSave.AttributeName)) {
@@ -257,19 +287,9 @@ namespace YetaWF.DataProvider {
                         columns.Add(colName);
                         bool isNew = IsNewColumn(newTab, colName);
                         if (prop.Name == identityName) {
-                            if (SubTable) throw new InternalError("SubTables don't support identity columns");
+                            if (SubTable) throw new InternalError("Subtables can't have an explicit identity");
                             if (pi.PropertyType != typeof(int)) throw new InternalError("Identity columns must be of type int");
-                            // identity used to link to main table
-                            Column newColumn = MakeColumn(origColumns, newTab, identityName);
-                            newColumn.DataType = Microsoft.SqlServer.Management.Smo.DataType.Int;
-                            newColumn.Nullable = false;
-                            newColumn.Identity = true;
-                            newColumn.IdentityIncrement = 1;
-                            newColumn.IdentitySeed = IdentitySeed;
-
-                            Index index = MakeIndex(origIndexes, newTab, "K_" + tableName + "_" + SubTableKeyColumn, identityName);
-                            index.IndexKeyType = Microsoft.SqlServer.Management.Smo.IndexKeyType.DriUniqueKey;
-
+                            // done by caller
                         } else if (prop.HasAttribute(Data_BinaryAttribute.AttributeName)) {
                             if (topMost && (prop.Name == key1Name || prop.Name == key2Name))
                                 throw new InternalError("Binary data can't be a primary key - table {0}", tableName);
@@ -280,7 +300,7 @@ namespace YetaWF.DataProvider {
                             if (Languages.Count == 0)
                                 throw new InternalError("We need Languages for MultiString support");
                             foreach (var lang in Languages) {
-                                colName = prefix + ColumnFromPropertyWithLanguage(lang.Id, prop.Name);
+                                colName = prefix + SQLBase.ColumnFromPropertyWithLanguage(lang.Id, prop.Name);
                                 Column newColumn = MakeColumn(origColumns, newTab, colName);
                                 StringLengthAttribute attr = (StringLengthAttribute) pi.GetCustomAttribute(typeof(StringLengthAttribute));
                                 if (attr == null)
@@ -316,26 +336,31 @@ namespace YetaWF.DataProvider {
                             }
                         } else if (pi.PropertyType.IsClass && typeof(IEnumerable).IsAssignableFrom(pi.PropertyType)) {
                             // This is a enumerated type, so we have to create a separate table using this table's identity column as a link
-
+                            if (SubTable) throw new InternalError("Nested subtables not supported");
                             // determine the enumerated type
                             Type subType = pi.PropertyType.GetInterfaces().Where(t => t.IsGenericType == true && t.GetGenericTypeDefinition() == typeof(IEnumerable<>))
                                     .Select(t => t.GetGenericArguments()[0]).FirstOrDefault();
                             // create a table that links the main table and this enumerated type using the key of the table
                             string subTableName = newTab.Name + "_" + pi.Name;
                             List<PropertyData> subPropData = ObjectSupport.GetPropertyData(subType);
-                            bool success = CreateTable(db, subTableName, SubTableKeyColumn, null, identityName, subPropData, subType, errorList, columns,
+                            bool success = CreateTable(db, dbOwner, subTableName, SQLBase.SubTableKeyColumn, null,
+                                HasIdentity(identityName) ? identityName : SQLBase.IdentityColumn, subPropData, subType, errorList, columns,
                                 TopMost: false,
-                                ForeignKeyTable: tableName, UseIdentity: false, SubTable: true, SiteSpecific: false);
+                                ForeignKeyTable: tableName, 
+                                SubTable: true, 
+                                SiteSpecific: false);
                             if (!success)
                                 throw new InternalError("Creation of subtable failed");
+                            hasSubTable = true;
                         } else if (pi.PropertyType.IsClass) {
                             List<PropertyData> subPropData = ObjectSupport.GetPropertyData(pi.PropertyType);
-                            AddTableColumns(db, updatingTable, origColumns, origIndexes, newTab, tableName, null, null, identityName, subPropData, pi.PropertyType, prefix + prop.Name + "_", false, columns, errorList, savedColumnsWithConstraints);
+                            AddTableColumns(db, dbOwner, updatingTable, origColumns, origIndexes, newTab, tableName, null, null, identityName, subPropData, pi.PropertyType, prefix + prop.Name + "_", SubTable, columns, errorList, savedColumnsWithConstraints);
                         } else
                             throw new InternalError("Unknown property type {2} used in class {0}, property {1}", tpContainer.FullName, prop.Name, pi.PropertyType.FullName);
                     }
                 }
             }
+            return hasSubTable;
         }
 
         protected bool TryGetDataType(Type tp) {
@@ -396,6 +421,95 @@ namespace YetaWF.DataProvider {
                     return Microsoft.SqlServer.Management.Smo.DataType.NVarChar(len);
             }
             throw new InternalError("Unsupported property type {0} for property {1}", tp.FullName, pi.Name);
+        }
+
+        // Index removal (for upgrades only)
+
+        protected void RemoveIndexesIfNeeded(Database db) {
+            if (!Package.MajorDataChange) return;
+            if (DBsCompleted == null) DBsCompleted = new List<string>();
+            if (DBsCompleted.Contains(db.Name)) return; // already done
+            // do multiple passes until no more indexes available (we don't want to figure out the dependencies)
+            int passes = 0;
+            for (; ; ++passes) {
+                int drop = 0;
+                int failures = 0;
+                foreach (Table table in db.Tables) {
+                    int tableFailures = 0;
+                    for (int i = table.ForeignKeys.Count; i > 0; --i) {
+                        try {
+                            table.ForeignKeys[i - 1].Drop();
+                            ++drop;
+                        } catch (Exception) { ++tableFailures; }
+                    }
+                    for (int i = table.Indexes.Count; i > 0; --i) {
+                        try {
+                            table.Indexes[i - 1].Drop();
+                            ++drop;
+                        } catch (Exception) { ++tableFailures; }
+                    }
+                    if (tableFailures == 0) {
+                        foreach (Column column in table.Columns) {
+                            if (column.DefaultConstraint != null)
+                                column.DefaultConstraint.Drop();
+                        }
+                        table.Alter();
+                    }
+                    failures += tableFailures;
+                }
+                if (failures == 0)
+                    break;// successfully removed everything
+                if (drop == 0) {
+                    throw new InternalError("No index/foreign keys could be dropped on the last pass in DB {0}", db.Name);
+                }
+            }
+            DBsCompleted.Add(db.Name);
+        }
+        public void DropAllTables(Database db, string dbOwner) {
+            // don't do any logging here - we might be deleting the tables needed for logging
+            int maxTimes = 5;
+            for (int time = maxTimes; time > 0 && db.Tables.Count > 0; --time) {
+                List<Table> tables = (from Table t in db.Tables select t).ToList<Table>();
+                foreach (Table table in tables) {
+                    if (table.Schema == dbOwner) {
+                        try {
+                            table.Drop();
+                        } catch (Exception) { }
+                    }
+                }
+            }
+            SQLCache.ClearCache();
+        }
+        public bool DropTable(Database db, string dbOwner, string tableName, List<string> errorList) {
+            foreach (Table table in db.Tables) {
+                if (table.Schema == dbOwner && table.Name == tableName) {
+                    try {
+                        table.Drop();
+                        return true;
+                    } catch (Exception exc) {
+                        if (Logging) YetaWF.Core.Log.Logging.AddErrorLog("Couldn't drop table {0}", table.Name, exc);
+                        errorList.Add(string.Format("Couldn't drop table {0}", table.Name));
+                        while (exc != null && exc.Message != null) {
+                            errorList.Add(exc.Message);
+                            exc = exc.InnerException;
+                        }
+                        return false;
+                    }
+                }
+            }
+            errorList.Add(string.Format("Table {0} not found - can't be dropped", tableName));
+            return false;
+        }
+        public bool DropSubTables(Database db, string dbOwner, string tableName, List<string> errorList) {
+            bool status = true;
+            string subtablePrefix = tableName + "_";
+            Table[] tables = (from Table t in db.Tables select t).ToArray<Table>();
+            foreach (Table table in tables) {
+                if (table.Name.StartsWith(subtablePrefix))
+                    if (!DropTable(db, dbOwner, table.Name, errorList))
+                        status = false;
+            }
+            return status;
         }
     }
 }
