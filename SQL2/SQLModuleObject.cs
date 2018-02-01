@@ -16,9 +16,11 @@ namespace YetaWF.DataProvider.SQL2 {
 
     public partial class SQLModuleObject<KEY, OBJTYPE> : SQLSimpleObject<KEY, OBJTYPE>, IDataProvider<KEY, OBJTYPE> {
 
-        public SQLModuleObject(Dictionary<string, object> options, string baseDataset) : base(options) {
+        public SQLModuleObject(Dictionary<string, object> options) : base(options) {
             if (typeof(KEY) != typeof(Guid)) throw new InternalError("Only Guid is supported as Key");
-            BaseDataset = baseDataset;
+            BaseDataset = ModuleDefinition.BaseFolderName;
+            if (typeof(OBJTYPE) != typeof(ModuleDefinition))
+                Dataset = ModuleDefinition.BaseFolderName + "_" + Package.AreaName + "_" + typeof(OBJTYPE).Name;
         }
 
         public string BaseDataset { get; protected set; }
@@ -28,7 +30,6 @@ namespace YetaWF.DataProvider.SQL2 {
             SQLHelper sqlHelper = new SQLHelper(Conn, null, Languages);
 
             string fullBaseTableName = SQLBuilder.GetTable(Database, Dbo, BaseDataset);
-            List<PropertyData> propData = ObjectSupport.GetPropertyData(typeof(OBJTYPE));
 
             if (Dataset == BaseDataset) {
                 // we're reading the base and have to find the derived table
@@ -124,7 +125,7 @@ VALUES ({values})
                 throw new InternalError("Add failed for type {0} - {1}", typeof(OBJTYPE).FullName, exc.Message);
             }
 
-            if (IdentityName != IdentityColumn) {
+            if (HasIdentity(IdentityName)) {
                 PropertyInfo piIdent = ObjectSupport.GetProperty(typeof(OBJTYPE), IdentityName);
                 if (piIdent.PropertyType != typeof(int)) throw new InternalError($"Object identities must be of type int in {typeof(OBJTYPE).FullName}");
                 piIdent.SetValue(obj, identity);
@@ -244,7 +245,7 @@ DROP TABLE #BASETABLE
         }
         private static List<PropertyData> _basePropertyData;
 
-        protected List<PropertyData> GetPropertyData() {
+        protected new List<PropertyData> GetPropertyData() {
             if (_propertyData == null) {
                 List<PropertyData> propData = ObjectSupport.GetPropertyData(typeof(OBJTYPE));
                 // subtract all properties that are already defined in the base type
@@ -296,7 +297,7 @@ DROP TABLE #BASETABLE
                     SiteSpecific: SiteIdentity > 0,
                     DerivedDataTableName: "DerivedDataTableName", DerivedDataTypeName: "DerivedDataType", DerivedAssemblyName: "DerivedAssemblyName"))
                 return false;
-            return sqlCreate.CreateTable(db, Dbo, Dataset, Key1Name, null, IdentityName, GetPropertyData(), typeof(OBJTYPE), errorList, columns,
+            return sqlCreate.CreateTable(db, Dbo, Dataset, Key1Name, null, SQL2Base.IdentityColumn, GetPropertyData(), typeof(OBJTYPE), errorList, columns,
                 TopMost: true,
                 SiteSpecific: SiteIdentity > 0,
                 ForeignKeyTable: BaseDataset);

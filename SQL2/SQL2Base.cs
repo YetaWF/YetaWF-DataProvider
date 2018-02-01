@@ -31,12 +31,13 @@ namespace YetaWF.DataProvider.SQL2 {
         private const string SQLDboString = "SQLDbo";
 
         public const string SiteColumn = "__Site";
-        public const string IdentityColumn = "__Identity";
+        public const string IdentityColumn = "Identity";
         public const string SubTableKeyColumn = "__Key";
 
         public Dictionary<string, object> Options { get; private set; }
 
         public Package Package { get; private set; }
+        public string WebConfigArea { get; set; }
         public string Dataset { get; protected set; }
         public string Database { get; private set; }
         public string TypeName { get; protected set; }
@@ -86,6 +87,9 @@ namespace YetaWF.DataProvider.SQL2 {
             if (Options.ContainsKey("NoLanguages") && Options["NoLanguages"] is bool)
                 NoLanguages = Convert.ToBoolean(Options["NoLanguages"]);
 
+            if (Options.ContainsKey("WebConfigArea"))
+                WebConfigArea = (string)Options["WebConfigArea"];
+
             SqlConnectionStringBuilder sqlsb = new SqlConnectionStringBuilder(GetSqlConnectionString());
             sqlsb.MultipleActiveResultSets = true;
             ConnectionString = sqlsb.ToString();
@@ -119,9 +123,10 @@ namespace YetaWF.DataProvider.SQL2 {
         }
 
         protected string GetSqlConnectionString() {
-            string connString = WebConfigHelper.GetValue<string>(Dataset, SQLConnectString);
+            string connString = WebConfigHelper.GetValue<string>(string.IsNullOrWhiteSpace(WebConfigArea) ? Dataset : WebConfigArea, SQLConnectString);
             if (string.IsNullOrWhiteSpace(connString)) {
-                connString = WebConfigHelper.GetValue<string>(Package.AreaName, SQLConnectString);
+                if (string.IsNullOrWhiteSpace(WebConfigArea))
+                    connString = WebConfigHelper.GetValue<string>(Package.AreaName, SQLConnectString);
                 if (string.IsNullOrWhiteSpace(connString)) {
                     if (_defaultConnectString == null) {
                         _defaultConnectString = WebConfigHelper.GetValue<string>(DefaultString, SQLConnectString);
@@ -135,16 +140,17 @@ namespace YetaWF.DataProvider.SQL2 {
             return connString;
         }
         protected string GetSqlDbo() {
-            string dbo = WebConfigHelper.GetValue<string>(Dataset, SQLDboString);
+            string dbo = WebConfigHelper.GetValue<string>(string.IsNullOrWhiteSpace(WebConfigArea) ? Dataset : WebConfigArea, SQLDboString);
             if (string.IsNullOrWhiteSpace(dbo)) {
-                dbo = WebConfigHelper.GetValue<string>(Package.AreaName, SQLDboString);
+                if (string.IsNullOrWhiteSpace(WebConfigArea))
+                    dbo = WebConfigHelper.GetValue<string>(Package.AreaName, SQLDboString);
                 if (string.IsNullOrWhiteSpace(dbo)) {
                     if (_defaultDbo == null) {
                         _defaultDbo = WebConfigHelper.GetValue<string>(DefaultString, SQLDboString);
                         if (_defaultDbo == null)
                             throw new InternalError("No SQLDBo owner found (also no default)");
                     }
-                    dbo = WebConfigHelper.GetValue<string>(DefaultString, SQLDboString);
+                    dbo = _defaultDbo;
                 }
             }
             if (string.IsNullOrWhiteSpace(dbo)) throw new InternalError($"No SQL dbo provided (also no default)");
@@ -172,7 +178,7 @@ namespace YetaWF.DataProvider.SQL2 {
             if (_key2Name == null) {
                 // find primary key
                 foreach (var prop in propertyData) {
-                    if (prop.HasAttribute(Data_PrimaryKey.AttributeName)) {
+                    if (prop.HasAttribute(Data_PrimaryKey2.AttributeName)) {
                         _key2Name = prop.Name;
                         return prop.Name;
                     }
@@ -192,11 +198,15 @@ namespace YetaWF.DataProvider.SQL2 {
                         return _identityName;
                     }
                 }
-                _identityName = IdentityColumn;
+                _identityName = "";
             }
             return _identityName;
         }
         private string _identityName;
+
+        protected bool HasIdentity(string identityName) {
+            return !string.IsNullOrWhiteSpace(identityName);
+        }
 
         protected static bool TryGetDataType(Type tp) {
             if (tp == typeof(DateTime) || tp == typeof(DateTime?))

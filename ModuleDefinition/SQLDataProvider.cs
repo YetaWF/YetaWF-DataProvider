@@ -10,7 +10,7 @@ namespace YetaWF.DataProvider.SQL {
     public class SQLDataProvider {
 
         internal class ModuleDefinitionDataProvider<KEY, TYPE> : SQLModuleObject<KEY, TYPE>, ModuleDefinitionDataProviderIOMode {
-            public ModuleDefinitionDataProvider(Dictionary<string, object> options, string baseFolderName) : base(options, baseFolderName) { }
+            public ModuleDefinitionDataProvider(Dictionary<string, object> options) : base(options) { }
 
             public DesignedModulesDictionary GetDesignedModules() {
                 using (SQLSimpleObject<Guid, TempDesignedModule> dp = new SQLSimpleObject<Guid, TempDesignedModule>(Options)) {

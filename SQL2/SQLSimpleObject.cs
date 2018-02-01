@@ -25,11 +25,18 @@ namespace YetaWF.DataProvider.SQL2 {
         }
 
         public bool HasKey2 { get; protected set; }
-        public string Key1Name { get { return GetKey1Name(Dataset, ObjectSupport.GetPropertyData(typeof(OBJTYPE))); } }
-        public string Key2Name { get { return GetKey2Name(Dataset, ObjectSupport.GetPropertyData(typeof(OBJTYPE))); } }
-        public string IdentityName { get { return GetIdentityName(Dataset, ObjectSupport.GetPropertyData(typeof(OBJTYPE))); } }
+        public string Key1Name { get { return GetKey1Name(Dataset, GetPropertyData()); } }
+        public string Key2Name { get { return GetKey2Name(Dataset, GetPropertyData()); } }
+        public string IdentityName { get { return GetIdentityName(Dataset, GetPropertyData()); } }
 
         protected const int ChunkSize = 100;
+
+        protected List<PropertyData> GetPropertyData() {
+            if (_propertyData == null)
+                _propertyData = ObjectSupport.GetPropertyData(typeof(OBJTYPE));
+            return _propertyData;
+        }
+        List<PropertyData> _propertyData;
 
         public OBJTYPE Get(KEYTYPE key) {
             return Get(key, default(KEYTYPE2));
@@ -43,7 +50,7 @@ namespace YetaWF.DataProvider.SQL2 {
             string calcProps = CalculatedProperties(typeof(OBJTYPE));
             string andKey2 = HasKey2 ? "AND " + sqlHelper.Expr(Key2Name, "=", key2) : null;
 
-            List <PropertyData> propData = ObjectSupport.GetPropertyData(typeof(OBJTYPE));
+            List <PropertyData> propData = GetPropertyData();
             string subTablesSelects = SubTablesSelects(Dataset, propData, typeof(OBJTYPE));
 
             string scriptMain = $@"
@@ -97,7 +104,7 @@ DROP TABLE #TEMPTABLE
             SQLHelper sqlHelper = new SQLHelper(Conn, null, Languages);
 
             string fullTableName = SQLBuilder.GetTable(Database, Dbo, Dataset);
-            List<PropertyData> propData = ObjectSupport.GetPropertyData(typeof(OBJTYPE));
+            List<PropertyData> propData = GetPropertyData();
             string columns = GetColumnList(propData, obj.GetType(), "", true, SiteSpecific: SiteIdentity > 0);
             string values = GetValueList(sqlHelper, Dataset, obj, propData, typeof(OBJTYPE), SiteSpecific: SiteIdentity > 0);
 
@@ -136,7 +143,7 @@ DECLARE @__IDENTITY int = @@IDENTITY
                 throw new InternalError("Add failed for type {0} - {1}", typeof(OBJTYPE).FullName, exc.Message);
             }
 
-            if (IdentityName != IdentityColumn) {
+            if (HasIdentity(IdentityName)) {
                 PropertyInfo piIdent = ObjectSupport.GetProperty(typeof(OBJTYPE), IdentityName);
                 if (piIdent.PropertyType != typeof(int)) throw new InternalError($"Object identities must be of type int in {typeof(OBJTYPE).FullName}");
                 piIdent.SetValue(obj, identity);
@@ -153,7 +160,7 @@ DECLARE @__IDENTITY int = @@IDENTITY
             SQLHelper sqlHelper = new SQLHelper(Conn, null, Languages);
 
             string fullTableName = SQLBuilder.GetTable(Database, Dbo, Dataset);
-            List<PropertyData> propData = ObjectSupport.GetPropertyData(typeof(OBJTYPE));
+            List<PropertyData> propData = GetPropertyData();
             string setColumns = SetColumns(sqlHelper, Dataset, IdentityName, propData, obj, typeof(OBJTYPE));
             string andKey2 = HasKey2 ? "AND " + sqlHelper.Expr(Key2Name, "=", origKey2) : null;
 
@@ -215,7 +222,7 @@ SELECT @@ROWCOUNT --- result set
             string fullTableName = SQLBuilder.GetTable(Database, Dbo, Dataset);
             string andKey2 = HasKey2 ? "AND " + sqlHelper.Expr(Key2Name, "=", key2) : null;
 
-            List<PropertyData> propData = ObjectSupport.GetPropertyData(typeof(OBJTYPE));
+            List<PropertyData> propData = GetPropertyData();
             string subTablesDeletes = SubTablesDeletes(fullTableName, propData, typeof(OBJTYPE));
 
             string scriptMain = $@"
@@ -270,7 +277,7 @@ SELECT @@ROWCOUNT --- result set
             SQLHelper sqlHelper = new SQLHelper(Conn, null, Languages);
 
             string fullTableName = SQLBuilder.GetTable(Database, Dbo, Dataset);
-            List<PropertyData> propData = ObjectSupport.GetPropertyData(typeof(OBJTYPE));
+            List<PropertyData> propData = GetPropertyData();
             string filter = MakeFilter(sqlHelper, filters);
 
             string subTablesDeletes = SubTablesDeletes(Dataset, propData, typeof(OBJTYPE));
@@ -332,7 +339,7 @@ DROP TABLE #TEMPTABLE
             total = 0;
             // get total # of records (only if a subset is requested)
             string fullTableName = SQLBuilder.GetTable(Database, Dbo, Dataset);
-            List<PropertyData> propData = ObjectSupport.GetPropertyData(typeof(OBJTYPE));
+            List<PropertyData> propData = GetPropertyData();
             Dictionary<string, string> visibleColumns = GetVisibleColumns(Database, Dbo, Dataset, typeof(OBJTYPE), Joins);
             string columnList = MakeColumnList(sqlHelper, visibleColumns, Joins);
             string joins = MakeJoins(sqlHelper, Joins);
@@ -561,7 +568,7 @@ DROP TABLE #TEMPTABLE
             Database db = GetDatabase();
             List<string> columns = new List<string>();
             SQLCreate sqlCreate = new SQLCreate(Languages, IdentitySeed, Logging);
-            success = sqlCreate.CreateTable(db, Dbo, Dataset, Key1Name, null, IdentityName, ObjectSupport.GetPropertyData(typeof(OBJTYPE)), typeof(OBJTYPE), errorList, columns,
+            success = sqlCreate.CreateTable(db, Dbo, Dataset, Key1Name, HasKey2 ? Key2Name : null, IdentityName, GetPropertyData(), typeof(OBJTYPE), errorList, columns,
                 SiteSpecific: SiteIdentity > 0,
                 TopMost: true);
             SQLCache.ClearCache();

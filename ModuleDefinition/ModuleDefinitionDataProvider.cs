@@ -156,22 +156,16 @@ namespace YetaWF.DataProvider
         private ModuleDefinitionDataProviderIOMode DataProviderIOMode { get { return GetDataProvider(); } }
 
         private IDataProvider<KEY, TYPE> CreateDataProvider() {
-            Package package;
-            string dataset;
-            if (typeof(TYPE).Name != "ModuleDefinition") {//$$
-                package = Package.GetPackageFromAssembly(typeof(TYPE).Assembly);
-                dataset = ModuleDefinition.BaseFolderName + "_" + package.AreaName + "_" + typeof(TYPE).Name;
-            } else {
-                package = YetaWF.Core.Packages.Package.GetPackageFromType(typeof(ModuleDefinitionDataProvider<KEY, TYPE>));
-                dataset = ModuleDefinition.BaseFolderName;
-            }
-            return CreateDataProviderIOMode(package, dataset, SiteIdentity: SiteIdentity, Cacheable: true, 
+            Package package = YetaWF.Core.Packages.Package.GetPackageFromType(typeof(TYPE));
+            return CreateDataProviderIOMode(package, ModuleDefinition.BaseFolderName, SiteIdentity: SiteIdentity, Cacheable: true, 
                 Callback: (ioMode, options) => {
                     switch (ioMode) {
-                        case "SQL2":
-                            return new SQL.SQLDataProvider.ModuleDefinitionDataProvider<KEY, TYPE>(options, ModuleDefinition.BaseFolderName);
+                        case "SQL2": {
+                                options.Add("WebConfigArea", ModuleDefinition.BaseFolderName);
+                                return new SQL.SQLDataProvider.ModuleDefinitionDataProvider<KEY, TYPE>(options);
+                            }
                         case "File":
-                            return new FileDataProvider<KEY, TYPE>(options);
+                            return new FileDataProvider<KEY, TYPE>(options);//$$$ path?
                         default:
                             throw new InternalError($"Unsupported IOMode {ioMode} in {nameof(ModuleDefinitionDataProvider<KEY, TYPE>)}.{nameof(CreateDataProvider)}");
                     }                    

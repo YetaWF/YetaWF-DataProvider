@@ -32,6 +32,10 @@ namespace YetaWF.DataProvider {
         List<ForeignKey> SavedNewKeys = null;
         private static List<string> DBsCompleted;
 
+        protected bool HasIdentity(string identityName) {
+            return !string.IsNullOrWhiteSpace(identityName);
+        }
+
         public bool CreateTable(Database db, string dbOwner, string tableName, string key1Name, string key2Name, string identityName, List<PropertyData> propData, Type tpProps,
                 List<string> errorList, List<string> columns,
                 bool TopMost = false,
@@ -62,7 +66,7 @@ namespace YetaWF.DataProvider {
                 if (TopMost)
                     SavedNewKeys = new List<ForeignKey>();
 
-                AddTableColumns(db, dbOwner, updatingTable, origColumns, origIndexes, newTab, tableName, key1Name, key2Name, identityName, propData, tpProps, "", true, columns, errorList, savedColumnsWithConstraints, SubTable: SubTable);
+                bool hasSubTable = AddTableColumns(db, dbOwner, updatingTable, origColumns, origIndexes, newTab, tableName, key1Name, key2Name, identityName, propData, tpProps, "", true, columns, errorList, savedColumnsWithConstraints, SubTable: SubTable);
 
                 // if this table (base class) has a derived type, add its table name and its derived type as a column
                 if (DerivedDataTableName != null) {
@@ -84,7 +88,8 @@ namespace YetaWF.DataProvider {
                     newColumn.Nullable = false;
                 }
                 // PK Index
-                if (ForeignKeyTable == null) {
+                if (!SubTable) //$$ was ForeignKeyTable == null) 
+                {
                     Index index = MakeIndex(origIndexes, newTab, "PK_" + tableName, key1Name, ColumnName2: key2Name, AddSiteKey: SiteSpecific);
                     index.IndexKeyType = Microsoft.SqlServer.Management.Smo.IndexKeyType.DriPrimaryKey;
                 }
@@ -111,6 +116,41 @@ namespace YetaWF.DataProvider {
                         }
                     }
                 }
+                if (SubTable) { // for replication
+                    Column newColumn = MakeColumn(origColumns, newTab, SQL2Base.IdentityColumn);
+                    newColumn.DataType = Microsoft.SqlServer.Management.Smo.DataType.Int;
+                    newColumn.Nullable = false;
+                    newColumn.Identity = true;
+                    newColumn.IdentityIncrement = 1;
+                    newColumn.IdentitySeed = 0;
+
+                    Index index = MakeIndex(origIndexes, newTab, "K_" + tableName + "_" + SQL2Base.IdentityColumn, SQL2Base.IdentityColumn);
+                    index.IndexKeyType = Microsoft.SqlServer.Management.Smo.IndexKeyType.DriUniqueKey;
+                } else {
+                    if (HasIdentity(identityName)) {
+                        Column newColumn = MakeColumn(origColumns, newTab, identityName);
+                        newColumn.DataType = Microsoft.SqlServer.Management.Smo.DataType.Int;
+                        newColumn.Nullable = false;
+                        newColumn.Identity = true;
+                        newColumn.IdentityIncrement = 1;
+                        newColumn.IdentitySeed = IdentitySeed;
+
+                        Index index = MakeIndex(origIndexes, newTab, "K_" + tableName + "_" + identityName, identityName);
+                        index.IndexKeyType = Microsoft.SqlServer.Management.Smo.IndexKeyType.DriUniqueKey;
+                    } else {
+                        if (hasSubTable) {
+                            Column newColumn = MakeColumn(origColumns, newTab, SQL2Base.IdentityColumn);
+                            newColumn.DataType = Microsoft.SqlServer.Management.Smo.DataType.Int;
+                            newColumn.Nullable = false;
+                            newColumn.Identity = true;
+                            newColumn.IdentityIncrement = 1;
+                            newColumn.IdentitySeed = 0;
+
+                            Index index = MakeIndex(origIndexes, newTab, "K_" + tableName + "_" + SQL2Base.IdentityColumn, SQL2Base.IdentityColumn);
+                            index.IndexKeyType = Microsoft.SqlServer.Management.Smo.IndexKeyType.DriUniqueKey;
+                        }
+                    }
+                }
                 if (ForeignKeyTable != null) {
                     if (SubTable) {
                         // a subtable uses the identity of the main table as key so we have to create the column as it's not part of the data
@@ -120,16 +160,12 @@ namespace YetaWF.DataProvider {
 
                         Index index = MakeIndex(origIndexes, newTab, "K_" + tableName + "_" + SQL2Base.SubTableKeyColumn, SQL2Base.SubTableKeyColumn);
                         index.IndexKeyType = Microsoft.SqlServer.Management.Smo.IndexKeyType.None;
-                    }
-                }
 
-                if (ForeignKeyTable != null) {
-                    if (SubTable) {
                         if (TopMost) throw new InternalError("Topmost CreateTable call can't define a SubTable");
+                        if (!HasIdentity(identityName)) throw new InternalError("Identity required");
                         // a subtable uses the identity of the main table as key
                         MakeForeignKey(newTab, "FK_" + tableName + SQL2Base.SubTableKeyColumn + "_" + ForeignKeyTable + "_" + identityName, SQL2Base.SubTableKeyColumn, ForeignKeyTable, identityName);
                     } else {
-                        throw new NotSupportedException();// ForeignKeyTable always occurs with SubTable so the code below is dead //$$$$
                         if (key2Name != null) throw new InternalError("Only a single key can be used with foreign keys");
                         MakeForeignKey(newTab, "FK_" + tableName + "_" + key1Name + "_" + ForeignKeyTable + "_" + key1Name, key1Name, ForeignKeyTable, key1Name, AddSiteKey: true);
                     }
@@ -236,12 +272,13 @@ namespace YetaWF.DataProvider {
             return fk;
         }
 
-        private void AddTableColumns(Database db, string dbOwner, bool updatingTable, List<string> origColumns, List<string> origIndexes, Table newTab,
+        private bool AddTableColumns(Database db, string dbOwner, bool updatingTable, List<string> origColumns, List<string> origIndexes, Table newTab,
                 string tableName, string key1Name, string key2Name, string identityName,
                 List<PropertyData> propData, Type tpContainer, string prefix, bool topMost, List<string> columns, List<string> errorList,
                 List<Column> savedColumnsWithConstraints,
                 bool SubTable = false) {
 
+            bool hasSubTable = false;
             foreach (PropertyData prop in propData) {
                 PropertyInfo pi = prop.PropInfo;
                 if (pi.CanRead && pi.CanWrite && !prop.HasAttribute("DontSave") && !prop.CalculatedProperty && !prop.HasAttribute(Data_DontSave.AttributeName)) {
@@ -250,18 +287,9 @@ namespace YetaWF.DataProvider {
                         columns.Add(colName);
                         bool isNew = IsNewColumn(newTab, colName);
                         if (prop.Name == identityName) {
+                            if (SubTable) throw new InternalError("Subtables can't have an explicit identity");
                             if (pi.PropertyType != typeof(int)) throw new InternalError("Identity columns must be of type int");
-                            // identity used to link to main table
-                            Column newColumn = MakeColumn(origColumns, newTab, identityName);
-                            newColumn.DataType = Microsoft.SqlServer.Management.Smo.DataType.Int;
-                            newColumn.Nullable = false;
-                            newColumn.Identity = true;
-                            newColumn.IdentityIncrement = 1;
-                            newColumn.IdentitySeed = IdentitySeed;
-
-                            Index index = MakeIndex(origIndexes, newTab, "K_" + tableName + "_" + SQL2Base.SubTableKeyColumn, identityName);
-                            index.IndexKeyType = Microsoft.SqlServer.Management.Smo.IndexKeyType.DriUniqueKey;
-
+                            // done by caller
                         } else if (prop.HasAttribute(Data_BinaryAttribute.AttributeName)) {
                             if (topMost && (prop.Name == key1Name || prop.Name == key2Name))
                                 throw new InternalError("Binary data can't be a primary key - table {0}", tableName);
@@ -308,37 +336,31 @@ namespace YetaWF.DataProvider {
                             }
                         } else if (pi.PropertyType.IsClass && typeof(IEnumerable).IsAssignableFrom(pi.PropertyType)) {
                             // This is a enumerated type, so we have to create a separate table using this table's identity column as a link
-
+                            if (SubTable) throw new InternalError("Nested subtables not supported");
                             // determine the enumerated type
                             Type subType = pi.PropertyType.GetInterfaces().Where(t => t.IsGenericType == true && t.GetGenericTypeDefinition() == typeof(IEnumerable<>))
                                     .Select(t => t.GetGenericArguments()[0]).FirstOrDefault();
                             // create a table that links the main table and this enumerated type using the key of the table
                             string subTableName = newTab.Name + "_" + pi.Name;
                             List<PropertyData> subPropData = ObjectSupport.GetPropertyData(subType);
-                            bool success = CreateTable(db, dbOwner, subTableName, SQL2Base.SubTableKeyColumn, null, SQL2Base.IdentityColumn, subPropData, subType, errorList, columns,
+                            bool success = CreateTable(db, dbOwner, subTableName, SQL2Base.SubTableKeyColumn, null,
+                                HasIdentity(identityName) ? identityName : SQL2Base.IdentityColumn, subPropData, subType, errorList, columns,
                                 TopMost: false,
-                                ForeignKeyTable: tableName, SubTable: true, SiteSpecific: false);
+                                ForeignKeyTable: tableName, 
+                                SubTable: true, 
+                                SiteSpecific: false);
                             if (!success)
                                 throw new InternalError("Creation of subtable failed");
+                            hasSubTable = true;
                         } else if (pi.PropertyType.IsClass) {
                             List<PropertyData> subPropData = ObjectSupport.GetPropertyData(pi.PropertyType);
-                            AddTableColumns(db, dbOwner, updatingTable, origColumns, origIndexes, newTab, tableName, null, null, identityName, subPropData, pi.PropertyType, prefix + prop.Name + "_", false, columns, errorList, savedColumnsWithConstraints);
+                            AddTableColumns(db, dbOwner, updatingTable, origColumns, origIndexes, newTab, tableName, null, null, identityName, subPropData, pi.PropertyType, prefix + prop.Name + "_", SubTable, columns, errorList, savedColumnsWithConstraints);
                         } else
                             throw new InternalError("Unknown property type {2} used in class {0}, property {1}", tpContainer.FullName, prop.Name, pi.PropertyType.FullName);
                     }
                 }
             }
-            if (identityName == SQL2Base.IdentityColumn) {
-                Column newColumn = MakeColumn(origColumns, newTab, identityName);
-                newColumn.DataType = Microsoft.SqlServer.Management.Smo.DataType.Int;
-                newColumn.Nullable = false;
-                newColumn.Identity = true;
-                newColumn.IdentityIncrement = 1;
-                newColumn.IdentitySeed = IdentitySeed;
-
-                Index index = MakeIndex(origIndexes, newTab, "K_" + tableName + "_" + SQL2Base.IdentityColumn, identityName);
-                index.IndexKeyType = Microsoft.SqlServer.Management.Smo.IndexKeyType.DriUniqueKey;
-            }
+            return hasSubTable;
         }
 
         protected bool TryGetDataType(Type tp) {

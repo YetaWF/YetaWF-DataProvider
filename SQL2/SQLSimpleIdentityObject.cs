@@ -27,7 +27,7 @@ namespace YetaWF.DataProvider.SQL2 {
             string fullTableName = SQLBuilder.GetTable(Database, Dbo, Dataset);
             string calcProps = CalculatedProperties(typeof(OBJTYPE));
 
-            List<PropertyData> propData = ObjectSupport.GetPropertyData(typeof(OBJTYPE));
+            List<PropertyData> propData = GetPropertyData();
             string subTablesSelects = SubTablesSelects(Dataset, propData, typeof(OBJTYPE));
 
             string scriptMain = $@"
@@ -81,7 +81,7 @@ DROP TABLE #TEMPTABLE
             SQLHelper sqlHelper = new SQLHelper(Conn, null, Languages);
 
             string fullTableName = SQLBuilder.GetTable(Database, Dbo, Dataset);
-            List<PropertyData> propData = ObjectSupport.GetPropertyData(typeof(OBJTYPE));
+            List<PropertyData> propData = GetPropertyData();
 
             string subTablesDeletes = SubTablesDeletes(fullTableName, propData, typeof(OBJTYPE));
 
@@ -121,7 +121,7 @@ SELECT @@ROWCOUNT --- result set
             SQLHelper sqlHelper = new SQLHelper(Conn, null, Languages);
 
             string fullTableName = SQLBuilder.GetTable(Database, Dbo, Dataset);
-            List<PropertyData> propData = ObjectSupport.GetPropertyData(typeof(OBJTYPE));
+            List<PropertyData> propData = GetPropertyData();
             string setColumns = SetColumns(sqlHelper, Dataset, IdentityName, propData, obj, typeof(OBJTYPE));
 
             string subTablesUpdates = SubTablesUpdates(sqlHelper, Dataset, obj, propData, typeof(OBJTYPE));
