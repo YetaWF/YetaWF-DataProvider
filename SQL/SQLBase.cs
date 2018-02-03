@@ -606,7 +606,8 @@ namespace YetaWF.DataProvider.SQL {
                     } else if (pi.PropertyType.IsClass) {
                         object objVal = pi.GetValue(container);
                         List<PropertyData> subPropData = ObjectSupport.GetPropertyData(pi.PropertyType);
-                        SetColumns(sqlHelper, tableName, identityName, subPropData, objVal, pi.PropertyType, prefix + prop.Name + "_", false);
+                        sb.Add(SetColumns(sqlHelper, tableName, identityName, subPropData, objVal, pi.PropertyType, prefix + prop.Name + "_", false));
+                        sb.Add(",");
                     } else
                         throw new InternalError("Unknown property type {2} used in class {0}, property {1}", tpContainer.FullName, prop.Name, pi.PropertyType.FullName);
                 }
