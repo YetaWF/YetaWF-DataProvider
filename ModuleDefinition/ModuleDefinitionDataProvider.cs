@@ -121,6 +121,21 @@ namespace YetaWF.DataProvider
         }
     }
 
+    public interface ModuleDefinitionDataProviderIOMode {
+        DesignedModulesDictionary GetDesignedModules();
+    }
+    public class TempDesignedModule {
+        [Data_PrimaryKey]
+        public Guid ModuleGuid { get; set; }
+        public string Name { get; set; }
+        public MultiString Description { get; set; }
+        public string DerivedAssemblyName { get; set; }
+
+        public TempDesignedModule() {
+            Description = new MultiString();
+        }
+    }
+
     // Loads/saves any module and creates the appropriate module type
     public class GenericModuleDefinitionDataProvider : ModuleDefinitionDataProvider<Guid, ModuleDefinition> { }
 
@@ -135,39 +150,26 @@ namespace YetaWF.DataProvider
 
         public ModuleDefinitionDataProvider() : base(YetaWFManager.Manager.CurrentSite.Identity) { SetDataProvider(CreateDataProvider()); }
         public ModuleDefinitionDataProvider(int siteIdentity) : base(siteIdentity) { SetDataProvider(CreateDataProvider()); }
-        protected override void Dispose(bool disposing) { base.Dispose(disposing); }// technically not needed, but it shuts up code analysis (CA1063: Implement IDisposable correctly)
 
         private IDataProvider<KEY, TYPE> DataProvider { get { return GetDataProvider(); } }
+        private ModuleDefinitionDataProviderIOMode DataProviderIOMode { get { return GetDataProvider(); } }
 
-        // SQL, File
         private IDataProvider<KEY, TYPE> CreateDataProvider() {
-            Package package = YetaWF.Core.Packages.Package.GetPackageFromType(typeof(ModuleDefinitionDataProvider<KEY, TYPE>));
-            return MakeDataProvider(package, ModuleDefinition.BaseFolderName,
-                () => { // File
-                    OverrideArea();
-                    return new FileDataProvider<KEY, TYPE>(
-                        Path.Combine(YetaWFManager.DataFolder, ModuleDefinition.BaseFolderName, SiteIdentity.ToString()),
-                        CurrentSiteIdentity: SiteIdentity,
-                        Cacheable: true);
-                },
-                (dbo, conn) => {  // SQL
-                    OverrideArea();
-                    return new SQLDerivedObjectDataProvider<KEY, TYPE, ModuleDefinition>(Dataset, dbo, conn,
-                        ModuleDefinition.BaseFolderName,
-                        CurrentSiteIdentity: SiteIdentity,
-                        Cacheable: true);
-                },
-                () => { // External
-                    OverrideArea();
-                    return MakeExternalDataProvider(new { Package = Package, Dataset = Dataset, CurrentSiteIdentity = SiteIdentity, Cacheable = true });
+            Package package = YetaWF.Core.Packages.Package.GetPackageFromType(typeof(TYPE));
+            return CreateDataProviderIOMode(package, ModuleDefinition.BaseFolderName, SiteIdentity: SiteIdentity, Cacheable: true, 
+                Callback: (ioMode, options) => {
+                    switch (ioMode) {
+                        case "SQL": {
+                                options.Add("WebConfigArea", ModuleDefinition.BaseFolderName);
+                                return new SQL.SQLDataProvider.ModuleDefinitionDataProvider<KEY, TYPE>(options);
+                            }
+                        case "File":
+                            return new FileDataProvider<KEY, TYPE>(options);//$$$ path?
+                        default:
+                            throw new InternalError($"Unsupported IOMode {ioMode} in {nameof(ModuleDefinitionDataProvider<KEY, TYPE>)}.{nameof(CreateDataProvider)}");
+                    }                    
                 }
             );
-        }
-        private void OverrideArea() {
-            if (typeof(TYPE).Name != "ModuleDefinition") {
-                Package package = Package.GetPackageFromAssembly(typeof(TYPE).Assembly);
-                Dataset = ModuleDefinition.BaseFolderName + "_" + package.AreaName + "_" + typeof(TYPE).Name;
-            }
         }
 
         // API
@@ -268,61 +270,8 @@ namespace YetaWF.DataProvider
                     return modules;
 
                 // Load the designed pages
-                switch (IOMode) {
-                    default:
-                        throw new InternalError("IOMode undetermined - this means we don't have a valid data provider");
-                    case WebConfigHelper.IOModeEnum.File:
-                        modules = GetDesignedModules_File();
-                        break;
-                    case WebConfigHelper.IOModeEnum.Sql:
-                        modules = GetDesignedModules_Sql();
-                        break;
-                }
+                modules = DataProviderIOMode.GetDesignedModules();
                 PermanentManager.AddObject<DesignedModulesDictionary>(modules);
-            }
-            return modules;
-        }
-
-        public class TempDesignedModule {
-            [Data_PrimaryKey]
-            public Guid ModuleGuid { get; set; }
-            public string Name { get; set; }
-            public MultiString Description { get; set; }
-            public string DerivedAssemblyName { get; set; }
-
-            public TempDesignedModule() {
-                Description = new MultiString();
-            }
-        }
-        private DesignedModulesDictionary GetDesignedModules_Sql() {
-
-            using (SQLSimpleObjectDataProvider<Guid, TempDesignedModule> dp = 
-                    new SQLSimpleObjectDataProvider<Guid, TempDesignedModule>(ModuleDefinition.BaseFolderName, GetDbOwner(), GetConnectionString(), CurrentSiteIdentity: SiteIdentity)) {
-                IDataProvider<Guid, TempDesignedModule> dataProvider = dp;
-                int total;
-                List<TempDesignedModule> modules = dataProvider.GetRecords(0, 0, null, null, out total);
-                DesignedModulesDictionary designedMods = new DesignedModulesDictionary();
-                foreach (TempDesignedModule mod in modules) {
-                    designedMods.Add(mod.ModuleGuid, new DesignedModule {
-                        ModuleGuid = mod.ModuleGuid,
-                        Name = mod.Name,
-                        Description = mod.Description,
-                        AreaName = mod.DerivedAssemblyName.Replace(".", "_"),
-                    });
-                }
-                return designedMods;
-            }
-        }
-
-        private DesignedModulesDictionary GetDesignedModules_File() {
-            DesignedModulesDictionary modules = new DesignedModulesDictionary();
-            List<Guid> modGuids = (List<Guid>)(object) DataProvider.GetKeyList();
-            foreach (var modGuid in modGuids) {
-                ModuleDefinition mod = (ModuleDefinition) (object) DataProvider.Get((KEY)(object)modGuid);
-                if (mod == null)
-                    throw new InternalError("No ModuleDefinition for guid {0}", modGuid);
-                DesignedModule desMod = new DesignedModule() { ModuleGuid = modGuid, Name = mod.Name, Description = mod.Description, AreaName = mod.Area, };
-                modules.Add(modGuid, desMod);
             }
             return modules;
         }
@@ -345,7 +294,7 @@ namespace YetaWF.DataProvider
             obj = data;
 
             object mods;
-            bool status = DataProvider.ExportChunk(count, fileList, out mods, SpecificType: IOMode == WebConfigHelper.IOModeEnum.File);
+            bool status = DataProvider.ExportChunk(count, fileList, out mods);
             if (mods != null) {
                 data.ModList = new SerializableList<TYPE>((List<TYPE>)mods);
                 foreach (TYPE m in data.ModList) {

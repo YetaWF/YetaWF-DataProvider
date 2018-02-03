@@ -1,209 +1,296 @@
-﻿/* Copyright © 2018 Softel vdm, Inc. - https://yetawf.com/Documentation/YetaWF/Licensing */
-
-using System;
+﻿using System;
+using System.Collections;
 using System.Collections.Generic;
-using System.ComponentModel;
 using System.Data;
 using System.Data.SqlClient;
-using System.Text;
+using System.Drawing;
+using System.IO;
+using System.Reflection;
 using YetaWF.Core.DataProvider;
+using YetaWF.Core.DataProvider.Attributes;
 using YetaWF.Core.Language;
+using YetaWF.Core.Models;
 using YetaWF.Core.Support;
-using YetaWF.DataProvider;
+using YetaWF.Core.Support.Serializers;
 
-namespace BigfootSQL {
-    /// <summary>
-    /// This is a simple SQL syntax builder helper class. It aids in the creation of a SQL statement
-    /// by auto creating parameters, as well as preventing against injection attacks etc. It also uses
-    /// the DAAB class and ObjectHelper classes to execute the query and hydrate the Model objects.
-    ///
-    /// It was designed with simplicity and speed in mind. It is a great replacement to writing
-    /// directly against the ADO.NET providers. It is not meant to be a full ORM but rather a rapid query
-    /// execution and object hydration helper.
-    ///
-    /// It uses a fluid interface for simplicity of code. You must know how to write SQL as it is a light
-    /// SQL code builder while automating the rest. It does not generate SQL for you, rather it makes the
-    /// writing, executing, and results mapping simple.
-    ///
-    /// Examples (Assumes there is a DB variable of type SqlHelper):
-    ///     Select a list of orders:
-    ///         List<OrderListItem> obj;
-    ///         obj = DB.SELECT("OrderID, OrderDate, ShipToCity").FROM("Orders").WHERE("ShipToState","FL").ExecuteCollection<OrderListItem>();
-    ///
-    ///     Select a single value typed to the correct type:
-    ///         DateTime d;
-    ///         d = DB.SELECT("OrderDate").FROM("Orders").WHERE("OrderID",OrderID).ExecuteScalar<datetime>()
-    ///
-    /// It has several other Execute methods to retrieve DataReaders, DataSets, and many others. Also has ExecuteNonQuery for executing
-    /// void queries.
-    /// </summary>
-    public class SqlHelper {
+namespace YetaWF.DataProvider.SQL {
 
-        StringBuilder _sql = new StringBuilder();
-        List<SqlParameter> _params = new List<SqlParameter>();
+    public class SQLHelper {
 
         public SqlConnection SqlConnection;
         public SqlTransaction SqlTransaction;
-        public List<LanguageData> Languages;
+        private List<LanguageData> Languages { get; set; }
+        private List<SqlParameter> Params = new List<SqlParameter>();
 
-        public SqlHelper(SqlConnection sqlConnection, SqlTransaction sqlTransaction, List<LanguageData> languages) {
-            SqlConnection = sqlConnection;
-            SqlTransaction = sqlTransaction;
-            Languages = languages;
-        }
-        public SqlHelper(SqlConnection sqlConnection, List<LanguageData> languages) {
-            SqlConnection = sqlConnection;
-            SqlTransaction = null;
+        public SQLHelper(SqlConnection conn, SqlTransaction trans, List<LanguageData> languages) {
+            SqlConnection = conn;
+            SqlTransaction = trans;
             Languages = languages;
         }
 
-        public StringBuilder RawBuilder {
-            get { return _sql; }
+        public object DebugInfo {
+            get {
+#if DEBUG
+                SQLBuilder sb = new SQLBuilder();
+                sb.Add("-- Debug"); sb.Add(Environment.NewLine);
+                foreach (var p in Params) {
+                    string val = p.Value?.ToString();
+                    if (val != null) val = val.Replace('\r', ' ').Replace('\n', ' ');
+                    sb.Add($"-- {p.ParameterName} - {val}"); sb.Add(Environment.NewLine);
+                }
+                sb.Add("--"); sb.Add(Environment.NewLine);
+                return sb.ToString();
+#endif
+            }
         }
 
-        /// <summary>
-        /// Add literal SQL statement to the query
-        /// </summary>
-        /// <param name="sql">SQL Fragment to add</param>
-        public SqlHelper Add(string sql) {
-            return Append(sql);
+        // Create,Fill
+        // Create,Fill
+        // Create,Fill
+
+        public T CreateObject<T>(IDataReader dr) {
+            return (T) CreateObject(dr, typeof(T));
         }
-
-        /// <summary>
-        /// Add a parameter to a WHERE statement. Will generate ColumnName = 'Value' (quotes only added if it is a string)
-        /// </summary>
-        /// <param name="wherecolumn">The name of the column to search</param>
-        /// <param name="value">The value to search for</param>
-        public SqlHelper Add(string wherecolumn, object value) {
-            return Add(wherecolumn, "=", value, false);
+        public T CreateObject<T>(IDataReader dr, string dataType, string assemblyName) {
+            Type t = null;
+            try {
+                Assembly asm = Assemblies.Load(assemblyName);
+                t = asm.GetType(dataType, true);
+            } catch (Exception exc) {
+                throw new InternalError($"Invalid Type {dataType}/{assemblyName} requested - {exc.Message}");
+            }
+            return (T)CreateObject(dr, t);
         }
-
-        /// <summary>
-        /// Add a parameter to a WHERE statement. Will generate ColumnName {Operator} 'Value' (quotes only added if it is a string)
-        /// </summary>
-        /// <param name="wherecolumn">The of the column to search</param>
-        /// <param name="value">The value to search for. If it is a string it is properly escaped etc.</param>
-        /// /// <param name="isSet">Identifies this comparison as a set statement. Needed for setting null values</param>
-        public SqlHelper Add(string wherecolumn, object value, bool isSet) {
-            return Add(wherecolumn, "=", value, isSet);
+        public object CreateObject(IDataReader dr, Type tp) {
+            object obj = Activator.CreateInstance(tp);
+            FillObject(dr, obj);
+            return obj;
         }
-
-        /// <summary>
-        /// Add a parameter to a WHERE statement. Will generate ColumnName {Operator} 'Value' (quotes only added if it is a string)
-        /// </summary>
-        /// <param name="wherecolumn">The of the column to search</param>
-        /// <param name="operator">The operator for the search. e.g. = <= LIKE <> etc.</param>
-        /// <param name="value">The value to search for. If it is a string it is properly escaped etc.</param>
-        public SqlHelper Add(string wherecolumn, string @operator, object value) {
-            return Add(wherecolumn, @operator, value, false);
+        public void FillObject(IDataReader dr, object obj) {
+            var columns = new Hashtable();
+            for (var ci = 0; ci < dr.FieldCount; ci++)
+                columns[dr.GetName(ci)] = "";
+            FillObject(dr, obj, columns);
         }
-
-        /// <summary>
-        /// Add a parameter to a WHERE statement. Will generate ColumnName {Operator} 'Value' (quotes only added if it is a string)
-        /// </summary>
-        /// <param name="wherecolumn">The # of the column to search</param>
-        /// <param name="operator">The operator for the search. e.g. = <= LIKE <> etc.</param>
-        /// <param name="value">The value to search for. If it is a string it is properly escaped etc.</param>
-        /// <param name="isSet">Identifies this comparison as a set statement. Needed for setting null values</param>
-        public SqlHelper Add(string wherecolumn, string @operator, object value, bool isSet) {
-            if (!wherecolumn.Contains(".") && !wherecolumn.StartsWith("["))
-                wherecolumn = SQLDataProviderImpl.WrapBrackets(wherecolumn);
-
-            if (value == null) {
-                Add(wherecolumn);
-                if (@operator == "=")
-                    return isSet ? Add("= NULL") :
-                               Add("IS NULL");
-                else if (@operator == "<>")
-                    return isSet ? Add("<> NULL") :
-                               Add("IS NOT NULL");
-                else
-                    throw new InternalError("Invalid operator {0}", @operator);
-            } else
-                return Add(wherecolumn).Add(@operator).Add(AddTempParam(value));
-        }
-
-        public SqlHelper SELECT(string sql) {
-            return Add("SELECT " + sql);
-        }
-
-        public SqlHelper SELECT_ALL_FROM(string tablename) {
-            return Add("SELECT * FROM").Add(tablename);
-        }
-
-        public SqlHelper SELECT(params string[] columns) {
-            var s = "SELECT ";
-            var firstcolumn = true;
-            foreach (string c in columns) {
-                if (firstcolumn) {
-                    s += c;//<< was columns
-                    firstcolumn = false;
-                } else {
-                    s += ", " + c;
+        private void FillObject(IDataReader dr, object container, Hashtable columns, string prefix = "") {
+            Type tpContainer = container.GetType();
+            List<PropertyData> propData = ObjectSupport.GetPropertyData(tpContainer);
+            foreach (PropertyData prop in propData) {
+                PropertyInfo pi = prop.PropInfo;
+                if (pi.CanRead && pi.CanWrite && !prop.HasAttribute("DontSave")) {
+                    string colName = prefix + prop.Name;
+                    if (prop.HasAttribute(Data_BinaryAttribute.AttributeName)) {
+                        if (columns.ContainsKey(colName)) {
+                            object val = dr[colName];
+                            if (!(val is System.DBNull)) {
+                                byte[] btes = (byte[])val;
+                                if (pi.PropertyType == typeof(byte[])) { // truly binary
+                                    if (btes.Length > 0)
+                                        pi.SetValue(container, btes, null);
+                                } else {
+                                    object data = new GeneralFormatter().Deserialize(btes);
+                                    pi.SetValue(container, data, null);
+                                }
+                            }
+                        }
+                    } else if (pi.PropertyType == typeof(MultiString)) {
+                        MultiString ms = prop.GetPropertyValue<MultiString>(container);
+                        foreach (var lang in Languages) {
+                            string key = colName + "_" + lang.Id.Replace("-", "_");
+                            if (columns.ContainsKey(key)) {
+                                object value = dr[key];
+                                if (!(value is System.DBNull)) {
+                                    string s = (string)value;
+                                    if (!string.IsNullOrWhiteSpace(s))
+                                        ms[lang.Id] = s;
+                                }
+                            }
+                        }
+                    } else if (pi.PropertyType == typeof(Image)) {
+                        if (columns.ContainsKey(colName)) {
+                            byte[] btes = (byte[])dr[colName];
+                            if (btes.Length > 1) {
+                                using (MemoryStream ms = new MemoryStream(btes)) {
+                                    Image img = Image.FromStream(ms);
+                                    pi.SetValue(container, img, null);
+                                }
+                            }
+                        }
+                    } else if (pi.PropertyType.IsClass && ComplexTypeInColumns(columns, colName + "_")) {
+                        object propVal = pi.GetValue(container);
+                        if (propVal != null)
+                            FillObject(dr, propVal, columns, colName + "_");
+                    } else {
+                        if (columns.ContainsKey(prefix + pi.Name)) {
+                            object value = dr[prefix + pi.Name];
+                            pi.SetValue(container, GetValue(pi.PropertyType, value), BindingFlags.Default, null, null, null);
+                        }
+                    }
                 }
             }
-            return Add(s);
+        }
+        private bool ComplexTypeInColumns(Hashtable columns, string prefix) {
+            foreach (var column in columns.Keys) {
+                if (column.ToString().StartsWith(prefix))
+                    return true;
+            }
+            return false;
+        }
+        public object GetValue(Type fieldType, object value) {
+
+            object newValue = null;
+            Type baseType = fieldType.BaseType;
+            Type underlyingType = Nullable.GetUnderlyingType(fieldType);
+
+            // Check if an empty value or an empty string
+            if (value == null || value.ToString() == String.Empty)
+                return newValue;
+
+            if (fieldType.Equals(value.GetType())) {
+                newValue = value;
+            } else if (fieldType == typeof(bool)) {
+                newValue = (value.ToString() == "1" ||
+                            value.ToString().ToLower() == "on" ||
+                            value.ToString().ToLower() == "true" ||
+                            value.ToString().ToLower() == "yes") ? true : false;
+            } else if (underlyingType != null) {// Nullable types 
+                if (underlyingType == typeof(DateTime))
+                    newValue = Convert.ToDateTime(value);
+                else if (underlyingType == typeof(TimeSpan))
+                    newValue = new TimeSpan(Convert.ToInt64(value));
+                else if (underlyingType == typeof(bool))
+                    newValue = Convert.ToBoolean(value);
+                else if (underlyingType == typeof(short))
+                    newValue = Convert.ToInt16(value);
+                else if (underlyingType == typeof(int))
+                    newValue = Convert.ToInt32(value);
+                else if (underlyingType == typeof(long))
+                    newValue = Convert.ToInt64(value);
+                else if (underlyingType == typeof(decimal))
+                    newValue = Convert.ToDecimal(value);
+                else if (underlyingType == typeof(double))
+                    newValue = Convert.ToDouble(value);
+                else if (underlyingType == typeof(float))
+                    newValue = Convert.ToSingle(value);
+                else if (underlyingType == typeof(ushort))
+                    newValue = Convert.ToUInt16(value);
+                else if (underlyingType == typeof(uint))
+                    newValue = Convert.ToUInt32(value);
+                else if (underlyingType == typeof(ulong))
+                    newValue = Convert.ToUInt64(value);
+                else if (underlyingType == typeof(sbyte))
+                    newValue = Convert.ToSByte(value);
+                else if (underlyingType == typeof(Guid))
+                    newValue = new Guid(Convert.ToString(value));
+                else
+                    throw new InternalError($"Unsupported type {fieldType.FullName}");
+            } else if (fieldType == typeof(Guid)) {
+                newValue = new Guid(value.ToString());
+            } else if (fieldType  == typeof(TimeSpan)) {
+                newValue = new TimeSpan(Convert.ToInt64(value));
+            } else if (baseType != null && fieldType.BaseType == typeof(Enum)) {
+                int intEnum;
+                if (int.TryParse(value.ToString(), out intEnum))
+                    newValue = intEnum;
+                else {
+                    try {
+                        newValue = Enum.Parse(fieldType, value.ToString());
+                    } catch (Exception) {
+                        newValue = Enum.ToObject(fieldType, value);
+                    }
+                }
+            } else {
+                try {
+                    newValue = Convert.ChangeType(value, fieldType);
+                } catch (Exception) { }
+            }
+            return newValue;
         }
 
-        public SqlHelper SELECT_IDENTITY() {
-            return Add("SELECT @@IDENTITY");
+        private bool HasParams {
+            get { return Params.Count > 0; }
         }
 
-        public SqlHelper INNERJOIN(string sql) {
-            return Add("INNER JOIN " + sql);
+        // Execute...
+
+        public SqlDataReader ExecuteReader(string text) {
+            return ExecuteReader(SqlConnection, SqlTransaction, CommandType.Text, text, Params);
+        }
+        public object ExecuteScalar(string text) {
+            return ExecuteScalar(SqlConnection, SqlTransaction, CommandType.Text, text, Params);
+        }        
+        public int ExecuteNonQuery(string text) {
+            return ExecuteNonQuery(SqlConnection, SqlTransaction, CommandType.Text, text, Params);
         }
 
-        public SqlHelper LEFTJOIN(string sql) {
-            return Add("LEFT JOIN " + sql);
+        private static SqlDataReader ExecuteReader(SqlConnection connection, SqlTransaction transaction, CommandType commandType, string commandText, List<SqlParameter> sqlParms) {
+            SqlCommand cmd = new SqlCommand();
+            PrepareCommand(cmd, connection, transaction, commandType, commandText, sqlParms);
+            return cmd.ExecuteReader();
+        }
+        private static object ExecuteScalar(SqlConnection connection, SqlTransaction transaction, CommandType commandType, string commandText, List<SqlParameter> sqlParms) {
+            SqlCommand cmd = new SqlCommand();
+            PrepareCommand(cmd, connection, transaction, commandType, commandText, sqlParms);
+            return cmd.ExecuteScalar();
+        }
+        private static int ExecuteNonQuery(SqlConnection connection, SqlTransaction transaction, CommandType commandType, string commandText, List<SqlParameter> sqlParms) {
+            SqlCommand cmd = new SqlCommand();
+            PrepareCommand(cmd, connection, transaction, commandType, commandText, sqlParms);
+            return cmd.ExecuteNonQuery();
         }
 
-        public SqlHelper ON() {
-            return Add("ON ");
+        private static void PrepareCommand(SqlCommand command, SqlConnection connection, SqlTransaction transaction, CommandType commandType, string commandText, List<SqlParameter> sqlParms) {
+
+            command.Connection = connection;
+            command.CommandText = commandText;
+            command.CommandTimeout = 300;
+            command.CommandType = commandType;
+
+            if (transaction != null) {
+                if (transaction.Connection == null) throw new InternalError("The transaction was rolled back or committed");
+                command.Transaction = transaction;
+            }
+
+            if (sqlParms != null)
+                AttachParameters(command, sqlParms);
+        }
+        private static void AttachParameters(SqlCommand command, List<SqlParameter> sqlParms) {
+            if (sqlParms != null) {
+                foreach (SqlParameter p in sqlParms) {
+                    if (p != null) {
+                        if ((p.Direction == ParameterDirection.InputOutput || p.Direction == ParameterDirection.Input) && p.Value == null)
+                            p.Value = DBNull.Value;
+                        command.Parameters.Add(p);
+                    }
+                }
+            }
         }
 
-        public SqlHelper ON(string leftcolumn, string rightcolumn) {
-            return Add("ON " + leftcolumn + " = " + rightcolumn);
-        }
-        public SqlHelper ANDON(string leftcolumn, string rightcolumn) {
-            return Add("AND " + leftcolumn + " = " + rightcolumn);
-        }
+        // EXPR
+        // EXPR
+        // EXPR
 
-        public SqlHelper FROM(string tableName) {
-            return Add("FROM " + SQLDataProviderImpl.WrapBrackets(tableName));
-        }
-        public SqlHelper FROM(string databaseName, string dbOwner, string tableName) {
-            return Add("FROM " + MakeFullTableName(databaseName, dbOwner, tableName));
-        }
-
-        public SqlHelper WHERE() {
-            return Add("WHERE");
-        }
-
-        public SqlHelper WHERE(string columnname, object value) {
-            return Add("WHERE").Add(columnname, value);
-        }
-        public void WHERE_EXPR(string tableName, List<DataProviderFilterInfo> filter, Dictionary<string, string> visibleColumns) {
-            if (filter == null) return;
-            List<DataProviderFilterInfo> list = new List<DataProviderFilterInfo>(filter);
+        public void AddWhereExpr(SQLBuilder sb, string tableName, List<DataProviderFilterInfo> filters, Dictionary<string, string> visibleColumns) {
+            List<DataProviderFilterInfo> list = new List<DataProviderFilterInfo>(filters);
             if (list.Count == 1 && list[0].Filters != null && list[0].Logic == "&&") {
                 // topmost entry is just one filter, remove it - it's redundant
                 list = new List<DataProviderFilterInfo>(list[0].Filters);
             }
-            AddFiltersExpr(tableName, list, "and", visibleColumns);
+            AddFiltersExpr(sb, tableName, list, "and", visibleColumns);
         }
-        private void AddFiltersExpr(string tableName, List<DataProviderFilterInfo> filter, string logic, Dictionary<string, string> visibleColumns) {
+        private void AddFiltersExpr(SQLBuilder sb, string tableName, List<DataProviderFilterInfo> filter, string logic, Dictionary<string, string> visibleColumns) {
             bool firstDone = false;
             foreach (var f in filter) {
                 if (firstDone) {
-                    if (logic == "and" || logic == "&&") AND();
-                    else if (logic == "or" || logic == "||") OR();
+                    if (logic == "and" || logic == "&&") sb.Add(" AND ");
+                    else if (logic == "or" || logic == "||") sb.Add(" OR ");
                     else throw new InternalError("Invalid logic operator {0}", logic);
                 }
                 bool? isNull = null;
                 if (f.Filters != null) {
-                    OP();
-                    AddFiltersExpr(tableName, new List<DataProviderFilterInfo>(f.Filters), f.Logic, visibleColumns);
-                    CP();
+                    sb.Add("(");
+                    AddFiltersExpr(sb, tableName, new List<DataProviderFilterInfo>(f.Filters), f.Logic, visibleColumns);
+                    sb.Add(")");
                 } else {
                     string oper = "";
                     object val = f.Value;
@@ -240,146 +327,64 @@ namespace BigfootSQL {
                             isNull = false;
                             oper = ">="; break;
                         case "startswith":
-                            oper = "LIKE"; val = EscapeForLike((val ?? "").ToString(), false) + "%"; break;
+                            oper = "LIKE"; val = SQLBuilder.EscapeForLike((val ?? "").ToString(), false) + "%"; break;
                         case "notstartswith":
                             isNull = true;
-                            oper = "NOT LIKE"; val = EscapeForLike((val ?? "").ToString(), false) + "%"; break;
+                            oper = "NOT LIKE"; val = SQLBuilder.EscapeForLike((val ?? "").ToString(), false) + "%"; break;
                         case "endswith":
-                            oper = "LIKE"; val = "%" + EscapeForLike((val ?? "").ToString(), false); break;
+                            oper = "LIKE"; val = "%" + SQLBuilder.EscapeForLike((val ?? "").ToString(), false); break;
                         case "notendswith":
                             isNull = true;
-                            oper = "NOT LIKE"; val = "%" + EscapeForLike((val ?? "").ToString(), false); break;
+                            oper = "NOT LIKE"; val = "%" + SQLBuilder.EscapeForLike((val ?? "").ToString(), false); break;
                         case "contains":
-                            oper = "LIKE"; val = "%" + EscapeForLike((val ?? "").ToString(), false) + "%"; break;
+                            oper = "LIKE"; val = "%" + SQLBuilder.EscapeForLike((val ?? "").ToString(), false) + "%"; break;
                         case "notcontains":
                             isNull = true;
-                            oper = "NOT LIKE"; val = "%" + EscapeForLike((val ?? "").ToString(), false) + "%"; break;
+                            oper = "NOT LIKE"; val = "%" + SQLBuilder.EscapeForLike((val ?? "").ToString(), false) + "%"; break;
                         default:
                             throw new InternalError("Invalid operator {0}", f.Operator);
                     }
                     if (isNull != null) {
-                        OP();
-                        string s = MakeFullColumnName(f.Field, visibleColumns);
-                        Add(s, oper, val);
-                        if (isNull == true) {
-                            OR();
-                            Add(s + " IS NULL");
-                        } else {
-                            AND();
-                            Add(s + " IS NOT NULL");
-                        }
-                        CP();
+                        string s = SQLBuilder.BuildFullColumnName(f.Field, visibleColumns);
+                        AddExpr(sb, s, oper, val);
+                        if (isNull == true)
+                            sb.Add($" OR {s} IS NULL");
+                        else
+                            sb.Add($" AND {s} IS NOT NULL");
                     } else {
-                        Add(MakeFullColumnName(f.Field, visibleColumns), oper, val);
+                        AddExpr(sb, SQLBuilder.BuildFullColumnName(f.Field, visibleColumns), oper, val);
                     }
                 }
                 firstDone = true;
             }
         }
-        protected string MakeFullTableName(string databaseName, string dbOwner, string tableName) {
-            return SQLDataProviderImpl.WrapBrackets(databaseName) + "." + SQLDataProviderImpl.WrapBrackets(dbOwner) + "." + SQLDataProviderImpl.WrapBrackets(tableName);
+        public string Expr(string wherecolumn, string @operator, object value, bool isSet = false) {
+            SQLBuilder sb = new SQLBuilder();
+            AddExpr(sb, wherecolumn, @operator, value, isSet);
+            return sb.ToString();
         }
-        protected string MakeFullColumnName(string column, Dictionary<string, string> visibleColumns) {
-            if (visibleColumns != null) {
-                string longColumn;
-                if (!visibleColumns.TryGetValue(column, out longColumn))
-                    throw new InternalError("Column {0} not found in list of visible columns", column);
-                return longColumn;
+        /// <summary>
+        /// Add a parameter to a WHERE statement. Will generate ColumnName {Operator} 'Value' (quotes only added if it is a string)
+        /// </summary>
+        /// <param name="wherecolumn">The name of the column</param>
+        /// <param name="operator">The operator, e.g. = <= LIKE <> etc.</param>
+        /// <param name="value">The value. If it is a string it is properly escaped etc.</param>
+        /// <param name="isSet">Identifies this comparison as a set statement. Needed for setting null values.</param>
+        protected void AddExpr(SQLBuilder sb, string wherecolumn, string @operator, object value, bool isSet = false) {
+            if (!wherecolumn.Contains(".") && !wherecolumn.StartsWith("["))
+                wherecolumn = SQLBuilder.WrapBrackets(wherecolumn);
+
+            if (value == null) {
+                sb.Add(wherecolumn);
+                if (@operator == "=") {
+                    if (isSet) sb.Add("= NULL"); else sb.Add("IS NULL");
+                } else if (@operator == "<>") {
+                    if (isSet) sb.Add("<> NULL"); else sb.Add("IS NOT NULL");
+                } else
+                    throw new InternalError("Invalid operator {0}", @operator);
             } else
-                return SQLDataProviderImpl.WrapBrackets(column.Replace('.', '_'));
+                sb.Add($"{wherecolumn} {@operator} {AddTempParam(value)}");
         }
-
-        public SqlHelper ORDERBY(string sql, bool Asc = true, int Offset = 0, int Next = 0) {
-            Add("ORDER BY " + sql);
-            if (!Asc)
-                Add(" DESC");
-            if (Offset > 0 || Next > 0)
-                Add(string.Format(" OFFSET {0} ROWS FETCH NEXT {1} ROWS ONLY", Offset, Next));
-            return this;
-        }
-        public SqlHelper ORDERBY(Dictionary<string, string> visibleColumns, List<DataProviderSortInfo> sorts, bool Asc = true, int Offset = 0, int Next = 0) {
-            if (sorts == null && sorts.Count == 0) throw new InternalError("No sort order given");
-            Add("ORDER BY ");
-            bool first = true;
-            foreach (DataProviderSortInfo sortInfo in sorts) {
-                if (!first) Add(",");
-                Add(MakeFullColumnName(sortInfo.Field, visibleColumns) + " " + sortInfo.GetOrder());
-                first = false;
-            }
-            if (Offset > 0 || Next > 0)
-                Add(string.Format(" OFFSET {0} ROWS FETCH NEXT {1} ROWS ONLY", Offset, Next));
-            return this;
-        }
-
-        public SqlHelper INSERTINTO(string tablename, string columns) {
-            return Add("INSERT INTO " + tablename + "(" + columns + ")");
-        }
-
-        public SqlHelper OP() {
-            return Add("(");
-        }
-
-        public SqlHelper OP(string wherecolumn, object value) {
-            return Add("(").Add(wherecolumn, value);
-        }
-
-        public SqlHelper CP() {
-            return Add(")");
-        }
-
-        bool updateStarted = false;
-
-        public SqlHelper UPDATE(string sql) {
-            updateStarted = true;
-            return Add("UPDATE " + sql);
-        }
-
-        public SqlHelper SET(string columnname, object value) {
-            if (updateStarted)
-                Add("SET");
-            updateStarted = false;
-
-            if (!_sql.ToString().TrimEnd().EndsWith(" SET") &&
-                !_sql.ToString().TrimEnd().EndsWith(","))
-                Add(",");
-
-            Add(columnname, value, true);
-
-            return this;
-        }
-
-        public SqlHelper DELETE(string sql) {
-            return Add("DELETE " + sql);
-        }
-
-        public SqlHelper DELETEFROM(string sql) {
-            return Add("DELETE FROM " + sql);
-        }
-
-        public SqlHelper AND() {
-            return Add("AND");
-        }
-
-        public SqlHelper AND(string column, object value) {
-            return Add("AND").Add(column, value);
-        }
-
-        public SqlHelper OR() {
-            return Add("OR");
-        }
-
-        public SqlHelper VALUES(string sql) {
-            return VALUES_START().Add(sql).VALUES_END();
-        }
-
-        public SqlHelper VALUES_START() {
-            return Add("VALUES ( ");
-        }
-
-        public SqlHelper VALUES_END() {
-            return Add(" ) ");
-        }
-
         /// <summary>
         /// Adds a parameter with the provided value and returns the created parameter name
         /// Used when creating dynamic queries and the parameter is not important outside of the immediate query
@@ -388,31 +393,28 @@ namespace BigfootSQL {
         /// <param name="value">The value of the parameter</param>
         /// <returns>The generated name for the parameter</returns>
         public string AddTempParam(object value) {
-            var name = "_tempParam" + _params.Count;
+            var name = "_tempParam" + Params.Count;
             AddParam(name, value);
             return "@" + name;
         }
-
         /// <summary>
         /// Adds a null value parameter and returns the created parameter name
         /// Used when creating dynamic queries and the parameter is not important outside of the immediate query
         /// </summary>
         /// <returns>The generated name for the parameter</returns>
         public string AddNullTempParam(ParameterDirection direction = ParameterDirection.Input) {
-            var name = "_tempParam" + _params.Count;
+            var name = "_tempParam" + Params.Count;
             SqlParameter parm = new SqlParameter(name, SqlDbType.Binary);
             parm.Direction = direction;
-            _params.Add(parm);
+            Params.Add(parm);
             return "@" + name;
         }
-
         /// <summary>
         /// Adds a named parameter to the query
         /// </summary>
         /// <param name="name">The name of the parameter</param>
         /// <param name="value">The value of the parameter</param>
-        public SqlHelper AddParam(string name, object value, ParameterDirection direction = ParameterDirection.Input)//<<<
-        {
+        public void AddParam(string name, object value, ParameterDirection direction = ParameterDirection.Input)/*<<<*/ {
             if (name.StartsWith("@")) name = name.Substring(1);
 
             SqlParameter parm;
@@ -441,237 +443,7 @@ namespace BigfootSQL {
                 parm = new SqlParameter(name, value);
             }
             parm.Direction = direction;//<<<
-            _params.Add(parm);
-
-            return this;
-        }
-
-        /// <summary>
-        /// Clear the current query
-        /// </summary>
-        public void Clear() {
-            _sql = new StringBuilder();
-            _params = new List<SqlParameter>();
-        }
-
-        /// <summary>
-        /// Auto writes the finished statement as close as possible.
-        /// </summary>
-        public override string ToString() {
-#if DEBUG
-            // uncomment for detailed debugging
-            // Debug.WriteLine(DebugSql);
-#endif
-            return _sql.ToString();
-        }
-
-        private SqlHelper Append(string sql) {
-            if (_sql.Length > 0 && _sql[_sql.Length - 1] != ' ')
-                _sql.Append(" ");
-            _sql.Append(sql);
-            return this;
-        }
-
-        //private void AddIfNotFound(string statement)
-        //{
-        //    if (_sql.ToString().IndexOf(statement) == -1)
-        //    {
-        //        Add(statement);
-        //    }
-        //}
-
-        /// <summary>
-        /// Creates an executable SQL statement including declaration of SQL parameters for debugging purposes.
-        /// </summary>
-        public string DebugSql {
-            get {
-                var value = "====NEW QUERY====\r\n";
-                foreach (SqlParameter param in _params) {
-                    value += "DECLARE @" + param.ParameterName + " " + param.SqlDbType;
-                    var addQuotes = (param.SqlDbType == SqlDbType.NVarChar);
-                    if (addQuotes)
-                        value += "(" + param.Size.ToString() + ")";
-                    if (param.Value == null)
-                        value += " SET @" + param.ParameterName + " = NULL";
-                    else
-                        value += " SET @" + param.ParameterName + " = " +
-                                    ((addQuotes) ? "'" + EscapeApostrophe(param.Value.ToString()) + "'"
-                                                 : EscapeApostrophe(param.Value.ToString()));
-                    value += "\r\n";
-                }
-                value += _sql + "\r\n";
-
-                //Add \r\n before each of these words
-                string[] words = { "SELECT", "FROM", "WHERE", "INNER JOIN", "LEFT JOIN", "ORDER BY", "GROUP BY", "DECLARE",
-                                     "SET", "VALUES", "INSERT INTO", "DELETE FROM", "UPDATE" };
-                foreach (string w in words)
-                    value = value.Replace(w, "\r\n" + w);
-
-                // Return the value
-                return value;
-            }
-        }
-
-        /// <summary>
-        /// Escapes the apostrophe on strings
-        /// </summary>
-        /// <param name="sql">SQL statement fragment</param>
-        /// <returns>The clean SQL fragment</returns>
-        public static string EscapeApostrophe(string sql) {
-            sql = sql.Replace("'", "''");
-            return sql;
-        }
-
-        /// <summary>
-        /// Properly escapes a string to be included in a LIKE statement
-        /// </summary>
-        /// <param name="value">Value to search for</param>
-        /// <param name="escapeApostrophe">Whether to escape the apostrophe. Prevents double escaping of apostrophes</param>
-        /// <returns>The translated value ready to be used in a LIKE statement</returns>
-        public static string EscapeForLike(string value, bool escapeApostrophe = true) {
-            string[] specialChars = {"%", "_", "-", "^"};
-            string newChars;
-
-            // Escape the [ bracket
-            newChars = value.Replace("[", "[[]");
-
-            // Replace the special chars
-            foreach (string t in specialChars){
-                newChars = newChars.Replace(t, "[" + t + "]");
-            }
-
-            // Escape the apostrophe if requested
-            if (escapeApostrophe)
-                newChars = EscapeApostrophe(newChars);
-
-            return newChars;
-        }
-
-        private bool HasParams {
-            get { return _params.Count > 0; }
-        }
-
-        /// <summary>
-        /// Executes the query and returns a Scalar value
-        /// </summary>
-        /// <returns>Object (null when dbnull value is returned)</returns>
-        public object ExecuteScalar() {
-            object rvalue;
-            if (SqlTransaction != null) {
-                rvalue = (HasParams)
-                    ? DAAB.ExecuteScalar(SqlTransaction, CommandType.Text, ToString(), _params.ToArray())
-                    : DAAB.ExecuteScalar(SqlTransaction, CommandType.Text, ToString());
-            } else {
-                rvalue = (HasParams)
-                    ? DAAB.ExecuteScalar(SqlConnection, CommandType.Text, ToString(), _params.ToArray())
-                    : DAAB.ExecuteScalar(SqlConnection, CommandType.Text, ToString());
-            }
-            if (rvalue == DBNull.Value) rvalue = null;
-
-            return rvalue;
-        }
-
-        /// <summary>
-        /// Executes the query and returns a Scalar value for the specific generic value
-        /// </summary>
-        /// <returns>A typed object of T</returns>
-        public T ExecuteScalar<T>() {
-            object rvalue = ExecuteScalar();
-            if (rvalue != null) {
-                var tc = TypeDescriptor.GetConverter(typeof(T));
-                return (T)tc.ConvertFromInvariantString(rvalue.ToString());
-            }
-
-            return default(T);
-        }
-
-        /// <summary>
-        /// Appends a SELECT @@IDENTITY statement to the query and then executes
-        /// </summary>
-        /// <returns>The identity of the just inserted record</returns>
-        public int ExecuteScalarIdentity() {
-            SELECT_IDENTITY();
-            return ExecuteScalarInt();
-        }
-
-        /// <summary>
-        /// Executes the query and returns a scalar value of type int
-        /// </summary>
-        public int ExecuteScalarInt() {
-            return ExecuteScalar<int>();
-        }
-
-        /// <summary>
-        /// Executes a query that does not return a value
-        /// </summary>
-        public int ExecuteNonquery() {
-            if (SqlTransaction != null) {
-                return (HasParams)
-                    ? DAAB.ExecuteNonQuery(SqlTransaction, CommandType.Text, ToString(), _params.ToArray())
-                    : DAAB.ExecuteNonQuery(SqlTransaction, CommandType.Text, ToString());
-            } else {
-                return (HasParams)
-                    ? DAAB.ExecuteNonQuery(SqlConnection, CommandType.Text, ToString(), _params.ToArray())
-                    : DAAB.ExecuteNonQuery(SqlConnection, CommandType.Text, ToString());
-            }
-        }
-        /// <summary>
-        /// Executes a query that returns an int return a value.
-        /// </summary>
-        public int ExecuteQueryRetVal() {
-            if (SqlTransaction != null) {
-                return (HasParams)
-                    ? DAAB.ExecuteQueryRetVal(SqlTransaction, CommandType.Text, ToString(), _params.ToArray())
-                    : DAAB.ExecuteQueryRetVal(SqlTransaction, CommandType.Text, ToString());
-            } else {
-                return (HasParams)
-                    ? DAAB.ExecuteQueryRetVal(SqlConnection, CommandType.Text, ToString(), _params.ToArray())
-                    : DAAB.ExecuteQueryRetVal(SqlConnection, CommandType.Text, ToString());
-            }
-        }
-
-        /// <summary>
-        /// Executes a query and hydrates an object with the result
-        /// </summary>
-        /// <typeparam name="T">The type of the object to hydrate and return</typeparam>
-        /// <returns>I hydrated object of the type specified</returns>
-        public T ExecuteObject<T>() {
-            SqlDataReader reader = ExecuteReader();
-            ObjectHelper objHelper = new ObjectHelper(Languages);
-            T t = objHelper.FillObject<T>(reader);
-            reader.Close();
-            return t;
-        }
-
-        /// <summary>
-        /// Executes the query and maps the results to a collection of objects
-        /// of the type specified through the generic argument
-        /// </summary>
-        /// <typeparam name="T">The of object for the collection</typeparam>
-        /// <returns>A collection of T</returns>
-        public List<T> ExecuteCollection<T>() {
-            SqlDataReader reader = ExecuteReader();
-            ObjectHelper objHelper = new ObjectHelper(Languages);
-            List<T> list = objHelper.FillCollection<T>(reader);
-            reader.Close();
-            return list;
-        }
-
-        /// <summary>
-        /// Executes the query and returns a DataReader
-        /// </summary>
-        public SqlDataReader ExecuteReader() {
-            AddParam("SELECT_TOTALRECORDS", 0, ParameterDirection.InputOutput);
-            _sql.AppendFormat(" SET @SELECT_TOTALRECORDS = @@ROWCOUNT\n");//<<<<
-            if (SqlTransaction != null) {
-                return (HasParams)
-                       ? DAAB.ExecuteReader(SqlTransaction, CommandType.Text, ToString(), _params.ToArray())
-                       : DAAB.ExecuteReader(SqlTransaction, CommandType.Text, ToString());
-            } else {
-                return (HasParams)
-                       ? DAAB.ExecuteReader(SqlConnection, CommandType.Text, ToString(), _params.ToArray())
-                       : DAAB.ExecuteReader(SqlConnection, CommandType.Text, ToString());
-            }
+            Params.Add(parm);
         }
     }
 }

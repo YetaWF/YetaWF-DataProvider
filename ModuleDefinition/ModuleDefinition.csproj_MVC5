@@ -32,8 +32,10 @@
     <WarningLevel>4</WarningLevel>
   </PropertyGroup>
   <ItemGroup>
+    <Compile Include="FileDataProvider.cs" />
     <Compile Include="ModuleDefinitionDataProvider.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
+    <Compile Include="SQLDataProvider.cs" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\..\CoreComponents\Core\Core.csproj">
@@ -45,7 +47,7 @@
       <Name>File</Name>
     </ProjectReference>
     <ProjectReference Include="..\SQL\SQL.csproj">
-      <Project>{22f3ec05-ec47-42b9-87cc-ff4d5494f8a4}</Project>
+      <Project>{67e180a4-fc9f-4eec-bec1-457714963596}</Project>
       <Name>SQL</Name>
     </ProjectReference>
   </ItemGroup>

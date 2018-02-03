@@ -15,6 +15,7 @@ using YetaWF.Core.Serializers;
 using YetaWF.Core.Support;
 
 namespace YetaWF.DataProvider {
+
     public class FileIdentityCount {
 
         public const int IDENTITY_SEED = 1000;
@@ -24,52 +25,68 @@ namespace YetaWF.DataProvider {
         public int Count { get; set; }
     }
 
-    public partial class FileDataProvider<KEYTYPE, OBJTYPE> : IDataProvider<KEYTYPE, OBJTYPE>, IDataProviderTransactions {
+    public class FileDataProviderBase {
+        public static readonly string ExternalName = "File";
+    }
+
+    public class FileDataProvider<KEYTYPE, OBJTYPE> : FileDataProviderBase, IDataProvider<KEYTYPE, OBJTYPE>, IDataProviderTransactions {
+
+        public Dictionary<string, object> Options { get; private set; }
+        public Package Package { get; private set; }
+        public string Dataset { get; protected set; }
+        public string BaseFolder { get; private set; }
+        public int SiteIdentity { get; private set; }
+        public bool UseIdentity { get; set; }
+        public int IdentitySeed { get; private set; }
+        public bool Cacheable { get; private set; }
+        public bool Logging { get; private set; }
+
+        public Func<string, object, object> CalculatedPropertyCallback { get; set; }
 
         private const int ChunkSize = 100;
 
-        public FileDataProvider(string baseFolder, int dummy = 0, bool Cacheable = false, int CurrentSiteIdentity = 0, int IdentitySeed = 0, Func<string, object, object> CalculatedPropertyCallback = null) {
-            this.BaseFolder = baseFolder;
-            this.Cacheable = Cacheable;
+        public FileDataProvider(Dictionary<string, object> options) {
+            Options = options;
+            if (!Options.ContainsKey("Package") || !(Options["Package"] is Package))
+                throw new InternalError($"No Package for data provider {GetType().FullName}");
+            Package = (Package)Options["Package"];
+            if (!Options.ContainsKey("Dataset") || !(Options["Dataset"] is string))
+                throw new InternalError($"No Dataset for data provider {GetType().FullName}");
+            Dataset = (string)Options["Dataset"];
+            if (Options.ContainsKey("SiteIdentity") && Options["SiteIdentity"] is int)
+                SiteIdentity = Convert.ToInt32(Options["SiteIdentity"]);
+            if (Options.ContainsKey("IdentitySeed") && Options["IdentitySeed"] is int)
+                IdentitySeed = Convert.ToInt32(Options["IdentitySeed"]);
+            if (Options.ContainsKey("Cacheable") && Options["Cacheable"] is bool)
+                Cacheable = Convert.ToBoolean(Options["Cacheable"]);
+            if (Options.ContainsKey("Logging") && Options["Logging"] is bool)
+                Logging = Convert.ToBoolean(Options["Logging"]);
+
             UseIdentity = !string.IsNullOrWhiteSpace(IdentityName);
-            this.CurrentSiteIdentity = CurrentSiteIdentity;
+
             this.IdentitySeed = IdentitySeed == 0 ? FileIdentityCount.IDENTITY_SEED : IdentitySeed;
-            this.CalculatedPropertyCallback = CalculatedPropertyCallback;
+
+            BaseFolder = GetBaseFolder();
+
             DisposableTracker.AddObject(this);
         }
+
+        public virtual string GetBaseFolder() { throw new InternalError($"Override GetBaseFolder() in {GetType().FullName}"); }
+
         public void Dispose() { Dispose(true); }
         protected virtual void Dispose(bool disposing) { if (disposing) DisposableTracker.RemoveObject(this); }
 
-        public string BaseFolder { get; private set; }
-        public bool Cacheable { get; private set; }
-        public int CurrentSiteIdentity { get; private set; }
-        public bool UseIdentity { get; set; }
         public string Key1Name { get { return GetKey1Name(); } }
         public string IdentityName { get { return GetIdentityName(); } }
-        public int IdentitySeed { get; private set; }
-        public Func<string, object, object> CalculatedPropertyCallback { get; set; }
 
         public DataProviderTransaction StartTransaction() {
-            throw new NotSupportedException("StartTransaction is not supported");
+            throw new NotSupportedException($"{nameof(StartTransaction)} is not supported");
         }
         public void CommitTransaction() {
-            throw new NotSupportedException("CommitTransaction is not supported");
+            throw new NotSupportedException($"{nameof(CommitTransaction)} is not supported");
         }
         public void AbortTransaction() {
-            throw new NotSupportedException("AbortTransaction is not supported");
-        }
-
-        public string ReplaceWithTableName(string text, string searchText) {
-            throw new NotSupportedException("ReplaceWithTableName is not supported");
-        }
-        public string ReplaceWithLanguage(string text, string searchText) {
-            throw new NotSupportedException("ReplaceWithLanguage is not supported");
-        }
-        public string GetTableName() {
-            throw new NotSupportedException("GetTableName is not supported");
-        }
-        public string GetDatabaseName() {
-            throw new NotSupportedException("GetDatabaseName is not supported");
+            throw new NotSupportedException($"{nameof(AbortTransaction)} is not supported");
         }
 
         private string GetKey1Name() {
@@ -119,15 +136,11 @@ namespace YetaWF.DataProvider {
             };
             return fd;
         }
-
-        public OBJTYPE Get(KEYTYPE key, bool SpecificType = false) {
+        public OBJTYPE Get(KEYTYPE key) {
             FileData<OBJTYPE> fd = GetFileDataObject(key);
-            if (SpecificType) {
-                OBJTYPE o = fd.Load(SpecificType: SpecificType);
-                if (o == null) return default(OBJTYPE);
-                return UpdateCalculatedProperties(o);
-            } else
-                return UpdateCalculatedProperties(fd.Load());
+            OBJTYPE o = fd.Load();
+            if (o == null) return default(OBJTYPE);
+            return UpdateCalculatedProperties(o);
         }
 
         public bool Add(OBJTYPE obj) {
@@ -175,9 +188,9 @@ namespace YetaWF.DataProvider {
             FileData<OBJTYPE> fd = GetFileDataObject(key);
             return fd.TryRemove();
         }
-        public List<KEYTYPE> GetKeyList() {
+        public static List<KEYTYPE> GetListOfKeys(string baseFolder) {
             FileData fd = new FileData {
-                BaseFolder = this.BaseFolder,
+                BaseFolder = baseFolder,
             };
             List<string> files = fd.GetNames();
             files = (from string f in files where !f.StartsWith(InternalFilePrefix) && f != Globals.DontDeployMarker select f).ToList<string>();
@@ -200,7 +213,7 @@ namespace YetaWF.DataProvider {
             List<OBJTYPE> objs = iData.GetRecords(0, 1, null, filters, out total);
             return UpdateCalculatedProperties(objs.FirstOrDefault());
         }
-        public List<OBJTYPE> GetRecords(int skip, int take, List<DataProviderSortInfo> sort, List<DataProviderFilterInfo> filters, out int total, List<JoinData> Joins = null, bool SpecificType = false) {
+        public List<OBJTYPE> GetRecords(int skip, int take, List<DataProviderSortInfo> sort, List<DataProviderFilterInfo> filters, out int total, List<JoinData> Joins = null) {
             if (Joins != null) throw new InternalError("Joins not supported");
             FileData fd = new FileData {
                 BaseFolder = this.BaseFolder,
@@ -224,15 +237,10 @@ namespace YetaWF.DataProvider {
                     key = (KEYTYPE)(object)Convert.ToInt32(file);
                 else
                     throw new InternalError("FileDataProvider only supports object keys of type string, int or Guid");
-                OBJTYPE obj = iData.Get(key, SpecificType: SpecificType);
+                OBJTYPE obj = iData.Get(key);
 
-                if (SpecificType) {
-                    if (obj == null || typeof(OBJTYPE) != obj.GetType())
-                        continue;
-                } else {
-                    if (obj == null)
-                        throw new InternalError("Object in file {0} is invalid", file);
-                }
+                if (obj == null)
+                    continue;
                 objects.Add(obj);
 
                 if (skip == 0 && sort == null && filters == null) {
@@ -352,10 +360,10 @@ namespace YetaWF.DataProvider {
         public void AddSiteData() { }
         public void RemoveSiteData() { } // remove site-specific data is performed globally by removing the site data folder
 
-        public bool ExportChunk(int chunk, SerializableList<SerializableFile> fileList, out object obj, bool SpecificType = false) {
+        public bool ExportChunk(int chunk, SerializableList<SerializableFile> fileList, out object obj) {
             IDataProvider<KEYTYPE, OBJTYPE> iData = (IDataProvider<KEYTYPE, OBJTYPE>)this;
             int total;
-            SerializableList<OBJTYPE> serList = new SerializableList<OBJTYPE>(iData.GetRecords(chunk * ChunkSize, ChunkSize, null, null, out total, SpecificType: SpecificType));
+            SerializableList<OBJTYPE> serList = new SerializableList<OBJTYPE>(iData.GetRecords(chunk * ChunkSize, ChunkSize, null, null, out total));
             obj = serList;
             int count = serList.Count();
             if (count == 0)
@@ -364,7 +372,7 @@ namespace YetaWF.DataProvider {
         }
         public void ImportChunk(int chunk, SerializableList<SerializableFile> fileList, object obj) {
             IDataProvider<KEYTYPE, OBJTYPE> iData = (IDataProvider<KEYTYPE, OBJTYPE>)this;
-            if (CurrentSiteIdentity > 0 || YetaWFManager.Manager.ImportChunksNonSiteSpecifics) {
+            if (SiteIdentity > 0 || YetaWFManager.Manager.ImportChunksNonSiteSpecifics) {
                 SerializableList<OBJTYPE> serList = (SerializableList<OBJTYPE>)obj;
                 int total = serList.Count();
                 if (total > 0) {
