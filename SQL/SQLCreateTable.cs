@@ -88,8 +88,7 @@ namespace YetaWF.DataProvider {
                     newColumn.Nullable = false;
                 }
                 // PK Index
-                if (!SubTable) //$$ was ForeignKeyTable == null) 
-                {
+                if (!SubTable) {
                     Index index = MakeIndex(origIndexes, newTab, "PK_" + tableName, key1Name, ColumnName2: key2Name, AddSiteKey: SiteSpecific);
                     index.IndexKeyType = Microsoft.SqlServer.Management.Smo.IndexKeyType.DriPrimaryKey;
                 }

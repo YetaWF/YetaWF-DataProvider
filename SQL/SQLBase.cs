@@ -265,6 +265,8 @@ namespace YetaWF.DataProvider.SQL {
         protected List<DataProviderFilterInfo> NormalizeFilter(Type type, List<DataProviderFilterInfo> filters) {
             if (filters == null) return null;
             filters = (from f in filters select new DataProviderFilterInfo(f)).ToList();// copy list
+            foreach (DataProviderFilterInfo f in filters)
+                if (f.Field != null) f.Field = f.Field.Replace(".", "_");
             GridHelper.NormalizeFilters(type, filters);
             foreach (DataProviderFilterInfo filter in filters) {
                 if (filter.Filters != null)
@@ -581,28 +583,7 @@ namespace YetaWF.DataProvider.SQL {
                         sb.Add(sqlHelper.Expr(prefix + prop.Name, "=", pi.GetValue(container), true));
                         sb.Add(",");
                     } else if (pi.PropertyType.IsClass && typeof(IEnumerable).IsAssignableFrom(pi.PropertyType)) {
-                        // This is a enumerated type, so we have to create a separate values using this table's identity column as a link
-                        // determine the enumerated type
-                        //$$Type subType = pi.PropertyType.GetInterfaces().Where(t => t.IsGenericType == true && t.GetGenericTypeDefinition() == typeof(IEnumerable<>))
-                        //        .Select(t => t.GetGenericArguments()[0]).FirstOrDefault();
-                        //// get the identity value
-                        //PropertyInfo piIdent = ObjectSupport.TryGetProperty(tpContainer, identityName);
-                        //if (piIdent == null) throw new InternalError("Can't determine identity value");
-                        //int identityValue = (int)piIdent.GetValue(container);
-                        //// create an insert statement for the subtable
-                        //List<PropertyData> subPropData = ObjectSupport.GetPropertyData(subType);
-                        //string subTableName = tableName + "_" + pi.Name;
-                        //IEnumerable ienum = (IEnumerable)pi.GetValue(container); ;
-                        //BigfootSQL.SqlHelper subDB = new BigfootSQL.SqlHelper(DB.SqlConnection, DB.SqlTransaction, Languages);
-                        //// delete all existing entries from subtable
-                        //subDB.DELETEFROM(subTableName).WHERE(SubTableKeyColumn, identityValue).ExecuteNonquery();
-                        //// add new entries
-                        //foreach (var obj in ienum) {
-                        //    subDB.INSERTINTO(subTableName, GetColumnList(subDB, subPropData, subType, "", true, SiteSpecific: false, SubTable: true))
-                        //            .VALUES(GetValueList(subDB, subTableName, subPropData, obj, subType, SiteSpecific: false, SubTable: true));
-                        //}
-                        //subDB.AddParam("__Identity", identityValue);
-                        //subDB.ExecuteNonquery();
+                        // This is a enumerated type, saved in a separate table
                     } else if (pi.PropertyType.IsClass) {
                         object objVal = pi.GetValue(container);
                         List<PropertyData> subPropData = ObjectSupport.GetPropertyData(pi.PropertyType);

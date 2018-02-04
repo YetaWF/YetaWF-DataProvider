@@ -134,8 +134,12 @@ DECLARE @__IDENTITY int = @@IDENTITY
 
             int identity = 0;
             try {
-                object val = sqlHelper.ExecuteScalar(script);
-                identity = Convert.ToInt32(val);
+                if (HasIdentity(IdentityName)) {
+                    object val = sqlHelper.ExecuteScalar(script);
+                    identity = Convert.ToInt32(val);
+                } else {
+                    sqlHelper.ExecuteNonQuery(script);
+                }
             } catch (Exception exc) {
                 SqlException sqlExc = exc as SqlException;
                 if (sqlExc != null && sqlExc.Number == 2627) // already exists
@@ -223,7 +227,7 @@ SELECT @@ROWCOUNT --- result set
             string andKey2 = HasKey2 ? "AND " + sqlHelper.Expr(Key2Name, "=", key2) : null;
 
             List<PropertyData> propData = GetPropertyData();
-            string subTablesDeletes = SubTablesDeletes(fullTableName, propData, typeof(OBJTYPE));
+            string subTablesDeletes = SubTablesDeletes(Dataset, propData, typeof(OBJTYPE));
 
             string scriptMain = $@"
 DELETE
@@ -239,13 +243,13 @@ DECLARE @ident int;
 SELECT @ident = [{IdentityName}] FROM {fullTableName} 
 WHERE {sqlHelper.Expr(Key1Name, "=", key)} {andKey2} {AndSiteIdentity}
 
+{subTablesDeletes}
+
 DELETE
 FROM {fullTableName} 
 WHERE [{IdentityName}] = @ident
 ;
 SELECT @@ROWCOUNT --- result set
-
-{subTablesDeletes}
 
 {sqlHelper.DebugInfo}";
 
@@ -579,8 +583,11 @@ DROP TABLE #TEMPTABLE
             try {
                 Database db = GetDatabase();
                 SQLCreate sqlCreate = new SQLCreate(Languages, IdentitySeed, Logging);
-                //$$$ DropSubTables is questionable because we have models that use the package name and other models use packagename_xxxx
-                sqlCreate.DropSubTables(db, Dbo, Dataset, errorList);
+                List<PropertyData> propData = GetPropertyData();
+                List<SubTableInfo> subTables = GetSubTables(Dataset, propData);
+                foreach (SubTableInfo subTable in subTables) {
+                    sqlCreate.DropTable(db, Dbo, subTable.Name, errorList);
+                }
                 sqlCreate.DropTable(db, Dbo, Dataset, errorList);
                 return true;
             } catch (Exception exc) {
@@ -595,11 +602,21 @@ DROP TABLE #TEMPTABLE
         public void RemoveSiteData() { // remove site-specific data
             if (SiteIdentity > 0) {
                 string fullTableName = SQLBuilder.GetTable(Database, Dbo, Dataset);
+                List<PropertyData> propData = GetPropertyData();
+                List<SubTableInfo> subTables = GetSubTables(Dataset, propData);
                 SQLHelper sqlHelper = new SQLHelper(Conn, null, Languages);
-                string script = $@"
-DELETE FROM {fullTableName} {AndSiteIdentity}";
-//$$$ delete subtable data
-                sqlHelper.ExecuteScalar(script);
+                SQLBuilder sb = new SQL.SQLBuilder();
+                foreach (SubTableInfo subTable in subTables) {
+                    sb.Add($@"
+    DELETE FROM {subTable.Name} WHERE [{SiteColumn}] = {SiteIdentity}
+;
+");
+                    sb.Add($@"
+DELETE FROM {fullTableName} WHERE [{SiteColumn}] = {SiteIdentity}
+;
+");
+                    sqlHelper.ExecuteScalar(sb.ToString());
+                }
             }
         }
 
