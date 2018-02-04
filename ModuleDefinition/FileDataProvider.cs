@@ -11,8 +11,7 @@ namespace YetaWF.DataProvider.File {
     public class FileDataProvider {
 
         internal class ModuleDefinitionDataProvider<KEY, TYPE> : FileDataProvider<KEY, TYPE>, ModuleDefinitionDataProviderIOMode {
-            public ModuleDefinitionDataProvider(Dictionary<string, object> options) : base(options) {
-            }
+            public ModuleDefinitionDataProvider(Dictionary<string, object> options) : base(options) { }
             public override string GetBaseFolder() { return Path.Combine(YetaWFManager.DataFolder, ModuleDefinition.BaseFolderName, SiteIdentity.ToString()); }
 
             public DesignedModulesDictionary GetDesignedModules() {

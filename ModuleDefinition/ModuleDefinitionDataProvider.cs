@@ -164,7 +164,7 @@ namespace YetaWF.DataProvider
                                 return new SQL.SQLDataProvider.ModuleDefinitionDataProvider<KEY, TYPE>(options);
                             }
                         case "File":
-                            return new FileDataProvider<KEY, TYPE>(options);//$$$ path?
+                            return new File.FileDataProvider.ModuleDefinitionDataProvider<KEY, TYPE>(options);
                         default:
                             throw new InternalError($"Unsupported IOMode {ioMode} in {nameof(ModuleDefinitionDataProvider<KEY, TYPE>)}.{nameof(CreateDataProvider)}");
                     }                    
