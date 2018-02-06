@@ -40,6 +40,8 @@ namespace YetaWF.DataProvider.SQL {
                 }
                 sb.Add("--"); sb.Add(Environment.NewLine);
                 return sb.ToString();
+#else   
+                return null;
 #endif
             }
         }
