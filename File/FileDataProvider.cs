@@ -137,10 +137,19 @@ namespace YetaWF.DataProvider {
             return fd;
         }
         public OBJTYPE Get(KEYTYPE key) {
+            return Get(key, SpecificType: false);
+        }
+        public OBJTYPE GetSpecificType(KEYTYPE key) {
+            return Get(key, SpecificType: true);
+        }
+        private OBJTYPE Get(KEYTYPE key, bool SpecificType) {
             FileData<OBJTYPE> fd = GetFileDataObject(key);
-            OBJTYPE o = fd.Load();
-            if (o == null) return default(OBJTYPE);
-            return UpdateCalculatedProperties(o);
+            if (SpecificType) {
+                OBJTYPE o = fd.Load(SpecificType: SpecificType);
+                if (o == null) return default(OBJTYPE);
+                return UpdateCalculatedProperties(o);
+            } else
+                return UpdateCalculatedProperties(fd.Load());
         }
 
         public bool Add(OBJTYPE obj) {
@@ -206,21 +215,27 @@ namespace YetaWF.DataProvider {
         // GETRECORDS
         // GETRECORDS
         // GETRECORDS
+
         public OBJTYPE GetOneRecord(List<DataProviderFilterInfo> filters, List<JoinData> Joins = null) {
             if (Joins != null) throw new InternalError("Joins not supported");
             int total;
-            IDataProvider<KEYTYPE, OBJTYPE> iData = (IDataProvider<KEYTYPE, OBJTYPE>)this;
-            List<OBJTYPE> objs = iData.GetRecords(0, 1, null, filters, out total);
+            List<OBJTYPE> objs = GetRecords(0, 1, null, filters, out total);
             return UpdateCalculatedProperties(objs.FirstOrDefault());
         }
         public List<OBJTYPE> GetRecords(int skip, int take, List<DataProviderSortInfo> sort, List<DataProviderFilterInfo> filters, out int total, List<JoinData> Joins = null) {
+            return GetRecords(skip, take, sort, filters, out total, Joins: Joins, SpecificType: false);
+        }
+        public List<OBJTYPE> GetRecordsSpecificType(int skip, int take, List<DataProviderSortInfo> sort, List<DataProviderFilterInfo> filters, out int total, List<JoinData> Joins = null) {
+            return GetRecords(skip, take, sort, filters, out total, Joins: Joins, SpecificType: true);
+        }
+        private List<OBJTYPE> GetRecords(int skip, int take, List<DataProviderSortInfo> sort, List<DataProviderFilterInfo> filters, out int total, List<JoinData> Joins, bool SpecificType) {
+
             if (Joins != null) throw new InternalError("Joins not supported");
             FileData fd = new FileData {
                 BaseFolder = this.BaseFolder,
             };
             List<string> files = fd.GetNames();
 
-            IDataProvider<KEYTYPE, OBJTYPE> iData = (IDataProvider<KEYTYPE, OBJTYPE>)this;
             List<OBJTYPE> objects = new List<OBJTYPE>();
 
             foreach (string file in files) {
@@ -237,10 +252,17 @@ namespace YetaWF.DataProvider {
                     key = (KEYTYPE)(object)Convert.ToInt32(file);
                 else
                     throw new InternalError("FileDataProvider only supports object keys of type string, int or Guid");
-                OBJTYPE obj = iData.Get(key);
 
-                if (obj == null)
-                    continue;
+                OBJTYPE obj;
+                if (SpecificType) {
+                    obj = GetSpecificType(key);
+                    if (obj == null || typeof(OBJTYPE) != obj.GetType())
+                        continue;
+                } else {
+                    obj = Get(key);
+                    if (obj == null)
+                        throw new InternalError($"Object in file {file} is invalid");
+                }
                 objects.Add(obj);
 
                 if (skip == 0 && sort == null && filters == null) {
@@ -280,8 +302,6 @@ namespace YetaWF.DataProvider {
             };
             List<string> files = fd.GetNames();
 
-            IDataProvider<KEYTYPE, OBJTYPE> iData = (IDataProvider<KEYTYPE, OBJTYPE>)this;
-
             int total = 0;
             foreach (string file in files) {
                 if (file.StartsWith(InternalFilePrefix) || file == Globals.DontDeployMarker) // internal file
@@ -295,7 +315,7 @@ namespace YetaWF.DataProvider {
                     key = (KEYTYPE)(object)Convert.ToInt32(file);
                 else
                     throw new InternalError("FileDataProvider only supports object keys of type string, int or Guid");
-                OBJTYPE obj = iData.Get(key);
+                OBJTYPE obj = Get(key);
                 if (obj == null)
                     throw new InternalError("Object in file {0} is invalid", file);
 
@@ -361,9 +381,8 @@ namespace YetaWF.DataProvider {
         public void RemoveSiteData() { } // remove site-specific data is performed globally by removing the site data folder
 
         public bool ExportChunk(int chunk, SerializableList<SerializableFile> fileList, out object obj) {
-            IDataProvider<KEYTYPE, OBJTYPE> iData = (IDataProvider<KEYTYPE, OBJTYPE>)this;
             int total;
-            SerializableList<OBJTYPE> serList = new SerializableList<OBJTYPE>(iData.GetRecords(chunk * ChunkSize, ChunkSize, null, null, out total));
+            SerializableList<OBJTYPE> serList = new SerializableList<OBJTYPE>(GetRecordsSpecificType(chunk * ChunkSize, ChunkSize, null, null, out total));
             obj = serList;
             int count = serList.Count();
             if (count == 0)
@@ -371,14 +390,13 @@ namespace YetaWF.DataProvider {
             return (count >= ChunkSize);
         }
         public void ImportChunk(int chunk, SerializableList<SerializableFile> fileList, object obj) {
-            IDataProvider<KEYTYPE, OBJTYPE> iData = (IDataProvider<KEYTYPE, OBJTYPE>)this;
             if (SiteIdentity > 0 || YetaWFManager.Manager.ImportChunksNonSiteSpecifics) {
                 SerializableList<OBJTYPE> serList = (SerializableList<OBJTYPE>)obj;
                 int total = serList.Count();
                 if (total > 0) {
                     for (int processed = 0 ; processed < total ; ++processed) {
                         OBJTYPE item = serList[processed];
-                        iData.Add(item);
+                        Add(item);
                     }
                 }
             }
