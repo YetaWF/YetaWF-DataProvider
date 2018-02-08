@@ -230,7 +230,6 @@ DROP TABLE #BASETABLE
         }
 
         public new List<OBJTYPE> GetRecords(int skip, int take, List<DataProviderSortInfo> sorts, List<DataProviderFilterInfo> filters, out int total, List<JoinData> Joins = null) {
-            if (Dataset != BaseDataset) throw new InternalError("Only base dataset is supported");
             return base.GetRecords(skip, take, sorts, filters, out total, Joins: Joins);
         }
 

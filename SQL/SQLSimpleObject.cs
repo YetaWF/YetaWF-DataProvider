@@ -19,7 +19,7 @@ namespace YetaWF.DataProvider.SQL {
         public SQLSimpleObject(Dictionary<string, object> options) : base(options) { }
     }
     public partial class SQLSimpleObjectBase<KEYTYPE, KEYTYPE2, OBJTYPE> : SQLBase, IDataProvider<KEYTYPE, OBJTYPE>, ISQLTableInfo {
-    
+
         public SQLSimpleObjectBase(Dictionary<string, object> options, bool HasKey2 = false) : base(options) {
             this.HasKey2 = HasKey2;
         }
@@ -50,7 +50,7 @@ namespace YetaWF.DataProvider.SQL {
             string calcProps = CalculatedProperties(typeof(OBJTYPE));
             string andKey2 = HasKey2 ? "AND " + sqlHelper.Expr(Key2Name, "=", key2) : null;
 
-            List <PropertyData> propData = GetPropertyData();
+            List<PropertyData> propData = GetPropertyData();
             string subTablesSelects = SubTablesSelects(Dataset, propData, typeof(OBJTYPE));
 
             string scriptMain = $@"
@@ -602,21 +602,14 @@ DROP TABLE #TEMPTABLE
         public void RemoveSiteData() { // remove site-specific data
             if (SiteIdentity > 0) {
                 string fullTableName = SQLBuilder.GetTable(Database, Dbo, Dataset);
-                List<PropertyData> propData = GetPropertyData();
-                List<SubTableInfo> subTables = GetSubTables(Dataset, propData);
                 SQLHelper sqlHelper = new SQLHelper(Conn, null, Languages);
                 SQLBuilder sb = new SQL.SQLBuilder();
-                foreach (SubTableInfo subTable in subTables) {
-                    sb.Add($@"
-    DELETE FROM {subTable.Name} WHERE [{SiteColumn}] = {SiteIdentity}
-;
-");
-                    sb.Add($@"
+                sb.Add($@"
 DELETE FROM {fullTableName} WHERE [{SiteColumn}] = {SiteIdentity}
 ;
 ");
-                    sqlHelper.ExecuteScalar(sb.ToString());
-                }
+                // subtable data is removed by delete cascade
+                sqlHelper.ExecuteScalar(sb.ToString());
             }
         }
 
