@@ -144,9 +144,9 @@ VALUES ({values})
             string fullTableName = SQLBuilder.GetTable(Database, Dbo, Dataset);
 
             List<PropertyData> propBaseData = GetBasePropertyData();
-            string setBaseColumns = SetColumns(sqlHelper, Dataset, IdentityName, propBaseData, obj, typeof(ModuleDefinition));
+            string setBaseColumns = SetColumns(sqlHelper, Dataset, propBaseData, obj, typeof(ModuleDefinition));
             List<PropertyData> propData = GetPropertyData();
-            string setColumns = SetColumns(sqlHelper, Dataset, IdentityName, propData, obj, typeof(OBJTYPE));
+            string setColumns = SetColumns(sqlHelper, Dataset, propData, obj, typeof(OBJTYPE));
 
             string scriptMain = $@"
 UPDATE {fullBaseTableName} 

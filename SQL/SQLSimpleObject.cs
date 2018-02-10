@@ -29,6 +29,17 @@ namespace YetaWF.DataProvider.SQL {
         public string Key2Name { get { return GetKey2Name(Dataset, GetPropertyData()); } }
         public string IdentityName { get { return GetIdentityName(Dataset, GetPropertyData()); } }
 
+        private string IdentityNameOrDefault {
+            get {
+                if (string.IsNullOrWhiteSpace(_identityOrDefault))
+                    _identityOrDefault = GetIdentityName(Dataset, GetPropertyData());
+                if (string.IsNullOrWhiteSpace(_identityOrDefault))
+                    _identityOrDefault = SQLBase.IdentityColumn;
+                return _identityOrDefault;
+            }
+        }
+        private string _identityOrDefault;
+
         protected const int ChunkSize = 100;
 
         protected List<PropertyData> GetPropertyData() {
@@ -73,7 +84,7 @@ DECLARE @MyCursor CURSOR;
 DECLARE @ident int;
 
 SET @MyCursor = CURSOR FOR
-SELECT [{IdentityName}] FROM #TEMPTABLE
+SELECT [{IdentityNameOrDefault}] FROM #TEMPTABLE
 
 OPEN @MyCursor
 FETCH NEXT FROM @MyCursor
@@ -93,7 +104,7 @@ DROP TABLE #TEMPTABLE
                 if (!reader.Read()) return default(OBJTYPE);
                 OBJTYPE obj = sqlHelper.CreateObject<OBJTYPE>(reader);
                 if (!string.IsNullOrWhiteSpace(subTablesSelects)) {
-                    ReadSubTables(sqlHelper, reader, Dataset, IdentityName, obj, propData, typeof(OBJTYPE));
+                    ReadSubTables(sqlHelper, reader, Dataset, obj, propData, typeof(OBJTYPE));
                 }
                 return obj;
             }
@@ -165,7 +176,7 @@ DECLARE @__IDENTITY int = @@IDENTITY
 
             string fullTableName = SQLBuilder.GetTable(Database, Dbo, Dataset);
             List<PropertyData> propData = GetPropertyData();
-            string setColumns = SetColumns(sqlHelper, Dataset, IdentityName, propData, obj, typeof(OBJTYPE));
+            string setColumns = SetColumns(sqlHelper, Dataset, propData, obj, typeof(OBJTYPE));
             string andKey2 = HasKey2 ? "AND " + sqlHelper.Expr(Key2Name, "=", origKey2) : null;
 
             string subTablesUpdates = SubTablesUpdates(sqlHelper, Dataset, obj, propData, typeof(OBJTYPE));
@@ -181,12 +192,12 @@ SELECT @@ROWCOUNT --- result set
 
             string scriptWithSub = $@"
 DECLARE @__IDENTITY int;
-SELECT @__IDENTITY = [{IdentityName}] FROM {fullTableName} 
+SELECT @__IDENTITY = [{IdentityNameOrDefault}] FROM {fullTableName} 
 WHERE {sqlHelper.Expr(Key1Name, "=", origKey)} {andKey2} {AndSiteIdentity}
 
 UPDATE {fullTableName} 
 SET {setColumns}
-WHERE [{IdentityName}] = @__IDENTITY
+WHERE [{IdentityNameOrDefault}] = @__IDENTITY
 ;
 SELECT @@ROWCOUNT --- result set
 
@@ -240,14 +251,14 @@ SELECT @@ROWCOUNT --- result set
 
             string scriptWithSub = $@"
 DECLARE @ident int;
-SELECT @ident = [{IdentityName}] FROM {fullTableName} 
+SELECT @ident = [{IdentityNameOrDefault}] FROM {fullTableName} 
 WHERE {sqlHelper.Expr(Key1Name, "=", key)} {andKey2} {AndSiteIdentity}
 
 {subTablesDeletes}
 
 DELETE
 FROM {fullTableName} 
-WHERE [{IdentityName}] = @ident
+WHERE [{IdentityNameOrDefault}] = @ident
 ;
 SELECT @@ROWCOUNT --- result set
 
@@ -294,7 +305,7 @@ FROM {fullTableName}
 {sqlHelper.DebugInfo}";
 
             string scriptWithSub = $@"
-SELECT [{IdentityName}]
+SELECT [{IdentityNameOrDefault}]
 INTO #TEMPTABLE
 FROM {fullTableName} WITH(NOLOCK) 
 {filter} 
@@ -311,7 +322,7 @@ DECLARE @MyCursor CURSOR;
 DECLARE @ident int;
 
 SET @MyCursor = CURSOR FOR
-SELECT [{IdentityName}] FROM #TEMPTABLE
+SELECT [{IdentityNameOrDefault}] FROM #TEMPTABLE
 
 OPEN @MyCursor
 FETCH NEXT FROM @MyCursor
@@ -395,7 +406,7 @@ DECLARE @MyCursor CURSOR;
 DECLARE @ident int;
 
 SET @MyCursor = CURSOR FOR
-SELECT [{IdentityName}] FROM #TEMPTABLE
+SELECT [{IdentityNameOrDefault}] FROM #TEMPTABLE
 
 OPEN @MyCursor
 FETCH NEXT FROM @MyCursor
@@ -425,7 +436,7 @@ DROP TABLE #TEMPTABLE
                     list.Add(sqlHelper.CreateObject<OBJTYPE>(reader));
                 if (!string.IsNullOrWhiteSpace(subTablesSelects)) {
                     foreach (var obj in list) {
-                        ReadSubTables(sqlHelper, reader, Dataset, IdentityName, obj, propData, typeof(OBJTYPE));
+                        ReadSubTables(sqlHelper, reader, Dataset, obj, propData, typeof(OBJTYPE));
                     }
                 }
                 if (skip == 0 && take == 0)
@@ -491,7 +502,7 @@ DROP TABLE #TEMPTABLE
             return sb.ToString();
         }
 
-        protected void ReadSubTables(SQLHelper sqlHelper, SqlDataReader reader, string tableName, string identityName, OBJTYPE container, List<PropertyData> propData, Type tpContainer) {
+        protected void ReadSubTables(SQLHelper sqlHelper, SqlDataReader reader, string tableName, OBJTYPE container, List<PropertyData> propData, Type tpContainer) {
             List<SubTableInfo> subTables = GetSubTables(tableName, propData);
             foreach (SubTableInfo subTable in subTables) {
                 object subContainer = subTable.PropInfo.GetValue(container);

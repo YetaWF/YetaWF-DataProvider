@@ -70,7 +70,7 @@ DROP TABLE #TEMPTABLE
                 if (!reader.Read()) return default(OBJTYPE);
                 OBJTYPE obj = sqlHelper.CreateObject<OBJTYPE>(reader);
                 if (!string.IsNullOrWhiteSpace(subTablesSelects)) {
-                    ReadSubTables(sqlHelper, reader, Dataset, IdentityName, obj, propData, typeof(OBJTYPE));
+                    ReadSubTables(sqlHelper, reader, Dataset, obj, propData, typeof(OBJTYPE));
                 }
                 return obj;
             }
@@ -122,7 +122,7 @@ SELECT @@ROWCOUNT --- result set
 
             string fullTableName = SQLBuilder.GetTable(Database, Dbo, Dataset);
             List<PropertyData> propData = GetPropertyData();
-            string setColumns = SetColumns(sqlHelper, Dataset, IdentityName, propData, obj, typeof(OBJTYPE));
+            string setColumns = SetColumns(sqlHelper, Dataset, propData, obj, typeof(OBJTYPE));
 
             string subTablesUpdates = SubTablesUpdates(sqlHelper, Dataset, obj, propData, typeof(OBJTYPE));
 

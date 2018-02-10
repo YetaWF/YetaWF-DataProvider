@@ -541,7 +541,7 @@ namespace YetaWF.DataProvider.SQL {
             return sb.ToString();
         }
 
-        protected string SetColumns(SQLHelper sqlHelper, string tableName, string identityName, List<PropertyData> propData, object container, Type tpContainer, string prefix = "", bool topMost = false, bool SiteSpecific = false) {
+        protected string SetColumns(SQLHelper sqlHelper, string tableName, List<PropertyData> propData, object container, Type tpContainer, string prefix = "", bool topMost = false, bool SiteSpecific = false) {
             SQLBuilder sb = new SQLBuilder();
             foreach (PropertyData prop in propData) {
                 PropertyInfo pi = prop.PropInfo;
@@ -587,7 +587,7 @@ namespace YetaWF.DataProvider.SQL {
                     } else if (pi.PropertyType.IsClass) {
                         object objVal = pi.GetValue(container);
                         List<PropertyData> subPropData = ObjectSupport.GetPropertyData(pi.PropertyType);
-                        sb.Add(SetColumns(sqlHelper, tableName, identityName, subPropData, objVal, pi.PropertyType, prefix + prop.Name + "_", false));
+                        sb.Add(SetColumns(sqlHelper, tableName, subPropData, objVal, pi.PropertyType, prefix + prop.Name + "_", false));
                         sb.Add(",");
                     } else
                         throw new InternalError("Unknown property type {2} used in class {0}, property {1}", tpContainer.FullName, prop.Name, pi.PropertyType.FullName);
