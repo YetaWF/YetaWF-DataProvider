@@ -159,11 +159,11 @@ namespace YetaWF.DataProvider
             return CreateDataProviderIOMode(package, ModuleDefinition.BaseFolderName, SiteIdentity: SiteIdentity, Cacheable: true, 
                 Callback: (ioMode, options) => {
                     switch (ioMode) {
-                        case "SQL": {
+                        case "sql": {
                                 options.Add("WebConfigArea", ModuleDefinition.BaseFolderName);
                                 return new SQL.SQLDataProvider.ModuleDefinitionDataProvider<KEY, TYPE>(options);
                             }
-                        case "File":
+                        case "file":
                             return new File.FileDataProvider.ModuleDefinitionDataProvider<KEY, TYPE>(options);
                         default:
                             throw new InternalError($"Unsupported IOMode {ioMode} in {nameof(ModuleDefinitionDataProvider<KEY, TYPE>)}.{nameof(CreateDataProvider)}");
