@@ -347,12 +347,14 @@ namespace YetaWF.DataProvider.SQL {
                             throw new InternalError("Invalid operator {0}", f.Operator);
                     }
                     if (isNull != null) {
+                        sb.Add("(");
                         string s = SQLBuilder.BuildFullColumnName(f.Field, visibleColumns);
                         AddExpr(sb, s, oper, val);
                         if (isNull == true)
                             sb.Add($" OR {s} IS NULL");
                         else
                             sb.Add($" AND {s} IS NOT NULL");
+                        sb.Add(")");
                     } else {
                         AddExpr(sb, SQLBuilder.BuildFullColumnName(f.Field, visibleColumns), oper, val);
                     }
