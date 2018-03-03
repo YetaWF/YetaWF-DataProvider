@@ -4,8 +4,8 @@
     <Version>2.8.0.0</Version>
     <TargetFramework>net462</TargetFramework>
     <DefineConstants>$(DefineConstants);MVC6</DefineConstants>
-    <AssemblyName>YetaWF.DataProvider.SQL</AssemblyName>
-    <PackageId>SQL</PackageId>
+    <AssemblyName>YetaWF.DataProvider.SQL2</AssemblyName>
+    <PackageId>SQL2</PackageId>
     <GenerateAssemblyTitleAttribute>false</GenerateAssemblyTitleAttribute>
     <GenerateAssemblyDescriptionAttribute>false</GenerateAssemblyDescriptionAttribute>
     <GenerateAssemblyConfigurationAttribute>false</GenerateAssemblyConfigurationAttribute>
@@ -13,7 +13,7 @@
     <GenerateAssemblyCopyrightAttribute>false</GenerateAssemblyCopyrightAttribute>
     <GenerateAssemblyProductAttribute>false</GenerateAssemblyProductAttribute>
     <GenerateAssemblyVersionAttribute>false</GenerateAssemblyVersionAttribute>
-    <RootNamespace>YetaWF.DataProvider.SQL</RootNamespace>
+    <RootNamespace>YetaWF.DataProvider.SQL2</RootNamespace>
   </PropertyGroup>
 
   <ItemGroup>

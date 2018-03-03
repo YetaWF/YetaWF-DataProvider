@@ -3,7 +3,7 @@ using System.Text;
 using YetaWF.Core.DataProvider;
 using YetaWF.Core.Support;
 
-namespace YetaWF.DataProvider.SQL {
+namespace YetaWF.DataProvider.SQL2 {
 
     public class SQLBuilder {
 

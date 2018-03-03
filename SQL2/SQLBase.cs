@@ -21,7 +21,7 @@ using YetaWF.Core.Support;
 using YetaWF.Core.Support.Serializers;
 using YetaWF.Core.Views.Shared;
 
-namespace YetaWF.DataProvider.SQL {
+namespace YetaWF.DataProvider.SQL2 {
 
     public abstract class SQLBase : IDisposable, IDataProviderTransactions {
 
@@ -305,7 +305,7 @@ namespace YetaWF.DataProvider.SQL {
         }
 
         protected string MakeJoins(SQLHelper helper, List<JoinData> joins) {
-            SQLBuilder sb = new SQL.SQLBuilder();
+            SQLBuilder sb = new SQLBuilder();
             if (joins != null) {
                 foreach (JoinData join in joins) {
                     ISQLTableInfo joinInfo = (ISQLTableInfo)join.JoinDP.GetDataProvider();
@@ -402,7 +402,7 @@ namespace YetaWF.DataProvider.SQL {
 
         protected string CalculatedProperties(Type objType) {
             if (CalculatedPropertyCallback == null) return null;
-            SQLBuilder sb = new SQL.SQLBuilder();
+            SQLBuilder sb = new SQLBuilder();
             List<PropertyData> props = ObjectSupport.GetPropertyData(objType);
             props = (from p in props where p.CalculatedProperty select p).ToList();
             foreach (PropertyData prop in props) {
@@ -607,7 +607,7 @@ namespace YetaWF.DataProvider.SQL {
         // DIRECT
 
         public async Task<int> Direct_ScalarIntAsync(string tableName, string sql) {
-            SQLHelper sqlHelper = new SQL.SQLHelper(Conn, null, Languages);
+            SQLHelper sqlHelper = new SQLHelper(Conn, null, Languages);
             sql = sql.Replace("{TableName}", SQLBuilder.WrapBrackets(tableName));
             if (SiteIdentity > 0)
                 sql = sql.Replace($"{{{SiteColumn}}}", $"[{SiteColumn}] = {SiteIdentity}");
@@ -615,20 +615,20 @@ namespace YetaWF.DataProvider.SQL {
             return val;
         }
         public async void Direct_QueryAsync(string tableName, string sql) {
-            SQLHelper sqlHelper = new SQL.SQLHelper(Conn, null, Languages);
+            SQLHelper sqlHelper = new SQLHelper(Conn, null, Languages);
             sql = sql.Replace("{TableName}", SQLBuilder.WrapBrackets(tableName));
             if (SiteIdentity > 0)
                 sql = sql.Replace($"{{{SiteColumn}}}", $"[{SiteColumn}] = {SiteIdentity}");
             await sqlHelper.ExecuteNonQueryAsync(sql);
         }
         public async Task<List<TYPE>> Direct_QueryListAsync<TYPE>(string tableName, string sql) {
-            SQLHelper sqlHelper = new SQL.SQLHelper(Conn, null, Languages);
+            SQLHelper sqlHelper = new SQLHelper(Conn, null, Languages);
             sql = sql.Replace("{TableName}", SQLBuilder.WrapBrackets(tableName));
             if (SiteIdentity > 0)
                 sql = sql.Replace($"{{{SiteColumn}}}", $"[{SiteColumn}] = {SiteIdentity}");
             List<TYPE> list = new List<TYPE>();
             using (SqlDataReader reader = await sqlHelper.ExecuteReaderAsync(sql)) {
-                while (await reader.ReadAsync())
+                while (YetaWFManager.Manager.Sync ? reader.Read() : await reader.ReadAsync())
                     list.Add(sqlHelper.CreateObject<TYPE>(reader));
             }
             return list;

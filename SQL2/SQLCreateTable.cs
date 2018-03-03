@@ -13,7 +13,7 @@ using YetaWF.Core.Models;
 using YetaWF.Core.Models.Attributes;
 using YetaWF.Core.Packages;
 using YetaWF.Core.Support;
-using YetaWF.DataProvider.SQL;
+using YetaWF.DataProvider.SQL2;
 
 namespace YetaWF.DataProvider {
 

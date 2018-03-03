@@ -7,7 +7,7 @@ using YetaWF.Core.Support;
 using System.Data.SqlClient;
 using Microsoft.SqlServer.Management.Common;
 
-namespace YetaWF.DataProvider.SQL {
+namespace YetaWF.DataProvider.SQL2 {
 
     /// <summary>
     /// Used to cache db info (table names, column names) as these are costly operations and the table names/column names are quite static.

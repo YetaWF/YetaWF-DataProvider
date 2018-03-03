@@ -14,7 +14,7 @@ using YetaWF.Core.Packages;
 using YetaWF.Core.Serializers;
 using YetaWF.Core.Support;
 
-namespace YetaWF.DataProvider.SQL {
+namespace YetaWF.DataProvider.SQL2 {
 
     public partial class SQLSimpleObject<KEYTYPE, OBJTYPE> : SQLSimpleObjectBase<KEYTYPE, object, OBJTYPE> {
         public SQLSimpleObject(Dictionary<string, object> options) : base(options) { }
@@ -363,14 +363,14 @@ DROP TABLE #TEMPTABLE
             string calcProps = CalculatedProperties(typeof(OBJTYPE));
             string selectCount = null;
             if (skip != 0 || take != 0) {
-                SQLBuilder sb = new SQL.SQLBuilder();
+                SQLBuilder sb = new SQLBuilder();
                 sb.Add($"SELECT COUNT(*) FROM {fullTableName} WITH(NOLOCK) {joins} {filter} ");
                 selectCount = sb.ToString();
             }
 
             string orderBy = null;
             {
-                SQLBuilder sb = new SQL.SQLBuilder();
+                SQLBuilder sb = new SQLBuilder();
                 if (sorts == null || sorts.Count == 0)
                     sorts = new List<DataProviderSortInfo> { new DataProviderSortInfo { Field = Key1Name, Order = DataProviderSortInfo.SortDirection.Ascending } };
                 sb.AddOrderBy(visibleColumns, sorts, skip, take);
@@ -485,7 +485,7 @@ DROP TABLE #TEMPTABLE
         }
 
         protected string SubTablesSelects(string tableName, List<PropertyData> propData, Type tpContainer) {
-            SQLBuilder sb = new SQL.SQLBuilder();
+            SQLBuilder sb = new SQLBuilder();
             List<SubTableInfo> subTables = GetSubTables(tableName, propData);
             if (subTables.Count > 0) {
                 foreach (SubTableInfo subTable in subTables) {
@@ -520,7 +520,7 @@ DROP TABLE #TEMPTABLE
         }
 
         protected string SubTablesInserts(SQLHelper sqlHelper, string tableName, object container, List<PropertyData> propData, Type tpContainer) {
-            SQLBuilder sb = new SQL.SQLBuilder();
+            SQLBuilder sb = new SQLBuilder();
             List<SubTableInfo> subTables = GetSubTables(tableName, propData);
             foreach (SubTableInfo subTable in subTables) {
                 List<PropertyData> subPropData = ObjectSupport.GetPropertyData(subTable.Type);
@@ -537,7 +537,7 @@ DROP TABLE #TEMPTABLE
             return sb.ToString();
         }
         protected string SubTablesUpdates(SQLHelper sqlHelper, string tableName, object container, List<PropertyData> propData, Type tpContainer) {
-            SQLBuilder sb = new SQL.SQLBuilder();
+            SQLBuilder sb = new SQLBuilder();
             List<SubTableInfo> subTables = GetSubTables(tableName, propData);
             foreach (SubTableInfo subTable in subTables) {
                 sb.Add($@"
@@ -558,7 +558,7 @@ DROP TABLE #TEMPTABLE
             return sb.ToString();
         }
         protected string SubTablesDeletes(string tableName, List<PropertyData> propData, Type tpContainer) {
-            SQLBuilder sb = new SQL.SQLBuilder();
+            SQLBuilder sb = new SQLBuilder();
             List<SubTableInfo> subTables = GetSubTables(tableName, propData);
             foreach (SubTableInfo subTable in subTables) {
                 sb.Add($@"
@@ -614,7 +614,7 @@ DROP TABLE #TEMPTABLE
             if (SiteIdentity > 0) {
                 string fullTableName = SQLBuilder.GetTable(Database, Dbo, Dataset);
                 SQLHelper sqlHelper = new SQLHelper(Conn, null, Languages);
-                SQLBuilder sb = new SQL.SQLBuilder();
+                SQLBuilder sb = new SQLBuilder();
                 sb.Add($@"
 DELETE FROM {fullTableName} WHERE [{SiteColumn}] = {SiteIdentity}
 ;

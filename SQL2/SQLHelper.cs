@@ -14,7 +14,7 @@ using YetaWF.Core.Models;
 using YetaWF.Core.Support;
 using YetaWF.Core.Support.Serializers;
 
-namespace YetaWF.DataProvider.SQL {
+namespace YetaWF.DataProvider.SQL2 {
 
     public class SQLHelper {
 
@@ -229,17 +229,26 @@ namespace YetaWF.DataProvider.SQL {
         private static Task<SqlDataReader> ExecuteReaderAsync(SqlConnection connection, SqlTransaction transaction, CommandType commandType, string commandText, List<SqlParameter> sqlParms) {
             SqlCommand cmd = new SqlCommand();
             PrepareCommand(cmd, connection, transaction, commandType, commandText, sqlParms);
-            return cmd.ExecuteReaderAsync();
+            if (YetaWFManager.Manager.Sync)
+                return Task.FromResult(cmd.ExecuteReader());
+            else
+                return cmd.ExecuteReaderAsync();
         }
         private static Task<object> ExecuteScalarAsync(SqlConnection connection, SqlTransaction transaction, CommandType commandType, string commandText, List<SqlParameter> sqlParms) {
             SqlCommand cmd = new SqlCommand();
             PrepareCommand(cmd, connection, transaction, commandType, commandText, sqlParms);
-            return cmd.ExecuteScalarAsync();
+            if (YetaWFManager.Manager.Sync)
+                return Task.FromResult(cmd.ExecuteScalar());
+            else
+                return cmd.ExecuteScalarAsync();
         }
         private static Task<int> ExecuteNonQueryAsync(SqlConnection connection, SqlTransaction transaction, CommandType commandType, string commandText, List<SqlParameter> sqlParms) {
             SqlCommand cmd = new SqlCommand();
             PrepareCommand(cmd, connection, transaction, commandType, commandText, sqlParms);
-            return cmd.ExecuteNonQueryAsync();
+            if (YetaWFManager.Manager.Sync)
+                return Task.FromResult(cmd.ExecuteNonQuery());
+            else
+                return cmd.ExecuteNonQueryAsync();
         }
 
         private static void PrepareCommand(SqlCommand command, SqlConnection connection, SqlTransaction transaction, CommandType commandType, string commandText, List<SqlParameter> sqlParms) {
