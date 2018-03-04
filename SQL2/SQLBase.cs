@@ -1,4 +1,6 @@
-﻿using Microsoft.SqlServer.Management.Common;
+﻿/* Copyright © 2018 Softel vdm, Inc. - https://yetawf.com/Documentation/YetaWF/Licensing */
+
+using Microsoft.SqlServer.Management.Common;
 using Microsoft.SqlServer.Management.Smo;
 using System;
 using System.Collections;
@@ -106,7 +108,7 @@ namespace YetaWF.DataProvider.SQL2 {
                 AndSiteIdentity = $"AND [{SiteColumn}] = {SiteIdentity}";
 
             Conn = new SqlConnection(ConnectionString);
-            Conn.Open();
+            Conn.Open();///$$$ should move and make async
             Database = Conn.Database;
 
             DisposableTracker.AddObject(this);
