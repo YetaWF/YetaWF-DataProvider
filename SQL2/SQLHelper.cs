@@ -229,7 +229,7 @@ namespace YetaWF.DataProvider.SQL2 {
         }
 
         private static Task<SqlDataReader> ExecuteReaderAsync(SqlConnection connection, SqlTransaction transaction, CommandType commandType, string commandText, List<SqlParameter> sqlParms) {
-            SqlCommand cmd = new SqlCommand();
+            SqlCommand cmd = new SqlCommand();//$$using
             PrepareCommand(cmd, connection, transaction, commandType, commandText, sqlParms);
             if (YetaWFManager.Manager.Sync)
                 return Task.FromResult(cmd.ExecuteReader());
