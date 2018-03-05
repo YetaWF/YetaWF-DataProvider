@@ -616,7 +616,7 @@ namespace YetaWF.DataProvider.SQL2 {
             int val = Convert.ToInt32(await sqlHelper.ExecuteScalarAsync(sql));
             return val;
         }
-        public async void Direct_QueryAsync(string tableName, string sql) {
+        public async Task Direct_QueryAsync(string tableName, string sql) {
             SQLHelper sqlHelper = new SQLHelper(Conn, null, Languages);
             sql = sql.Replace("{TableName}", SQLBuilder.WrapBrackets(tableName));
             if (SiteIdentity > 0)
