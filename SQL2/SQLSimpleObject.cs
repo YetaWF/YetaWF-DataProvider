@@ -104,7 +104,7 @@ DROP TABLE #TEMPTABLE
             string script = (string.IsNullOrWhiteSpace(subTablesSelects)) ? scriptMain : scriptWithSub;
 
             using (SqlDataReader reader = await sqlHelper.ExecuteReaderAsync(script)) {
-                if (! (YetaWFManager.Manager.Sync ? reader.Read() : await reader.ReadAsync())) return default(OBJTYPE);
+                if (! (YetaWFManager.IsSync() ? reader.Read() : await reader.ReadAsync())) return default(OBJTYPE);
                 OBJTYPE obj = sqlHelper.CreateObject<OBJTYPE>(reader);
                 if (!string.IsNullOrWhiteSpace(subTablesSelects)) {
                     await ReadSubTablesAsync(sqlHelper, reader, Dataset, obj, propData, typeof(OBJTYPE));
@@ -429,11 +429,11 @@ DROP TABLE #TEMPTABLE
 
             using (SqlDataReader reader = await sqlHelper.ExecuteReaderAsync(script)) {
                 if (skip != 0 || take != 0) {
-                    if (!(YetaWFManager.Manager.Sync ? reader.Read() : await reader.ReadAsync())) throw new InternalError("Expected # of records");
+                    if (!(YetaWFManager.IsSync() ? reader.Read() : await reader.ReadAsync())) throw new InternalError("Expected # of records");
                     recs.Total = reader.GetInt32(0);
-                    if (!(YetaWFManager.Manager.Sync ? reader.NextResult() : await reader.NextResultAsync())) throw new InternalError("Expected next result set (main table)");
+                    if (!(YetaWFManager.IsSync() ? reader.NextResult() : await reader.NextResultAsync())) throw new InternalError("Expected next result set (main table)");
                 }
-                while ((YetaWFManager.Manager.Sync ? reader.Read() : await reader.ReadAsync()))
+                while ((YetaWFManager.IsSync() ? reader.Read() : await reader.ReadAsync()))
                     recs.Data.Add(sqlHelper.CreateObject<OBJTYPE>(reader));
                 if (!string.IsNullOrWhiteSpace(subTablesSelects)) {
                     foreach (var obj in recs.Data) {
@@ -513,8 +513,8 @@ DROP TABLE #TEMPTABLE
                 MethodInfo addMethod = subTable.PropInfo.PropertyType.GetMethod("Add", new Type[] { subTable.Type });
                 if (addMethod == null) throw new InternalError($"{nameof(ReadSubTablesAsync)} encountered a enumeration property that doesn't have an Add method");
 
-                if (!(YetaWFManager.Manager.Sync ? reader.NextResult() : await reader.NextResultAsync())) throw new InternalError("Expected next result set (subtable)");
-                while ((YetaWFManager.Manager.Sync ? reader.Read() : await reader.ReadAsync())) {
+                if (!(YetaWFManager.IsSync() ? reader.NextResult() : await reader.NextResultAsync())) throw new InternalError("Expected next result set (subtable)");
+                while ((YetaWFManager.IsSync() ? reader.Read() : await reader.ReadAsync())) {
                     object obj = sqlHelper.CreateObject(reader, subTable.Type);
                     addMethod.Invoke(subContainer, new object[] { obj });
                 }

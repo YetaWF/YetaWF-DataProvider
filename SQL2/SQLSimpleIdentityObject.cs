@@ -70,7 +70,7 @@ DROP TABLE #TEMPTABLE
             string script = (string.IsNullOrWhiteSpace(subTablesSelects)) ? scriptMain : scriptWithSub;
 
             using (SqlDataReader reader = await sqlHelper.ExecuteReaderAsync(script)) {
-                if (!(YetaWFManager.Manager.Sync ? reader.Read() : await reader.ReadAsync())) return default(OBJTYPE);
+                if (!(YetaWFManager.IsSync() ? reader.Read() : await reader.ReadAsync())) return default(OBJTYPE);
                 OBJTYPE obj = sqlHelper.CreateObject<OBJTYPE>(reader);
                 if (!string.IsNullOrWhiteSpace(subTablesSelects)) {
                     await ReadSubTablesAsync(sqlHelper, reader, Dataset, obj, propData, typeof(OBJTYPE));

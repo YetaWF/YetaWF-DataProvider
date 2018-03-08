@@ -2,21 +2,24 @@
 
 using System;
 using System.Collections.Generic;
+using System.Threading.Tasks;
+using YetaWF.Core.DataProvider;
 using YetaWF.Core.Modules;
+using YetaWF.DataProvider.SQL2;
 
 namespace YetaWF.DataProvider.SQL {
 
     public class SQLDataProvider {
 
         internal class ModuleDefinitionDataProvider<KEY, TYPE> : SQLModuleObject<KEY, TYPE>, ModuleDefinitionDataProviderIOMode {
+
             public ModuleDefinitionDataProvider(Dictionary<string, object> options) : base(options) { }
 
-            public DesignedModulesDictionary GetDesignedModules() {
+            public async Task<DesignedModulesDictionary> GetDesignedModulesAsync() {
                 using (SQLSimpleObject<Guid, TempDesignedModule> dp = new SQLSimpleObject<Guid, TempDesignedModule>(Options)) {
-                    int total;
-                    List<TempDesignedModule> modules = dp.GetRecords(0, 0, null, null, out total);
+                    DataProviderGetRecords<TempDesignedModule> modules = await dp.GetRecordsAsync(0, 0, null, null);
                     DesignedModulesDictionary designedMods = new DesignedModulesDictionary();
-                    foreach (TempDesignedModule mod in modules) {
+                    foreach (TempDesignedModule mod in modules.Data) {
                         designedMods.Add(mod.ModuleGuid, new DesignedModule {
                             ModuleGuid = mod.ModuleGuid,
                             Name = mod.Name,

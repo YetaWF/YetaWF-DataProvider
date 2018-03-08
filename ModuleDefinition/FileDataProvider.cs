@@ -3,18 +3,19 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Threading.Tasks;
 using YetaWF.Core.Modules;
 using YetaWF.Core.Support;
 
 namespace YetaWF.DataProvider.File {
 
     public class FileDataProvider {
-
+        //$$ASYNCIFY
         internal class ModuleDefinitionDataProvider<KEY, TYPE> : FileDataProvider<KEY, TYPE>, ModuleDefinitionDataProviderIOMode {
             public ModuleDefinitionDataProvider(Dictionary<string, object> options) : base(options) { }
             public override string GetBaseFolder() { return Path.Combine(YetaWFManager.DataFolder, ModuleDefinition.BaseFolderName, SiteIdentity.ToString()); }
 
-            public DesignedModulesDictionary GetDesignedModules() {
+            public Task<DesignedModulesDictionary> GetDesignedModulesAsync() {
                 DesignedModulesDictionary modules = new DesignedModulesDictionary();
                 List<Guid> modGuids = (List<Guid>)(object)FileDataProvider<KEY, TYPE>.GetListOfKeys(BaseFolder);
                 foreach (var modGuid in modGuids) {
@@ -24,7 +25,7 @@ namespace YetaWF.DataProvider.File {
                     DesignedModule desMod = new DesignedModule() { ModuleGuid = modGuid, Name = mod.Name, Description = mod.Description, AreaName = mod.Area, };
                     modules.Add(modGuid, desMod);
                 }
-                return modules;
+                return Task.FromResult(modules);
             }
         }
     }

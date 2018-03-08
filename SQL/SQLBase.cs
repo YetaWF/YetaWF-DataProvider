@@ -381,7 +381,7 @@ namespace YetaWF.DataProvider.SQL {
                     tableName = tableName.Split(new char[] { '.' }).Last().Trim(new char[] { '[', ']' });
                     columns = SQLCache.GetColumns(Conn, databaseName, tableName);
                     AddVisibleColumns(visibleColumns, databaseName, dbOwner, tableName, columns);
-                    ISQLTableInfo joinInfo = (ISQLTableInfo)join.JoinDP.GetDataProvider();
+                    ISQLTableInfo joinInfo = (ISQLTableInfo)join.JoinDP.GetDataProvider();// If an error occurs here, you're joining table using 2 different dataproviders. That is not supported.
                     databaseName = joinInfo.GetDatabaseName();
                     dbOwner = joinInfo.GetDbOwner();
                     tableName = joinInfo.GetTableName();

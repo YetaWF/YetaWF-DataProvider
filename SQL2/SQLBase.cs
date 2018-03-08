@@ -630,7 +630,7 @@ namespace YetaWF.DataProvider.SQL2 {
                 sql = sql.Replace($"{{{SiteColumn}}}", $"[{SiteColumn}] = {SiteIdentity}");
             List<TYPE> list = new List<TYPE>();
             using (SqlDataReader reader = await sqlHelper.ExecuteReaderAsync(sql)) {
-                while (YetaWFManager.Manager.Sync ? reader.Read() : await reader.ReadAsync())
+                while (YetaWFManager.IsSync() ? reader.Read() : await reader.ReadAsync())
                     list.Add(sqlHelper.CreateObject<TYPE>(reader));
             }
             return list;

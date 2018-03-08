@@ -62,15 +62,15 @@ DROP TABLE #BASETABLE
 {sqlHelper.DebugInfo}";
 
                 using (SqlDataReader reader = await sqlHelper.ExecuteReaderAsync(scriptMain)) {
-                    if (!(YetaWFManager.Manager.Sync ? reader.Read() : await reader.ReadAsync())) return default(OBJTYPE);
+                    if (!(YetaWFManager.IsSync() ? reader.Read() : await reader.ReadAsync())) return default(OBJTYPE);
                     string derivedTableName = (string)reader[0];
                     string derivedDataType = (string)reader[1];
                     string derivedAssemblyName = (string)reader[2];
                     if (string.IsNullOrWhiteSpace(derivedTableName))
                         return default(OBJTYPE);
-                    if (!(YetaWFManager.Manager.Sync ? reader.NextResult() : await reader.NextResultAsync()))
+                    if (!(YetaWFManager.IsSync() ? reader.NextResult() : await reader.NextResultAsync()))
                         return default(OBJTYPE);
-                    if (!(YetaWFManager.Manager.Sync ? reader.Read() : await reader.ReadAsync())) return default(OBJTYPE);
+                    if (!(YetaWFManager.IsSync() ? reader.Read() : await reader.ReadAsync())) return default(OBJTYPE);
                     OBJTYPE obj = sqlHelper.CreateObject<OBJTYPE>(reader, derivedDataType, derivedAssemblyName);
                     return obj;
                 }
@@ -87,7 +87,7 @@ WHERE {sqlHelper.Expr(Key1Name, "=", key)} {AndSiteIdentity}
 {sqlHelper.DebugInfo}";
 
                 using (SqlDataReader reader = await sqlHelper.ExecuteReaderAsync(scriptMain)) {
-                    if (!(YetaWFManager.Manager.Sync ? reader.Read() : await reader.ReadAsync())) return default(OBJTYPE);
+                    if (!(YetaWFManager.IsSync() ? reader.Read() : await reader.ReadAsync())) return default(OBJTYPE);
                     OBJTYPE obj = sqlHelper.CreateObject<OBJTYPE>(reader);
                     return obj;
                 }
