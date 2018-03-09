@@ -271,7 +271,7 @@ namespace YetaWF.DataProvider
                     return modules;
 
                 // Load the designed pages
-                Manager.Syncify(async () => {
+                YetaWFManager.Syncify(async () => {
                     modules = await DataProviderIOMode.GetDesignedModulesAsync();
                 });
                 PermanentManager.AddObject<DesignedModulesDictionary>(modules);
