@@ -245,7 +245,7 @@ namespace YetaWF.DataProvider.SQL2 {
 
         public DataProviderTransaction StartTransaction() {
             if (Trans != null) throw new InternalError("StartTransaction has already been called for this data provider");
-            Trans = new TransactionScope(TransactionScopeOption.Required, new TransactionOptions { IsolationLevel = IsolationLevel.Serializable });
+            Trans = new TransactionScope(TransactionScopeOption.Required, new TransactionOptions { IsolationLevel = IsolationLevel.Serializable }, TransactionScopeAsyncFlowOption.Enabled);
             return new DataProviderTransaction(CommitTransaction, AbortTransaction);
         }
         public void CommitTransaction() {
