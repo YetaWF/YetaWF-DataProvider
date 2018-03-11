@@ -10,22 +10,21 @@ using YetaWF.Core.Support;
 namespace YetaWF.DataProvider.File {
 
     public class FileDataProvider {
-        //$$ASYNCIFY
         internal class ModuleDefinitionDataProvider<KEY, TYPE> : FileDataProvider<KEY, TYPE>, ModuleDefinitionDataProviderIOMode {
             public ModuleDefinitionDataProvider(Dictionary<string, object> options) : base(options) { }
             public override string GetBaseFolder() { return Path.Combine(YetaWFManager.DataFolder, ModuleDefinition.BaseFolderName, SiteIdentity.ToString()); }
 
-            public Task<DesignedModulesDictionary> GetDesignedModulesAsync() {
+            public async Task<DesignedModulesDictionary> GetDesignedModulesAsync() {
                 DesignedModulesDictionary modules = new DesignedModulesDictionary();
-                List<Guid> modGuids = (List<Guid>)(object)FileDataProvider<KEY, TYPE>.GetListOfKeys(BaseFolder);
+                List<Guid> modGuids = (List<Guid>)(object)await FileDataProvider<KEY, TYPE>.GetListOfKeysAsync(BaseFolder);
                 foreach (var modGuid in modGuids) {
-                    ModuleDefinition mod = (ModuleDefinition)(object) Get((KEY)(object)modGuid);
+                    ModuleDefinition mod = (ModuleDefinition)(object)await GetAsync((KEY)(object)modGuid);
                     if (mod == null)
                         throw new InternalError("No ModuleDefinition for guid {0}", modGuid);
                     DesignedModule desMod = new DesignedModule() { ModuleGuid = modGuid, Name = mod.Name, Description = mod.Description, AreaName = mod.Area, };
                     modules.Add(modGuid, desMod);
                 }
-                return Task.FromResult(modules);
+                return modules;
             }
         }
     }

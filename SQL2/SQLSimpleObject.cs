@@ -21,7 +21,7 @@ namespace YetaWF.DataProvider.SQL2 {
     public partial class SQLSimpleObject<KEYTYPE, OBJTYPE> : SQLSimpleObjectBase<KEYTYPE, object, OBJTYPE> {
         public SQLSimpleObject(Dictionary<string, object> options) : base(options) { }
     }
-    public partial class SQLSimpleObjectBase<KEYTYPE, KEYTYPE2, OBJTYPE> : SQLBase, IDataProviderAsync<KEYTYPE, OBJTYPE>, ISQLTableInfo {
+    public partial class SQLSimpleObjectBase<KEYTYPE, KEYTYPE2, OBJTYPE> : SQLBase, IDataProvider<KEYTYPE, OBJTYPE>, ISQLTableInfo {
 
         public SQLSimpleObjectBase(Dictionary<string, object> options, bool HasKey2 = false) : base(options) {
             this.HasKey2 = HasKey2;

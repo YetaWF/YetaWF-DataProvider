@@ -5,6 +5,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Reflection;
+using System.Threading.Tasks;
 using YetaWF.Core;
 using YetaWF.Core.DataProvider;
 using YetaWF.Core.DataProvider.Attributes;
@@ -136,8 +137,8 @@ namespace YetaWF.DataProvider {
             };
             return fd;
         }
-        public OBJTYPE Get(KEYTYPE key) {
-            return Get(key, SpecificType: false);
+        public Task<OBJTYPE> GetAsync(KEYTYPE key) {
+            return Task.FromResult(Get(key, SpecificType: false));
         }
         public OBJTYPE GetSpecificType(KEYTYPE key) {
             return Get(key, SpecificType: true);
@@ -152,7 +153,7 @@ namespace YetaWF.DataProvider {
                 return UpdateCalculatedProperties(fd.Load());
         }
 
-        public bool Add(OBJTYPE obj) {
+        public Task<bool> AddAsync(OBJTYPE obj) {
 
             PropertyInfo piKey = ObjectSupport.GetProperty(typeof(OBJTYPE), Key1Name);
             KEYTYPE key = (KEYTYPE)piKey.GetValue(obj);
@@ -184,20 +185,20 @@ namespace YetaWF.DataProvider {
                     key = (KEYTYPE)(object)identity;
             }
             FileData<OBJTYPE> fd = GetFileDataObject(key);
-            return fd.Add(obj);
+            return Task.FromResult(fd.Add(obj));
         }
-        public UpdateStatusEnum Update(KEYTYPE origKey, KEYTYPE newKey, OBJTYPE obj) {
-            return UpdateFile(origKey, newKey, obj);
+        public Task<UpdateStatusEnum> UpdateAsync(KEYTYPE origKey, KEYTYPE newKey, OBJTYPE obj) {
+            return Task.FromResult(UpdateFile(origKey, newKey, obj));
         }
         private UpdateStatusEnum UpdateFile(KEYTYPE origKey, KEYTYPE newKey, OBJTYPE obj) {
             FileData<OBJTYPE> fd = GetFileDataObject(origKey);
             return fd.UpdateFile(newKey.ToString(), obj);
         }
-        public bool Remove(KEYTYPE key) {
+        public Task<bool> RemoveAsync(KEYTYPE key) {
             FileData<OBJTYPE> fd = GetFileDataObject(key);
-            return fd.TryRemove();
+            return Task.FromResult(fd.TryRemove());
         }
-        public static List<KEYTYPE> GetListOfKeys(string baseFolder) {
+        public static Task<List<KEYTYPE>> GetListOfKeysAsync(string baseFolder) {
             FileData fd = new FileData {
                 BaseFolder = baseFolder,
             };
@@ -205,9 +206,9 @@ namespace YetaWF.DataProvider {
             files = (from string f in files where !f.StartsWith(InternalFilePrefix) && f != Globals.DontDeployMarker select f).ToList<string>();
 
             if (typeof(KEYTYPE) == typeof(string))
-                return (List<KEYTYPE>)(object)files;
+                return Task.FromResult((List<KEYTYPE>)(object)files);
             else if (typeof(KEYTYPE) == typeof(Guid))
-                return (from string f in files select (KEYTYPE)(object)new Guid(f)).ToList<KEYTYPE>();
+                return Task.FromResult((from string f in files select (KEYTYPE)(object)new Guid(f)).ToList<KEYTYPE>());
             else
                 throw new InternalError("FileDataProvider only supports object keys of type string or Guid");
         }
@@ -216,19 +217,18 @@ namespace YetaWF.DataProvider {
         // GETRECORDS
         // GETRECORDS
 
-        public OBJTYPE GetOneRecord(List<DataProviderFilterInfo> filters, List<JoinData> Joins = null) {
+        public async Task<OBJTYPE> GetOneRecordAsync(List<DataProviderFilterInfo> filters, List<JoinData> Joins = null) {
             if (Joins != null) throw new InternalError("Joins not supported");
-            int total;
-            List<OBJTYPE> objs = GetRecords(0, 1, null, filters, out total);
-            return UpdateCalculatedProperties(objs.FirstOrDefault());
+            DataProviderGetRecords<OBJTYPE> objs = await GetRecords(0, 1, null, filters);
+            return UpdateCalculatedProperties(objs.Data.FirstOrDefault());
         }
-        public List<OBJTYPE> GetRecords(int skip, int take, List<DataProviderSortInfo> sort, List<DataProviderFilterInfo> filters, out int total, List<JoinData> Joins = null) {
-            return GetRecords(skip, take, sort, filters, out total, Joins: Joins, SpecificType: false);
+        public Task<DataProviderGetRecords<OBJTYPE>> GetRecordsAsync(int skip, int take, List<DataProviderSortInfo> sort, List<DataProviderFilterInfo> filters, List<JoinData> Joins = null) {
+            return GetRecords(skip, take, sort, filters, Joins: Joins, SpecificType: false);
         }
-        public List<OBJTYPE> GetRecordsSpecificType(int skip, int take, List<DataProviderSortInfo> sort, List<DataProviderFilterInfo> filters, out int total, List<JoinData> Joins = null) {
-            return GetRecords(skip, take, sort, filters, out total, Joins: Joins, SpecificType: true);
+        public Task<DataProviderGetRecords<OBJTYPE>> GetRecordsSpecificTypeAsync(int skip, int take, List<DataProviderSortInfo> sort, List<DataProviderFilterInfo> filters, List<JoinData> Joins = null) {
+            return GetRecords(skip, take, sort, filters, Joins: Joins, SpecificType: true);
         }
-        private List<OBJTYPE> GetRecords(int skip, int take, List<DataProviderSortInfo> sort, List<DataProviderFilterInfo> filters, out int total, List<JoinData> Joins, bool SpecificType) {
+        private async Task<DataProviderGetRecords<OBJTYPE>> GetRecords(int skip, int take, List<DataProviderSortInfo> sort, List<DataProviderFilterInfo> filters, List<JoinData> Joins = null, bool SpecificType = false) {
 
             if (Joins != null) throw new InternalError("Joins not supported");
             FileData fd = new FileData {
@@ -259,7 +259,7 @@ namespace YetaWF.DataProvider {
                     if (obj == null || typeof(OBJTYPE) != obj.GetType())
                         continue;
                 } else {
-                    obj = Get(key);
+                    obj = await GetAsync(key);
                     if (obj == null)
                         throw new InternalError($"Object in file {file} is invalid");
                 }
@@ -273,14 +273,17 @@ namespace YetaWF.DataProvider {
             foreach (OBJTYPE obj in objects)
                 UpdateCalculatedProperties(obj);
             objects = DataProviderImpl<OBJTYPE>.Filter(objects, filters);
-            total = objects.Count;
+            int total = objects.Count;
             objects = DataProviderImpl<OBJTYPE>.Sort(objects, sort);
 
             if (skip > 0)
                 objects = objects.Skip(skip).ToList<OBJTYPE>();
             if (take > 0)
                 objects = objects.Take(take).ToList<OBJTYPE>();
-            return objects;
+            return new DataProviderGetRecords<OBJTYPE> {
+                Data = objects,
+                Total = total,
+            };
         }
         private OBJTYPE UpdateCalculatedProperties(OBJTYPE obj) {
             if (CalculatedPropertyCallback == null) return obj;
@@ -296,7 +299,7 @@ namespace YetaWF.DataProvider {
         // REMOVE RECORDS
         // REMOVE RECORDS
 
-        public int RemoveRecords(List<DataProviderFilterInfo> filters) {
+        public async Task<int> RemoveRecordsAsync(List<DataProviderFilterInfo> filters) {
             FileData fd = new FileData {
                 BaseFolder = this.BaseFolder,
             };
@@ -315,7 +318,7 @@ namespace YetaWF.DataProvider {
                     key = (KEYTYPE)(object)Convert.ToInt32(file);
                 else
                     throw new InternalError("FileDataProvider only supports object keys of type string, int or Guid");
-                OBJTYPE obj = Get(key);
+                OBJTYPE obj = await GetAsync(key);
                 if (obj == null)
                     throw new InternalError("Object in file {0} is invalid", file);
 
@@ -351,52 +354,55 @@ namespace YetaWF.DataProvider {
         // INSTALL/UNINSTALL
         // INSTALL/UNINSTALL
 
-        public bool IsInstalled() {
-            return Directory.Exists(BaseFolder);
+        public Task<bool> IsInstalledAsync() {
+            return Task.FromResult(Directory.Exists(BaseFolder));
         }
 
-        public bool InstallModel(List<string> errorList) {
+        public Task<bool> InstallModelAsync(List<string> errorList) {
             try {
                 if (!Directory.Exists(BaseFolder))
                     Directory.CreateDirectory(BaseFolder);
-                return true;
+                return Task.FromResult(true);
             } catch (Exception exc) {
                 errorList.Add(string.Format("{0}: {1}", BaseFolder, exc.Message));
-                return false;
+                return Task.FromResult(false);
             }
         }
-        public bool UninstallModel(List<string> errorList) {
+        public Task<bool> UninstallModelAsync(List<string> errorList) {
             try {
                 FileData fd = new FileData {
                     BaseFolder = BaseFolder,
                 };
                 fd.TryRemoveAll();
-                return true;
+                return Task.FromResult(true);
             } catch (Exception exc) {
                 errorList.Add(string.Format("{0}: {1}", BaseFolder, exc.Message));
-                return false;
+                return Task.FromResult(false);
             }
         }
-        public void AddSiteData() { }
-        public void RemoveSiteData() { } // remove site-specific data is performed globally by removing the site data folder
+        public Task AddSiteDataAsync() { return Task.CompletedTask; }
+        public Task RemoveSiteDataAsync() { return Task.CompletedTask; } // remove site-specific data is performed globally by removing the site data folder
 
-        public bool ExportChunk(int chunk, SerializableList<SerializableFile> fileList, out object obj) {
-            int total;
-            SerializableList<OBJTYPE> serList = new SerializableList<OBJTYPE>(GetRecordsSpecificType(chunk * ChunkSize, ChunkSize, null, null, out total));
-            obj = serList;
+        public async Task<DataProviderExportChunk> ExportChunkAsync(int chunk, SerializableList<SerializableFile> fileList) {
+            DataProviderGetRecords<OBJTYPE> recs = await GetRecordsSpecificTypeAsync(chunk * ChunkSize, ChunkSize, null, null);
+            SerializableList<OBJTYPE> serList = new SerializableList<OBJTYPE>(recs.Data);
+            object obj = serList;
             int count = serList.Count();
             if (count == 0)
                 obj = null;
-            return (count >= ChunkSize);
+            return new DataProviderExportChunk {
+                ObjectList = obj,
+                More = count >= ChunkSize,
+            };
         }
-        public void ImportChunk(int chunk, SerializableList<SerializableFile> fileList, object obj) {
+        public async Task ImportChunkAsync(int chunk, SerializableList<SerializableFile> fileList, object obj) {
             if (SiteIdentity > 0 || YetaWFManager.Manager.ImportChunksNonSiteSpecifics) {
                 SerializableList<OBJTYPE> serList = (SerializableList<OBJTYPE>)obj;
                 int total = serList.Count();
                 if (total > 0) {
-                    for (int processed = 0 ; processed < total ; ++processed) {
+                    for (int processed = 0; processed < total; ++processed) {
                         OBJTYPE item = serList[processed];
-                        Add(item);
+                        await AddAsync(item);
                     }
                 }
             }

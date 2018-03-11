@@ -152,10 +152,10 @@ namespace YetaWF.DataProvider
         public ModuleDefinitionDataProvider() : base(YetaWFManager.Manager.CurrentSite.Identity) { SetDataProvider(CreateDataProvider()); }
         public ModuleDefinitionDataProvider(int siteIdentity) : base(siteIdentity) { SetDataProvider(CreateDataProvider()); }
 
-        private IDataProviderAsync<KEY, TYPE> DataProvider { get { return GetDataProvider(); } }
+        private IDataProvider<KEY, TYPE> DataProvider { get { return GetDataProvider(); } }
         private ModuleDefinitionDataProviderIOMode DataProviderIOMode { get { return GetDataProvider(); } }
 
-        private IDataProviderAsync<KEY, TYPE> CreateDataProvider() {
+        private IDataProvider<KEY, TYPE> CreateDataProvider() {
             Package package = YetaWF.Core.Packages.Package.GetPackageFromType(typeof(TYPE));
             return CreateDataProviderIOMode(package, ModuleDefinition.BaseFolderName, SiteIdentity: SiteIdentity, Cacheable: true, 
                 Callback: (ioMode, options) => {

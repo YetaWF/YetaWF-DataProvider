@@ -17,7 +17,7 @@ using YetaWF.Core.Support;
 
 namespace YetaWF.DataProvider.SQL2 {
 
-    public partial class SQLModuleObject<KEY, OBJTYPE> : SQLSimpleObject<KEY, OBJTYPE>, IDataProviderAsync<KEY, OBJTYPE> {
+    public partial class SQLModuleObject<KEY, OBJTYPE> : SQLSimpleObject<KEY, OBJTYPE>, IDataProvider<KEY, OBJTYPE> {
 
         public SQLModuleObject(Dictionary<string, object> options) : base(options) {
             if (typeof(KEY) != typeof(Guid)) throw new InternalError("Only Guid is supported as Key");
