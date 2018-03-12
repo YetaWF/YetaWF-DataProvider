@@ -28,7 +28,7 @@ namespace YetaWF.DataProvider.SQL2 {
 
             string joins = null;// RFFU
             string fullTableName = SQLBuilder.GetTable(Database, Dbo, Dataset);
-            string calcProps = CalculatedProperties(typeof(OBJTYPE));
+            string calcProps = await CalculatedPropertiesAsync(typeof(OBJTYPE));
 
             List<PropertyData> propData = GetPropertyData();
             string subTablesSelects = SubTablesSelects(Dataset, propData, typeof(OBJTYPE));

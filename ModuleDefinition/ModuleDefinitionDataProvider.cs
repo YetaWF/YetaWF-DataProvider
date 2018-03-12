@@ -27,12 +27,13 @@ namespace YetaWF.DataProvider
         // STARTUP
         // STARTUP
 
-        public void InitializeApplicationStartup() {
+        public Task InitializeApplicationStartupAsync() {
             ModuleDefinition.LoadModuleDefinitionAsync = LoadModuleDefinitionAsync;
             ModuleDefinition.SaveModuleDefinitionAsync = SaveModuleDefinitionAsync;
             ModuleDefinition.RemoveModuleDefinitionAsync = RemoveModuleDefinitionAsync;
             DesignedModules.LoadDesignedModulesAsync = LoadDesignedModulesAsync;
             ModuleDefinition.GetModulesAsync = GetModulesAsync;
+            return Task.CompletedTask;
         }
 
         // CACHE

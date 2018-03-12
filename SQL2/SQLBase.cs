@@ -51,7 +51,7 @@ namespace YetaWF.DataProvider.SQL2 {
         public bool NoLanguages { get; private set; }
         public List<LanguageData> Languages { get; private set; }
 
-        protected Func<string, string> CalculatedPropertyCallback { get; set; }
+        protected Func<string, Task<string>> CalculatedPropertyCallbackAsync { get; set; }
 
         public string ConnectionString { get; private set; }
         public string Dbo { get; private set; }
@@ -369,7 +369,7 @@ namespace YetaWF.DataProvider.SQL2 {
             tableName = tableName.Trim(new char[] { '[', ']' });
             List<string> columns = SQLCache.GetColumns(Conn, databaseName, tableName);
             AddVisibleColumns(visibleColumns, databaseName, dbOwner, tableName, columns);
-            if (CalculatedPropertyCallback != null) {
+            if (CalculatedPropertyCallbackAsync != null) {
                 List<PropertyData> props = ObjectSupport.GetPropertyData(objType);
                 props = (from p in props where p.CalculatedProperty select p).ToList();
                 foreach (PropertyData prop in props)
@@ -402,13 +402,13 @@ namespace YetaWF.DataProvider.SQL2 {
             }
         }
 
-        protected string CalculatedProperties(Type objType) {
-            if (CalculatedPropertyCallback == null) return null;
+        protected async Task<string> CalculatedPropertiesAsync(Type objType) {
+            if (CalculatedPropertyCallbackAsync == null) return null;
             SQLBuilder sb = new SQLBuilder();
             List<PropertyData> props = ObjectSupport.GetPropertyData(objType);
             props = (from p in props where p.CalculatedProperty select p).ToList();
             foreach (PropertyData prop in props) {
-                string calcProp = CalculatedPropertyCallback(prop.Name);
+                string calcProp = await CalculatedPropertyCallbackAsync(prop.Name);
                 sb.Add($", ({calcProp}) AS [{prop.Name}]");
             }
             return sb.ToString();

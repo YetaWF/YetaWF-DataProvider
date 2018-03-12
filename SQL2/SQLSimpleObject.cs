@@ -61,7 +61,7 @@ namespace YetaWF.DataProvider.SQL2 {
 
             string joins = null;// RFFU
             string fullTableName = SQLBuilder.GetTable(Database, Dbo, Dataset);
-            string calcProps = CalculatedProperties(typeof(OBJTYPE));
+            string calcProps = await CalculatedPropertiesAsync(typeof(OBJTYPE));
             string andKey2 = HasKey2 ? "AND " + sqlHelper.Expr(Key2Name, "=", key2) : null;
 
             List<PropertyData> propData = GetPropertyData();
@@ -362,7 +362,7 @@ DROP TABLE #TEMPTABLE
             string columnList = MakeColumnList(sqlHelper, visibleColumns, Joins);
             string joins = MakeJoins(sqlHelper, Joins);
             string filter = MakeFilter(sqlHelper, filters, visibleColumns);
-            string calcProps = CalculatedProperties(typeof(OBJTYPE));
+            string calcProps = await CalculatedPropertiesAsync(typeof(OBJTYPE));
             string selectCount = null;
             if (skip != 0 || take != 0) {
                 SQLBuilder sb = new SQLBuilder();
@@ -583,7 +583,7 @@ DROP TABLE #TEMPTABLE
             Database db = GetDatabase();
             List<string> columns = new List<string>();
             SQLCreate sqlCreate = new SQLCreate(Languages, IdentitySeed, Logging);
-            //$$$TODO: Asyncify
+            //TODO: could asyncify but probably not worth it as this is used during install/startup only
             success = sqlCreate.CreateTable(db, Dbo, Dataset, Key1Name, HasKey2 ? Key2Name : null, IdentityName, GetPropertyData(), typeof(OBJTYPE), errorList, columns,
                 SiteSpecific: SiteIdentity > 0,
                 TopMost: true);
@@ -598,7 +598,7 @@ DROP TABLE #TEMPTABLE
                 List<PropertyData> propData = GetPropertyData();
                 List<SubTableInfo> subTables = GetSubTables(Dataset, propData);
                 foreach (SubTableInfo subTable in subTables) {
-                    //$$$TODO: Asyncify
+                    //TODO: could asyncify but probably not worth it as this is used during install/startup only
                     sqlCreate.DropTable(db, Dbo, subTable.Name, errorList);
                 }
                 sqlCreate.DropTable(db, Dbo, Dataset, errorList);

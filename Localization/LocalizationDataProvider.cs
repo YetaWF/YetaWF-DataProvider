@@ -3,6 +3,7 @@
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Threading.Tasks;
 using YetaWF.Core.Addons;
 using YetaWF.Core.IO;
 using YetaWF.Core.Localize;
@@ -20,11 +21,12 @@ namespace YetaWF.Core.Models.DataProvider {
         protected YetaWFManager Manager { get { return YetaWFManager.Manager; } }
         protected bool HaveManager { get { return YetaWFManager.HaveManager; } }
 
-        public void InitializeApplicationStartup() {
+        public Task InitializeApplicationStartupAsync() {
             LocalizationSupport.Load = Load;
             LocalizationSupport.Save = Save;
             LocalizationSupport.ClearPackageData = ClearPackageData;
             LocalizationSupport.GetFiles = GetFiles;
+            return Task.CompletedTask;
         }
 
         public const string FolderName = "Localization";

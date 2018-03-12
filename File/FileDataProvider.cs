@@ -42,7 +42,7 @@ namespace YetaWF.DataProvider {
         public bool Cacheable { get; private set; }
         public bool Logging { get; private set; }
 
-        public Func<string, object, object> CalculatedPropertyCallback { get; set; }
+        public Func<string, object, Task<object>> CalculatedPropertyCallbackAsync { get; set; }
 
         private const int ChunkSize = 100;
 
@@ -137,20 +137,20 @@ namespace YetaWF.DataProvider {
             };
             return fd;
         }
-        public Task<OBJTYPE> GetAsync(KEYTYPE key) {
-            return Task.FromResult(Get(key, SpecificType: false));
+        public async Task<OBJTYPE> GetAsync(KEYTYPE key) {
+            return await GetAsync(key, SpecificType: false);
         }
-        public OBJTYPE GetSpecificType(KEYTYPE key) {
-            return Get(key, SpecificType: true);
+        public async Task<OBJTYPE> GetSpecificTypeAsync(KEYTYPE key) {
+            return await GetAsync(key, SpecificType: true);
         }
-        private OBJTYPE Get(KEYTYPE key, bool SpecificType) {
+        private async Task<OBJTYPE> GetAsync(KEYTYPE key, bool SpecificType) {
             FileData<OBJTYPE> fd = GetFileDataObject(key);
             if (SpecificType) {
                 OBJTYPE o = fd.Load(SpecificType: SpecificType);
                 if (o == null) return default(OBJTYPE);
-                return UpdateCalculatedProperties(o);
+                return await UpdateCalculatedPropertiesAsync(o);
             } else
-                return UpdateCalculatedProperties(fd.Load());
+                return await UpdateCalculatedPropertiesAsync(fd.Load());
         }
 
         public Task<bool> AddAsync(OBJTYPE obj) {
@@ -220,7 +220,7 @@ namespace YetaWF.DataProvider {
         public async Task<OBJTYPE> GetOneRecordAsync(List<DataProviderFilterInfo> filters, List<JoinData> Joins = null) {
             if (Joins != null) throw new InternalError("Joins not supported");
             DataProviderGetRecords<OBJTYPE> objs = await GetRecords(0, 1, null, filters);
-            return UpdateCalculatedProperties(objs.Data.FirstOrDefault());
+            return await UpdateCalculatedPropertiesAsync(objs.Data.FirstOrDefault());
         }
         public Task<DataProviderGetRecords<OBJTYPE>> GetRecordsAsync(int skip, int take, List<DataProviderSortInfo> sort, List<DataProviderFilterInfo> filters, List<JoinData> Joins = null) {
             return GetRecords(skip, take, sort, filters, Joins: Joins, SpecificType: false);
@@ -255,7 +255,7 @@ namespace YetaWF.DataProvider {
 
                 OBJTYPE obj;
                 if (SpecificType) {
-                    obj = GetSpecificType(key);
+                    obj = await GetSpecificTypeAsync(key);
                     if (obj == null || typeof(OBJTYPE) != obj.GetType())
                         continue;
                 } else {
@@ -271,7 +271,7 @@ namespace YetaWF.DataProvider {
                 }
             }
             foreach (OBJTYPE obj in objects)
-                UpdateCalculatedProperties(obj);
+                await UpdateCalculatedPropertiesAsync(obj);
             objects = DataProviderImpl<OBJTYPE>.Filter(objects, filters);
             int total = objects.Count;
             objects = DataProviderImpl<OBJTYPE>.Sort(objects, sort);
@@ -285,12 +285,12 @@ namespace YetaWF.DataProvider {
                 Total = total,
             };
         }
-        private OBJTYPE UpdateCalculatedProperties(OBJTYPE obj) {
-            if (CalculatedPropertyCallback == null) return obj;
+        private async Task<OBJTYPE> UpdateCalculatedPropertiesAsync(OBJTYPE obj) {
+            if (CalculatedPropertyCallbackAsync == null) return obj;
             List<PropertyData> props = ObjectSupport.GetPropertyData(typeof(OBJTYPE));
             props = (from p in props where p.CalculatedProperty select p).ToList();
             foreach (PropertyData prop in props) {
-                obj = (OBJTYPE)CalculatedPropertyCallback(prop.Name, obj);
+                obj = (OBJTYPE)await CalculatedPropertyCallbackAsync(prop.Name, obj);
             }
             return obj;
         }
