@@ -1,4 +1,6 @@
-﻿using Microsoft.SqlServer.Management.Common;
+﻿/* Copyright © 2018 Softel vdm, Inc. - https://yetawf.com/Documentation/YetaWF/Licensing */
+
+using Microsoft.SqlServer.Management.Common;
 using Microsoft.SqlServer.Management.Smo;
 using System;
 using System.Collections;
@@ -10,6 +12,7 @@ using System.Linq;
 using System.Reflection;
 using System.Runtime.Serialization.Formatters;
 using System.Runtime.Serialization.Formatters.Binary;
+using System.Threading.Tasks;
 using System.Transactions;
 using YetaWF.Core.DataProvider;
 using YetaWF.Core.DataProvider.Attributes;
@@ -48,7 +51,7 @@ namespace YetaWF.DataProvider.SQL {
         public bool NoLanguages { get; private set; }
         public List<LanguageData> Languages { get; private set; }
 
-        protected Func<string, string> CalculatedPropertyCallback { get; set; }
+        protected Func<string, Task<string>> CalculatedPropertyCallbackAsync { get; set; }
 
         public string ConnectionString { get; private set; }
         public string Dbo { get; private set; }
@@ -105,7 +108,7 @@ namespace YetaWF.DataProvider.SQL {
                 AndSiteIdentity = $"AND [{SiteColumn}] = {SiteIdentity}";
 
             Conn = new SqlConnection(ConnectionString);
-            Conn.Open();
+            Conn.Open();///$$$ should move and make async
             Database = Conn.Database;
 
             DisposableTracker.AddObject(this);
@@ -242,7 +245,7 @@ namespace YetaWF.DataProvider.SQL {
 
         public DataProviderTransaction StartTransaction() {
             if (Trans != null) throw new InternalError("StartTransaction has already been called for this data provider");
-            Trans = new TransactionScope(TransactionScopeOption.Required, new TransactionOptions { IsolationLevel = IsolationLevel.Serializable });
+            Trans = new TransactionScope(TransactionScopeOption.Required, new TransactionOptions { IsolationLevel = IsolationLevel.Serializable }, TransactionScopeAsyncFlowOption.Enabled);
             return new DataProviderTransaction(CommitTransaction, AbortTransaction);
         }
         public void CommitTransaction() {
@@ -304,7 +307,7 @@ namespace YetaWF.DataProvider.SQL {
         }
 
         protected string MakeJoins(SQLHelper helper, List<JoinData> joins) {
-            SQLBuilder sb = new SQL.SQLBuilder();
+            SQLBuilder sb = new SQLBuilder();
             if (joins != null) {
                 foreach (JoinData join in joins) {
                     ISQLTableInfo joinInfo = (ISQLTableInfo)join.JoinDP.GetDataProvider();
@@ -366,7 +369,7 @@ namespace YetaWF.DataProvider.SQL {
             tableName = tableName.Trim(new char[] { '[', ']' });
             List<string> columns = SQLCache.GetColumns(Conn, databaseName, tableName);
             AddVisibleColumns(visibleColumns, databaseName, dbOwner, tableName, columns);
-            if (CalculatedPropertyCallback != null) {
+            if (CalculatedPropertyCallbackAsync != null) {
                 List<PropertyData> props = ObjectSupport.GetPropertyData(objType);
                 props = (from p in props where p.CalculatedProperty select p).ToList();
                 foreach (PropertyData prop in props)
@@ -381,7 +384,7 @@ namespace YetaWF.DataProvider.SQL {
                     tableName = tableName.Split(new char[] { '.' }).Last().Trim(new char[] { '[', ']' });
                     columns = SQLCache.GetColumns(Conn, databaseName, tableName);
                     AddVisibleColumns(visibleColumns, databaseName, dbOwner, tableName, columns);
-                    ISQLTableInfo joinInfo = (ISQLTableInfo)join.JoinDP.GetDataProvider();// If an error occurs here, you're joining table using 2 different dataproviders. That is not supported.
+                    ISQLTableInfo joinInfo = (ISQLTableInfo)join.JoinDP.GetDataProvider();
                     databaseName = joinInfo.GetDatabaseName();
                     dbOwner = joinInfo.GetDbOwner();
                     tableName = joinInfo.GetTableName();
@@ -399,13 +402,13 @@ namespace YetaWF.DataProvider.SQL {
             }
         }
 
-        protected string CalculatedProperties(Type objType) {
-            if (CalculatedPropertyCallback == null) return null;
-            SQLBuilder sb = new SQL.SQLBuilder();
+        protected async Task<string> CalculatedPropertiesAsync(Type objType) {
+            if (CalculatedPropertyCallbackAsync == null) return null;
+            SQLBuilder sb = new SQLBuilder();
             List<PropertyData> props = ObjectSupport.GetPropertyData(objType);
             props = (from p in props where p.CalculatedProperty select p).ToList();
             foreach (PropertyData prop in props) {
-                string calcProp = CalculatedPropertyCallback(prop.Name);
+                string calcProp = await CalculatedPropertyCallbackAsync(prop.Name);
                 sb.Add($", ({calcProp}) AS [{prop.Name}]");
             }
             return sb.ToString();
@@ -605,29 +608,29 @@ namespace YetaWF.DataProvider.SQL {
         // DIRECT
         // DIRECT
 
-        public int Direct_ScalarInt(string tableName, string sql) {
-            SQLHelper sqlHelper = new SQL.SQLHelper(Conn, null, Languages);
+        public async Task<int> Direct_ScalarIntAsync(string tableName, string sql) {
+            SQLHelper sqlHelper = new SQLHelper(Conn, null, Languages);
             sql = sql.Replace("{TableName}", SQLBuilder.WrapBrackets(tableName));
             if (SiteIdentity > 0)
                 sql = sql.Replace($"{{{SiteColumn}}}", $"[{SiteColumn}] = {SiteIdentity}");
-            int val = Convert.ToInt32(sqlHelper.ExecuteScalar(sql));
+            int val = Convert.ToInt32(await sqlHelper.ExecuteScalarAsync(sql));
             return val;
         }
-        public void Direct_Query(string tableName, string sql) {
-            SQLHelper sqlHelper = new SQL.SQLHelper(Conn, null, Languages);
+        public async Task Direct_QueryAsync(string tableName, string sql) {
+            SQLHelper sqlHelper = new SQLHelper(Conn, null, Languages);
             sql = sql.Replace("{TableName}", SQLBuilder.WrapBrackets(tableName));
             if (SiteIdentity > 0)
                 sql = sql.Replace($"{{{SiteColumn}}}", $"[{SiteColumn}] = {SiteIdentity}");
-            sqlHelper.ExecuteNonQuery(sql);
+            await sqlHelper.ExecuteNonQueryAsync(sql);
         }
-        public List<TYPE> Direct_QueryList<TYPE>(string tableName, string sql) {
-            SQLHelper sqlHelper = new SQL.SQLHelper(Conn, null, Languages);
+        public async Task<List<TYPE>> Direct_QueryListAsync<TYPE>(string tableName, string sql) {
+            SQLHelper sqlHelper = new SQLHelper(Conn, null, Languages);
             sql = sql.Replace("{TableName}", SQLBuilder.WrapBrackets(tableName));
             if (SiteIdentity > 0)
                 sql = sql.Replace($"{{{SiteColumn}}}", $"[{SiteColumn}] = {SiteIdentity}");
             List<TYPE> list = new List<TYPE>();
-            using (SqlDataReader reader = sqlHelper.ExecuteReader(sql)) {
-                while (reader.Read())
+            using (SqlDataReader reader = await sqlHelper.ExecuteReaderAsync(sql)) {
+                while (YetaWFManager.IsSync() ? reader.Read() : await reader.ReadAsync())
                     list.Add(sqlHelper.CreateObject<TYPE>(reader));
             }
             return list;

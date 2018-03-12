@@ -1,9 +1,12 @@
-﻿using Microsoft.SqlServer.Management.Smo;
+﻿/* Copyright © 2018 Softel vdm, Inc. - https://yetawf.com/Documentation/YetaWF/Licensing */
+
+using Microsoft.SqlServer.Management.Smo;
 using System;
 using System.Collections.Generic;
 using System.Data.SqlClient;
 using System.Linq;
 using System.Reflection;
+using System.Threading.Tasks;
 using YetaWF.Core.DataProvider;
 using YetaWF.Core.DataProvider.Attributes;
 using YetaWF.Core.Models;
@@ -25,7 +28,7 @@ namespace YetaWF.DataProvider.SQL {
 
         public string BaseDataset { get; protected set; }
 
-        public new OBJTYPE Get(KEY key) {
+        public new async Task<OBJTYPE> GetAsync(KEY key) {
 
             SQLHelper sqlHelper = new SQLHelper(Conn, null, Languages);
 
@@ -58,17 +61,16 @@ DROP TABLE #BASETABLE
 
 {sqlHelper.DebugInfo}";
 
-                using (SqlDataReader reader = sqlHelper.ExecuteReader(scriptMain)) {
-                    if (!reader.Read())
-                        return default(OBJTYPE);
+                using (SqlDataReader reader = await sqlHelper.ExecuteReaderAsync(scriptMain)) {
+                    if (!(YetaWFManager.IsSync() ? reader.Read() : await reader.ReadAsync())) return default(OBJTYPE);
                     string derivedTableName = (string)reader[0];
                     string derivedDataType = (string)reader[1];
                     string derivedAssemblyName = (string)reader[2];
                     if (string.IsNullOrWhiteSpace(derivedTableName))
                         return default(OBJTYPE);
-                    if (!reader.NextResult())
+                    if (!(YetaWFManager.IsSync() ? reader.NextResult() : await reader.NextResultAsync()))
                         return default(OBJTYPE);
-                    if (!reader.Read()) return default(OBJTYPE);
+                    if (!(YetaWFManager.IsSync() ? reader.Read() : await reader.ReadAsync())) return default(OBJTYPE);
                     OBJTYPE obj = sqlHelper.CreateObject<OBJTYPE>(reader, derivedDataType, derivedAssemblyName);
                     return obj;
                 }
@@ -84,15 +86,15 @@ WHERE {sqlHelper.Expr(Key1Name, "=", key)} {AndSiteIdentity}
 
 {sqlHelper.DebugInfo}";
 
-                using (SqlDataReader reader = sqlHelper.ExecuteReader(scriptMain)) {
-                    if (!reader.Read()) return default(OBJTYPE);
+                using (SqlDataReader reader = await sqlHelper.ExecuteReaderAsync(scriptMain)) {
+                    if (!(YetaWFManager.IsSync() ? reader.Read() : await reader.ReadAsync())) return default(OBJTYPE);
                     OBJTYPE obj = sqlHelper.CreateObject<OBJTYPE>(reader);
                     return obj;
                 }
             }
         }
 
-        public new bool Add(OBJTYPE obj) {
+        public new async Task<bool> AddAsync(OBJTYPE obj) {
             if (Dataset == BaseDataset) throw new InternalError("Only derived types are supported");
 
             SQLHelper sqlHelper = new SQLHelper(Conn, null, Languages);
@@ -117,7 +119,7 @@ VALUES ({values})
 
             int identity = 0;
             try {
-                sqlHelper.ExecuteNonQuery(scriptMain);
+                await sqlHelper.ExecuteNonQueryAsync(scriptMain);
             } catch (Exception exc) {
                 SqlException sqlExc = exc as SqlException;
                 if (sqlExc != null && sqlExc.Number == 2627) // already exists
@@ -133,7 +135,7 @@ VALUES ({values})
             return true;
         }
 
-        public new UpdateStatusEnum Update(KEY origKey, KEY newKey, OBJTYPE obj) {
+        public new async Task<UpdateStatusEnum> UpdateAsync(KEY origKey, KEY newKey, OBJTYPE obj) {
             if (Dataset == BaseDataset) throw new InternalError("Only derived types are supported");
 
             if (!origKey.Equals(newKey)) throw new InternalError("Can't change key");
@@ -162,7 +164,7 @@ WHERE {sqlHelper.Expr(Key1Name, "=", origKey)} {AndSiteIdentity}
 {sqlHelper.DebugInfo}";
 
             try {
-                object val = sqlHelper.ExecuteScalar(scriptMain);
+                object val = await sqlHelper.ExecuteScalarAsync(scriptMain);
                 int changed = Convert.ToInt32(val);
                 if (changed == 0)
                     return UpdateStatusEnum.RecordDeleted;
@@ -181,7 +183,7 @@ WHERE {sqlHelper.Expr(Key1Name, "=", origKey)} {AndSiteIdentity}
             return UpdateStatusEnum.OK;
         }
 
-        public new bool Remove(KEY key) {
+        public new async Task<bool> RemoveAsync(KEY key) {
             if (Dataset != BaseDataset) throw new InternalError("Only base types are supported");
 
             SQLHelper sqlHelper = new SQLHelper(Conn, null, Languages);
@@ -218,22 +220,22 @@ DROP TABLE #BASETABLE
 
 {sqlHelper.DebugInfo}
 ";
-            object val = sqlHelper.ExecuteScalar(scriptMain);
+            object val = await sqlHelper.ExecuteScalarAsync(scriptMain);
             int deleted = Convert.ToInt32(val);
             if (deleted > 1)
-                throw new InternalError($"More than 1 record deleted by {nameof(Remove)} method");
+                throw new InternalError($"More than 1 record deleted by {nameof(RemoveAsync)} method");
             return deleted > 0;
         }
 
-        public new OBJTYPE GetOneRecord(List<DataProviderFilterInfo> filters, List<JoinData> Joins = null) {
+        public new Task<OBJTYPE> GetOneRecordAsync(List<DataProviderFilterInfo> filters, List<JoinData> Joins = null) {
             throw new NotImplementedException();
         }
 
-        public new List<OBJTYPE> GetRecords(int skip, int take, List<DataProviderSortInfo> sorts, List<DataProviderFilterInfo> filters, out int total, List<JoinData> Joins = null) {
-            return base.GetRecords(skip, take, sorts, filters, out total, Joins: Joins);
+        public new async Task<DataProviderGetRecords<OBJTYPE>> GetRecordsAsync(int skip, int take, List<DataProviderSortInfo> sorts, List<DataProviderFilterInfo> filters, List<JoinData> Joins = null) {
+            return await base.GetRecordsAsync(skip, take, sorts, filters, Joins: Joins);
         }
 
-        public new int RemoveRecords(List<DataProviderFilterInfo> filters) {
+        public new Task<int> RemoveRecordsAsync(List<DataProviderFilterInfo> filters) {
             throw new NotImplementedException();
         }
 
@@ -269,23 +271,23 @@ DROP TABLE #BASETABLE
         // IINSTALLMODEL
         // IINSTALLMODEL
 
-        public new bool IsInstalled() {
+        public new Task<bool> IsInstalledAsync() {
             if (!SQLCache.HasTable(Conn, Database, BaseDataset))
-                return false;
+                return Task.FromResult(false);
             if (Dataset != BaseDataset) { 
                 if (!SQLCache.HasTable(Conn, Database, Dataset))
-                    return false;
+                    return Task.FromResult(false);
             }
-            return true;
+            return Task.FromResult(true);
         }
 
-        public new bool InstallModel(List<string> errorList) {
+        public new Task<bool> InstallModelAsync(List<string> errorList) {
             if (Dataset == BaseDataset) throw new InternalError("Base dataset is not supported");
             bool success = false;
             Database db = GetDatabase();
             success = CreateTableWithBaseType(db, errorList);
             SQLCache.ClearCache();
-            return success;
+            return Task.FromResult(success);
         }
         private bool CreateTableWithBaseType(Database db, List<string> errorList) {
             Type baseType = typeof(ModuleDefinition);
@@ -302,11 +304,11 @@ DROP TABLE #BASETABLE
                 ForeignKeyTable: BaseDataset);
         }
 
-        public new bool UninstallModel(List<string> errorList) {
+        public new async Task<bool> UninstallModelAsync(List<string> errorList) {
             if (Dataset == BaseDataset) throw new InternalError("Base dataset is not supported");
             try {
                 Database db = GetDatabase();
-                DropTableWithBaseType(db, errorList);
+                await DropTableWithBaseType(db, errorList);
                 return true;
             } catch (Exception exc) {
                 errorList.Add(string.Format("{0}: {1}", typeof(OBJTYPE).FullName, exc.Message));
@@ -315,27 +317,27 @@ DROP TABLE #BASETABLE
                 SQLCache.ClearCache();
             }
         }
-        private bool DropTableWithBaseType(Database db, List<string> errorList) {
+        private async Task<bool> DropTableWithBaseType(Database db, List<string> errorList) {
             try {
                 if (db.Tables.Contains(Dataset)) {
                     // Remove all records from the table (this removes the records in BaseTableName also)
                     SQLHelper sqlHelper = new SQLHelper(Conn, null, Languages);
-                    SQLBuilder sb = new SQL.SQLBuilder();
+                    SQLBuilder sb = new SQLBuilder();
                     sb.Add($@"
 DELETE {BaseDataset} FROM {BaseDataset}
     INNER JOIN {Dataset} ON {BaseDataset}.[{Key1Name}] = {Dataset}.[{Key1Name}]
                     ");
-                    sqlHelper.ExecuteNonQuery(sb.ToString());
+                    await sqlHelper.ExecuteNonQueryAsync(sb.ToString());
                     // then drop the table
                     db.Tables[Dataset].Drop();
                 }
                 if (db.Tables.Contains(BaseDataset)) {
                     SQLHelper sqlHelper = new SQLHelper(Conn, null, Languages);
-                    SQLBuilder sb = new SQL.SQLBuilder();
+                    SQLBuilder sb = new SQLBuilder();
                     sb.Add($@"
 SELECT COUNT(*) FROM  {BaseDataset}
 ");
-                    object val = sqlHelper.ExecuteScalar(sb.ToString());
+                    object val = await sqlHelper.ExecuteScalarAsync(sb.ToString());
                     int count = Convert.ToInt32(val);
                     if (count == 0)
                         db.Tables[BaseDataset].Drop();
@@ -347,20 +349,20 @@ SELECT COUNT(*) FROM  {BaseDataset}
             }
             return true;
         }
-        public new void RemoveSiteData() { // remove site-specific data
+        public new async Task RemoveSiteDataAsync() { // remove site-specific data
             if (Dataset == BaseDataset) throw new InternalError("Base dataset is not supported");
             if (SiteIdentity > 0) {
                 SQLHelper sqlHelper = new SQLHelper(Conn, null, Languages);
-                SQLBuilder sb = new SQL.SQLBuilder();
+                SQLBuilder sb = new SQLBuilder();
                 sb.Add($@"
 DELETE FROM {Dataset} WHERE [{SiteColumn}] = {SiteIdentity}
 DELETE FROM {BaseDataset} WHERE [DerivedDataTableName] = '{Dataset}' AND [{SiteColumn}] = {SiteIdentity}
 ");
-                sqlHelper.ExecuteNonQuery(sb.ToString());
+                await sqlHelper.ExecuteNonQueryAsync(sb.ToString());
             }
         }
 
-        public new void ImportChunk(int chunk, SerializableList<SerializableFile> fileList, object obj) {
+        public new async Task ImportChunkAsync(int chunk, SerializableList<SerializableFile> fileList, object obj) {
             if (Dataset == BaseDataset) throw new InternalError("Base dataset is not supported");
             if (SiteIdentity > 0 || YetaWFManager.Manager.ImportChunksNonSiteSpecifics) {
                 SerializableList<OBJTYPE> serList = (SerializableList<OBJTYPE>)obj;
@@ -368,25 +370,31 @@ DELETE FROM {BaseDataset} WHERE [DerivedDataTableName] = '{Dataset}' AND [{SiteC
                 if (total > 0) {
                     for (int processed = 0; processed < total; ++processed) {
                         OBJTYPE item = serList[processed];
-                        if (!Add(item))
+                        if (!await AddAsync(item))
                             throw new InternalError("Add failed - item already exists");
                     }
                 }
             }
         }
 
-        public new bool ExportChunk(int chunk, SerializableList<SerializableFile> fileList, out object obj) {
+        public new async Task<DataProviderExportChunk> ExportChunkAsync(int chunk, SerializableList<SerializableFile> fileList) {
             if (Dataset == BaseDataset) throw new InternalError("Base dataset is not supported");
 
             List<DataProviderSortInfo> sorts = new List<DataProviderSortInfo> { new DataProviderSortInfo { Field = Key1Name, Order = DataProviderSortInfo.SortDirection.Ascending } };
-            int total;
-            List<OBJTYPE> list = GetRecords(chunk * ChunkSize, ChunkSize, sorts, null, out total);
-            obj = new SerializableList<OBJTYPE>(list);
+            DataProviderGetRecords<OBJTYPE> list = await GetRecordsAsync(chunk * ChunkSize, ChunkSize, sorts, null);
 
-            int count = list.Count();
-            if (count == 0)
-                obj = null;
-            return (count >= ChunkSize);
+            int count = list.Data.Count();
+            if (count == 0) {
+                return new DataProviderExportChunk {
+                    ObjectList = null,
+                    More = false,
+                };
+            } else {
+                return new DataProviderExportChunk {
+                    ObjectList = new SerializableList<OBJTYPE>(list.Data),
+                    More = count >= ChunkSize,
+                };
+            }
         }
         public bool ExportChunk(int chunk, SerializableList<SerializableFile> fileList, Type type, out object obj) {
             throw new InternalError("Typed ExportChunk not supported");

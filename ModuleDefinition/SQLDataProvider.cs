@@ -5,7 +5,6 @@ using System.Collections.Generic;
 using System.Threading.Tasks;
 using YetaWF.Core.DataProvider;
 using YetaWF.Core.Modules;
-using YetaWF.DataProvider.SQL2;
 
 namespace YetaWF.DataProvider.SQL {
 

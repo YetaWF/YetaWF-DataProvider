@@ -161,7 +161,7 @@ namespace YetaWF.DataProvider
             return CreateDataProviderIOMode(package, ModuleDefinition.BaseFolderName, SiteIdentity: SiteIdentity, Cacheable: true, 
                 Callback: (ioMode, options) => {
                     switch (ioMode) {
-                        case "sql2": {
+                        case "sql": {
                                 options.Add("WebConfigArea", ModuleDefinition.BaseFolderName);
                                 return new SQL.SQLDataProvider.ModuleDefinitionDataProvider<KEY, TYPE>(options);
                             }

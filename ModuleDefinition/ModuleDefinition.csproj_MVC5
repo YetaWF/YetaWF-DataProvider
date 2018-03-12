@@ -46,9 +46,9 @@
       <Project>{f0df6c3b-2b71-4526-8fd0-ac2b731b2c3b}</Project>
       <Name>File</Name>
     </ProjectReference>
-    <ProjectReference Include="..\SQL2\SQL2.csproj">
+    <ProjectReference Include="..\SQL\SQL.csproj">
       <Project>{6a90eab3-a9e4-4a2c-90d9-145859790c46}</Project>
-      <Name>SQL2</Name>
+      <Name>SQL</Name>
     </ProjectReference>
   </ItemGroup>
   <ItemGroup>

@@ -1,4 +1,6 @@
-﻿using Microsoft.SqlServer.Management.Smo;
+﻿/* Copyright © 2018 Softel vdm, Inc. - https://yetawf.com/Documentation/YetaWF/Licensing */
+
+using Microsoft.SqlServer.Management.Smo;
 using System;
 using System.Collections;
 using System.Collections.Generic;
@@ -6,6 +8,7 @@ using System.Data.SqlClient;
 using System.Drawing;
 using System.Linq;
 using System.Reflection;
+using System.Threading.Tasks;
 using YetaWF.Core.DataProvider;
 using YetaWF.Core.DataProvider.Attributes;
 using YetaWF.Core.Models;
@@ -49,16 +52,16 @@ namespace YetaWF.DataProvider.SQL {
         }
         List<PropertyData> _propertyData;
 
-        public OBJTYPE Get(KEYTYPE key) {
-            return Get(key, default(KEYTYPE2));
+        public Task<OBJTYPE> GetAsync(KEYTYPE key) {
+            return GetAsync(key, default(KEYTYPE2));
         }
-        public OBJTYPE Get(KEYTYPE key, KEYTYPE2 key2) {
+        public async Task<OBJTYPE> GetAsync(KEYTYPE key, KEYTYPE2 key2) {
 
             SQLHelper sqlHelper = new SQLHelper(Conn, null, Languages);
 
             string joins = null;// RFFU
             string fullTableName = SQLBuilder.GetTable(Database, Dbo, Dataset);
-            string calcProps = CalculatedProperties(typeof(OBJTYPE));
+            string calcProps = await CalculatedPropertiesAsync(typeof(OBJTYPE));
             string andKey2 = HasKey2 ? "AND " + sqlHelper.Expr(Key2Name, "=", key2) : null;
 
             List<PropertyData> propData = GetPropertyData();
@@ -100,17 +103,17 @@ DROP TABLE #TEMPTABLE
 
             string script = (string.IsNullOrWhiteSpace(subTablesSelects)) ? scriptMain : scriptWithSub;
 
-            using (SqlDataReader reader = sqlHelper.ExecuteReader(script)) {
-                if (!reader.Read()) return default(OBJTYPE);
+            using (SqlDataReader reader = await sqlHelper.ExecuteReaderAsync(script)) {
+                if (! (YetaWFManager.IsSync() ? reader.Read() : await reader.ReadAsync())) return default(OBJTYPE);
                 OBJTYPE obj = sqlHelper.CreateObject<OBJTYPE>(reader);
                 if (!string.IsNullOrWhiteSpace(subTablesSelects)) {
-                    ReadSubTables(sqlHelper, reader, Dataset, obj, propData, typeof(OBJTYPE));
+                    await ReadSubTablesAsync(sqlHelper, reader, Dataset, obj, propData, typeof(OBJTYPE));
                 }
                 return obj;
             }
         }
 
-        public bool Add(OBJTYPE obj) {
+        public async Task<bool> AddAsync(OBJTYPE obj) {
 
             SQLHelper sqlHelper = new SQLHelper(Conn, null, Languages);
 
@@ -146,10 +149,10 @@ DECLARE @__IDENTITY int = @@IDENTITY
             int identity = 0;
             try {
                 if (HasIdentity(IdentityName)) {
-                    object val = sqlHelper.ExecuteScalar(script);
+                    object val = await sqlHelper.ExecuteScalarAsync(script);
                     identity = Convert.ToInt32(val);
                 } else {
-                    sqlHelper.ExecuteNonQuery(script);
+                    await sqlHelper.ExecuteNonQueryAsync(script);
                 }
             } catch (Exception exc) {
                 SqlException sqlExc = exc as SqlException;
@@ -166,11 +169,11 @@ DECLARE @__IDENTITY int = @@IDENTITY
             return true;
         }
 
-        public UpdateStatusEnum Update(KEYTYPE origKey, KEYTYPE newKey, OBJTYPE obj) {
-            return Update(origKey, default(KEYTYPE2), newKey, default(KEYTYPE2), obj);
+        public Task<UpdateStatusEnum> UpdateAsync(KEYTYPE origKey, KEYTYPE newKey, OBJTYPE obj) {
+            return UpdateAsync(origKey, default(KEYTYPE2), newKey, default(KEYTYPE2), obj);
         }
 
-        public UpdateStatusEnum Update(KEYTYPE origKey, KEYTYPE2 origKey2, KEYTYPE newKey, KEYTYPE2 newKey2, OBJTYPE obj) {
+        public async Task<UpdateStatusEnum> UpdateAsync(KEYTYPE origKey, KEYTYPE2 origKey2, KEYTYPE newKey, KEYTYPE2 newKey2, OBJTYPE obj) {
 
             SQLHelper sqlHelper = new SQLHelper(Conn, null, Languages);
 
@@ -208,7 +211,7 @@ SELECT @@ROWCOUNT --- result set
             string script = (string.IsNullOrWhiteSpace(subTablesUpdates)) ? scriptMain : scriptWithSub;
 
             try {
-                object val = sqlHelper.ExecuteScalar(script);
+                object val = await sqlHelper.ExecuteScalarAsync(script);
                 int changed = Convert.ToInt32(val);
                 if (changed == 0)
                     return UpdateStatusEnum.RecordDeleted;
@@ -227,10 +230,10 @@ SELECT @@ROWCOUNT --- result set
             return UpdateStatusEnum.OK;
         }
 
-        public bool Remove(KEYTYPE key) {
-            return Remove(key, default(KEYTYPE2));
+        public Task<bool> RemoveAsync(KEYTYPE key) {
+            return RemoveAsync(key, default(KEYTYPE2));
         }
-        public bool Remove(KEYTYPE key, KEYTYPE2 key2) {
+        public async Task<bool> RemoveAsync(KEYTYPE key, KEYTYPE2 key2) {
 
             SQLHelper sqlHelper = new SQLHelper(Conn, null, Languages);
 
@@ -266,27 +269,26 @@ SELECT @@ROWCOUNT --- result set
 
             string script = (string.IsNullOrWhiteSpace(subTablesDeletes)) ? scriptMain : scriptWithSub;
 
-            object val = sqlHelper.ExecuteScalar(script);
+            object val = await sqlHelper.ExecuteScalarAsync(script);
             int deleted = Convert.ToInt32(val);
             if (deleted > 1)
-                throw new InternalError($"More than 1 record deleted by {nameof(Remove)} method");
+                throw new InternalError($"More than 1 record deleted by {nameof(RemoveAsync)} method");
             return deleted > 0;
         }
 
-        public OBJTYPE GetOneRecord(List<DataProviderFilterInfo> filters, List<JoinData> Joins = null) {
+        public async Task<OBJTYPE> GetOneRecordAsync(List<DataProviderFilterInfo> filters, List<JoinData> Joins = null) {
             filters = NormalizeFilter(typeof(OBJTYPE), filters);
-            int total;
-            OBJTYPE obj = GetMainTableRecords(0, 1, null, filters, out total, Joins: Joins).FirstOrDefault();
-            return obj;
+            DataProviderGetRecords<OBJTYPE> recs = await GetMainTableRecordsAsync(0, 1, null, filters, Joins: Joins);
+            return recs.Data.FirstOrDefault();
         }
 
-        public List<OBJTYPE> GetRecords(int skip, int take, List<DataProviderSortInfo> sorts, List<DataProviderFilterInfo> filters, out int total, List<JoinData> Joins = null) {
+        public async Task<DataProviderGetRecords<OBJTYPE>> GetRecordsAsync(int skip, int take, List<DataProviderSortInfo> sorts, List<DataProviderFilterInfo> filters, List<JoinData> Joins = null) {
             filters = NormalizeFilter(typeof(OBJTYPE), filters);
             sorts = NormalizeSort(typeof(OBJTYPE), sorts);
-            return GetMainTableRecords(skip, take, sorts, filters, out total, Joins: Joins);
+            return await GetMainTableRecordsAsync(skip, take, sorts, filters, Joins: Joins);
         }
 
-        public int RemoveRecords(List<DataProviderFilterInfo> filters) {
+        public async Task<int> RemoveRecordsAsync(List<DataProviderFilterInfo> filters) {
             filters = NormalizeFilter(typeof(OBJTYPE), filters);
 
             SQLHelper sqlHelper = new SQLHelper(Conn, null, Languages);
@@ -342,16 +344,17 @@ DROP TABLE #TEMPTABLE
 
             string script = (string.IsNullOrWhiteSpace(subTablesDeletes)) ? scriptMain : scriptWithSub;
 
-            object val = sqlHelper.ExecuteScalar(script);
+            object val = await sqlHelper.ExecuteScalarAsync(script);
             int deleted = Convert.ToInt32(val);
             return deleted;
         }
 
-        protected List<OBJTYPE> GetMainTableRecords(int skip, int take, List<DataProviderSortInfo> sorts, List<DataProviderFilterInfo> filters, out int total, List<JoinData> Joins = null) {
+        protected async Task<DataProviderGetRecords<OBJTYPE>> GetMainTableRecordsAsync(int skip, int take, List<DataProviderSortInfo> sorts, List<DataProviderFilterInfo> filters, List<JoinData> Joins = null) {
 
             SQLHelper sqlHelper = new SQLHelper(Conn, null, Languages);
 
-            total = 0;
+            DataProviderGetRecords<OBJTYPE> recs = new DataProviderGetRecords<OBJTYPE>(); 
+
             // get total # of records (only if a subset is requested)
             string fullTableName = SQLBuilder.GetTable(Database, Dbo, Dataset);
             List<PropertyData> propData = GetPropertyData();
@@ -359,18 +362,17 @@ DROP TABLE #TEMPTABLE
             string columnList = MakeColumnList(sqlHelper, visibleColumns, Joins);
             string joins = MakeJoins(sqlHelper, Joins);
             string filter = MakeFilter(sqlHelper, filters, visibleColumns);
-            string calcProps = CalculatedProperties(typeof(OBJTYPE));
+            string calcProps = await CalculatedPropertiesAsync(typeof(OBJTYPE));
             string selectCount = null;
             if (skip != 0 || take != 0) {
-                total = 0;
-                SQLBuilder sb = new SQL.SQLBuilder();
+                SQLBuilder sb = new SQLBuilder();
                 sb.Add($"SELECT COUNT(*) FROM {fullTableName} WITH(NOLOCK) {joins} {filter} ");
                 selectCount = sb.ToString();
             }
 
             string orderBy = null;
             {
-                SQLBuilder sb = new SQL.SQLBuilder();
+                SQLBuilder sb = new SQLBuilder();
                 if (sorts == null || sorts.Count == 0)
                     sorts = new List<DataProviderSortInfo> { new DataProviderSortInfo { Field = Key1Name, Order = DataProviderSortInfo.SortDirection.Ascending } };
                 sb.AddOrderBy(visibleColumns, sorts, skip, take);
@@ -425,23 +427,22 @@ DROP TABLE #TEMPTABLE
 
             string script = (string.IsNullOrWhiteSpace(subTablesSelects)) ? scriptMain : scriptWithSub;
 
-            List<OBJTYPE> list = new List<OBJTYPE>();
-            using (SqlDataReader reader = sqlHelper.ExecuteReader(script)) {
+            using (SqlDataReader reader = await sqlHelper.ExecuteReaderAsync(script)) {
                 if (skip != 0 || take != 0) {
-                    if (!reader.Read()) throw new InternalError("Expected # of records");
-                    total = reader.GetInt32(0);
-                    if (!reader.NextResult()) throw new InternalError("Expected next result set (main table)");
+                    if (!(YetaWFManager.IsSync() ? reader.Read() : await reader.ReadAsync())) throw new InternalError("Expected # of records");
+                    recs.Total = reader.GetInt32(0);
+                    if (!(YetaWFManager.IsSync() ? reader.NextResult() : await reader.NextResultAsync())) throw new InternalError("Expected next result set (main table)");
                 }
-                while (reader.Read())
-                    list.Add(sqlHelper.CreateObject<OBJTYPE>(reader));
+                while ((YetaWFManager.IsSync() ? reader.Read() : await reader.ReadAsync()))
+                    recs.Data.Add(sqlHelper.CreateObject<OBJTYPE>(reader));
                 if (!string.IsNullOrWhiteSpace(subTablesSelects)) {
-                    foreach (var obj in list) {
-                        ReadSubTables(sqlHelper, reader, Dataset, obj, propData, typeof(OBJTYPE));
+                    foreach (var obj in recs.Data) {
+                        await ReadSubTablesAsync(sqlHelper, reader, Dataset, obj, propData, typeof(OBJTYPE));
                     }
                 }
                 if (skip == 0 && take == 0)
-                    total = list.Count;
-                return list;
+                    recs.Total = recs.Data.Count;
+                return recs;
             }
         }
 
@@ -486,7 +487,7 @@ DROP TABLE #TEMPTABLE
         }
 
         protected string SubTablesSelects(string tableName, List<PropertyData> propData, Type tpContainer) {
-            SQLBuilder sb = new SQL.SQLBuilder();
+            SQLBuilder sb = new SQLBuilder();
             List<SubTableInfo> subTables = GetSubTables(tableName, propData);
             if (subTables.Count > 0) {
                 foreach (SubTableInfo subTable in subTables) {
@@ -502,18 +503,18 @@ DROP TABLE #TEMPTABLE
             return sb.ToString();
         }
 
-        protected void ReadSubTables(SQLHelper sqlHelper, SqlDataReader reader, string tableName, OBJTYPE container, List<PropertyData> propData, Type tpContainer) {
+        protected async Task ReadSubTablesAsync(SQLHelper sqlHelper, SqlDataReader reader, string tableName, OBJTYPE container, List<PropertyData> propData, Type tpContainer) {
             List<SubTableInfo> subTables = GetSubTables(tableName, propData);
             foreach (SubTableInfo subTable in subTables) {
                 object subContainer = subTable.PropInfo.GetValue(container);
-                if (subContainer == null) throw new InternalError($"{nameof(ReadSubTables)} encountered a enumeration property that is null");
+                if (subContainer == null) throw new InternalError($"{nameof(ReadSubTablesAsync)} encountered a enumeration property that is null");
 
                 // find the Add method for the collection so we can add each item as its read
                 MethodInfo addMethod = subTable.PropInfo.PropertyType.GetMethod("Add", new Type[] { subTable.Type });
-                if (addMethod == null) throw new InternalError($"{nameof(ReadSubTables)} encountered a enumeration property that doesn't have an Add method");
+                if (addMethod == null) throw new InternalError($"{nameof(ReadSubTablesAsync)} encountered a enumeration property that doesn't have an Add method");
 
-                if (!reader.NextResult()) throw new InternalError("Expected next result set (subtable)");
-                while (reader.Read()) {
+                if (!(YetaWFManager.IsSync() ? reader.NextResult() : await reader.NextResultAsync())) throw new InternalError("Expected next result set (subtable)");
+                while ((YetaWFManager.IsSync() ? reader.Read() : await reader.ReadAsync())) {
                     object obj = sqlHelper.CreateObject(reader, subTable.Type);
                     addMethod.Invoke(subContainer, new object[] { obj });
                 }
@@ -521,7 +522,7 @@ DROP TABLE #TEMPTABLE
         }
 
         protected string SubTablesInserts(SQLHelper sqlHelper, string tableName, object container, List<PropertyData> propData, Type tpContainer) {
-            SQLBuilder sb = new SQL.SQLBuilder();
+            SQLBuilder sb = new SQLBuilder();
             List<SubTableInfo> subTables = GetSubTables(tableName, propData);
             foreach (SubTableInfo subTable in subTables) {
                 List<PropertyData> subPropData = ObjectSupport.GetPropertyData(subTable.Type);
@@ -538,7 +539,7 @@ DROP TABLE #TEMPTABLE
             return sb.ToString();
         }
         protected string SubTablesUpdates(SQLHelper sqlHelper, string tableName, object container, List<PropertyData> propData, Type tpContainer) {
-            SQLBuilder sb = new SQL.SQLBuilder();
+            SQLBuilder sb = new SQLBuilder();
             List<SubTableInfo> subTables = GetSubTables(tableName, propData);
             foreach (SubTableInfo subTable in subTables) {
                 sb.Add($@"
@@ -558,9 +559,8 @@ DROP TABLE #TEMPTABLE
             }
             return sb.ToString();
         }
-
         protected string SubTablesDeletes(string tableName, List<PropertyData> propData, Type tpContainer) {
-            SQLBuilder sb = new SQL.SQLBuilder();
+            SQLBuilder sb = new SQLBuilder();
             List<SubTableInfo> subTables = GetSubTables(tableName, propData);
             foreach (SubTableInfo subTable in subTables) {
                 sb.Add($@"
@@ -574,80 +574,89 @@ DROP TABLE #TEMPTABLE
         // IINSTALLMODEL
         // IINSTALLMODEL
 
-        public bool IsInstalled() {
-            return SQLCache.HasTable(Conn, Database, Dataset);
+        public Task<bool> IsInstalledAsync() {
+            return Task.FromResult(SQLCache.HasTable(Conn, Database, Dataset));
         }
 
-        public bool InstallModel(List<string> errorList) {
+        public Task<bool> InstallModelAsync(List<string> errorList) {
             bool success = false;
             Database db = GetDatabase();
             List<string> columns = new List<string>();
             SQLCreate sqlCreate = new SQLCreate(Languages, IdentitySeed, Logging);
+            //TODO: could asyncify but probably not worth it as this is used during install/startup only
             success = sqlCreate.CreateTable(db, Dbo, Dataset, Key1Name, HasKey2 ? Key2Name : null, IdentityName, GetPropertyData(), typeof(OBJTYPE), errorList, columns,
                 SiteSpecific: SiteIdentity > 0,
                 TopMost: true);
             SQLCache.ClearCache();
-            return success;
+            return Task.FromResult(success);
         }
 
-        public bool UninstallModel(List<string> errorList) {
+        public Task<bool> UninstallModelAsync(List<string> errorList) {
             try {
                 Database db = GetDatabase();
                 SQLCreate sqlCreate = new SQLCreate(Languages, IdentitySeed, Logging);
                 List<PropertyData> propData = GetPropertyData();
                 List<SubTableInfo> subTables = GetSubTables(Dataset, propData);
                 foreach (SubTableInfo subTable in subTables) {
+                    //TODO: could asyncify but probably not worth it as this is used during install/startup only
                     sqlCreate.DropTable(db, Dbo, subTable.Name, errorList);
                 }
                 sqlCreate.DropTable(db, Dbo, Dataset, errorList);
-                return true;
+                return Task.FromResult(true);
             } catch (Exception exc) {
                 errorList.Add(string.Format("{0}: {1}", typeof(OBJTYPE).FullName, exc.Message));
-                return false;
+                return Task.FromResult(false);
             } finally {
                 SQLCache.ClearCache();
             }
         }
 
-        public void AddSiteData() { }
-        public void RemoveSiteData() { // remove site-specific data
+        public Task AddSiteDataAsync() { return Task.CompletedTask; }
+        public async Task RemoveSiteDataAsync() { // remove site-specific data
             if (SiteIdentity > 0) {
                 string fullTableName = SQLBuilder.GetTable(Database, Dbo, Dataset);
                 SQLHelper sqlHelper = new SQLHelper(Conn, null, Languages);
-                SQLBuilder sb = new SQL.SQLBuilder();
+                SQLBuilder sb = new SQLBuilder();
                 sb.Add($@"
 DELETE FROM {fullTableName} WHERE [{SiteColumn}] = {SiteIdentity}
 ;
 ");
                 // subtable data is removed by delete cascade
-                sqlHelper.ExecuteScalar(sb.ToString());
+                await sqlHelper.ExecuteScalarAsync(sb.ToString());
             }
         }
 
-        public void ImportChunk(int chunk, SerializableList<SerializableFile> fileList, object obj) {
+        public async Task ImportChunkAsync(int chunk, SerializableList<SerializableFile> fileList, object obj) {
             if (SiteIdentity > 0 || YetaWFManager.Manager.ImportChunksNonSiteSpecifics) {
                 SerializableList<OBJTYPE> serList = (SerializableList<OBJTYPE>)obj;
                 int total = serList.Count();
                 if (total > 0) {
                     for (int processed = 0; processed < total; ++processed) {
                         OBJTYPE item = serList[processed];
-                        if (!Add(item))
+                        if (!await AddAsync(item))
                             throw new InternalError("Add failed - item already exists");
                     }
                 }
             }
         }
 
-        public bool ExportChunk(int chunk, SerializableList<SerializableFile> fileList, out object obj) {
+        public async Task<DataProviderExportChunk> ExportChunkAsync(int chunk, SerializableList<SerializableFile> fileList) {
             List<DataProviderSortInfo> sorts = new List<DataProviderSortInfo> { new DataProviderSortInfo { Field = Key1Name, Order = DataProviderSortInfo.SortDirection.Ascending } };
-            int total;
-            List<OBJTYPE> list = GetRecords(chunk * ChunkSize, ChunkSize, sorts, null, out total);
-            obj = new SerializableList<OBJTYPE>(list);
 
-            int count = list.Count();
-            if (count == 0)
-                obj = null;
-            return (count >= ChunkSize);
+            DataProviderGetRecords<OBJTYPE> recs = await GetRecordsAsync(chunk * ChunkSize, ChunkSize, sorts, null);
+
+            int count = recs.Data.Count();
+            if (count == 0) {
+                return new DataProviderExportChunk {
+                    ObjectList = null,
+                    More = false,
+                };
+            } else {
+                return new DataProviderExportChunk {
+                    ObjectList = new SerializableList<OBJTYPE>(recs.Data),
+                    More = count >= ChunkSize,
+                };
+            }
         }
     }
 }
