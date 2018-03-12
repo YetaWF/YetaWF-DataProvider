@@ -4,7 +4,7 @@
   <PropertyGroup>
     <Configuration Condition=" '$(Configuration)' == '' ">Debug</Configuration>
     <Platform Condition=" '$(Platform)' == '' ">AnyCPU</Platform>
-    <ProjectGuid>{22F3EC05-EC47-42B9-87CC-FF4D5494F8A4}</ProjectGuid>
+    <ProjectGuid>{67E180A4-FC9F-4EEC-BEC1-457714963596}</ProjectGuid>
     <OutputType>Library</OutputType>
     <AppDesignerFolder>Properties</AppDesignerFolder>
     <RootNamespace>YetaWF.DataProvider.SQL</RootNamespace>

@@ -4,11 +4,11 @@
   <PropertyGroup>
     <Configuration Condition=" '$(Configuration)' == '' ">Debug</Configuration>
     <Platform Condition=" '$(Platform)' == '' ">AnyCPU</Platform>
-    <ProjectGuid>{22F3EC05-EC47-42B9-87CC-FF4D5494F8A4}</ProjectGuid>
+    <ProjectGuid>{6A90EAB3-A9E4-4A2C-90D9-145859790C46}</ProjectGuid>
     <OutputType>Library</OutputType>
     <AppDesignerFolder>Properties</AppDesignerFolder>
-    <RootNamespace>YetaWF.DataProvider.SQL</RootNamespace>
-    <AssemblyName>YetaWF.DataProvider.SQL</AssemblyName>
+    <RootNamespace>YetaWF.DataProvider.SQL2</RootNamespace>
+    <AssemblyName>YetaWF.DataProvider.SQL2</AssemblyName>
     <TargetFrameworkVersion>v4.6</TargetFrameworkVersion>
     <FileAlignment>512</FileAlignment>
     <NuGetPackageImportStamp>fb0b1e97</NuGetPackageImportStamp>
@@ -83,8 +83,8 @@
     <Compile Include="SQLHelper.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="SQLBase.cs" />
-    <Compile Include="SQLSimpleIdentityObject.cs" />
     <Compile Include="SQLModuleObject.cs" />
+    <Compile Include="SQLSimpleIdentityObject.cs" />
     <Compile Include="SQLSimpleObject.cs" />
   </ItemGroup>
   <ItemGroup>
