@@ -17,6 +17,10 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <Compile Remove="SQLModuleObject.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\..\CoreComponents\Core\Core.csproj" />
   </ItemGroup>
 
