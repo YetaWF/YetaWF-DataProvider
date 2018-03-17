@@ -108,7 +108,7 @@ namespace YetaWF.DataProvider.SQL {
                 AndSiteIdentity = $"AND [{SiteColumn}] = {SiteIdentity}";
 
             Conn = new SqlConnection(ConnectionString);
-            Conn.Open();///$$$ should move and make async
+            Conn.Open();
             Database = Conn.Database;
 
             DisposableTracker.AddObject(this);
