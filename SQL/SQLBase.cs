@@ -246,13 +246,14 @@ namespace YetaWF.DataProvider.SQL {
         public DataProviderTransaction StartTransaction() {
             if (Trans != null) throw new InternalError("StartTransaction has already been called for this data provider");
             Trans = new TransactionScope(TransactionScopeOption.Required, new TransactionOptions { IsolationLevel = IsolationLevel.Serializable }, TransactionScopeAsyncFlowOption.Enabled);
-            return new DataProviderTransaction(CommitTransaction, AbortTransaction);
+            return new DataProviderTransaction(CommitTransactionAsync, AbortTransaction);
         }
-        public void CommitTransaction() {
+        public Task CommitTransactionAsync() {
             if (Trans == null) throw new InternalError("StartTransaction was not called for this data provider - nothing to commit");
-            Trans.Complete();
+            Trans.Complete();//TODO: Asyncify
             Trans.Dispose();
             Trans = null;
+            return Task.CompletedTask;
         }
         public void AbortTransaction() {
             if (Trans != null)

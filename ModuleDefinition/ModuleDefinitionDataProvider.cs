@@ -27,7 +27,7 @@ namespace YetaWF.DataProvider
         // STARTUP
         // STARTUP
 
-        public Task InitializeApplicationStartupAsync() {
+        public Task InitializeApplicationStartupAsync(bool firstNode) {
             ModuleDefinition.LoadModuleDefinitionAsync = LoadModuleDefinitionAsync;
             ModuleDefinition.SaveModuleDefinitionAsync = SaveModuleDefinitionAsync;
             ModuleDefinition.RemoveModuleDefinitionAsync = RemoveModuleDefinitionAsync;
@@ -197,11 +197,12 @@ namespace YetaWF.DataProvider
             mod.DateUpdated = DateTime.UtcNow;
             SaveImages(mod.ModuleGuid, mod);
             mod.ModuleSaving();
-            using (_lockObject.Lock()) {
+            using (DataProvider.StartTransaction()) {
                 UpdateStatusEnum status = await DataProvider.UpdateAsync((KEY)(object)mod.ModuleGuid, (KEY)(object)mod.ModuleGuid, (TYPE)(object)mod);
                 if (status != UpdateStatusEnum.OK)
                     if (!await DataProvider.AddAsync((TYPE)(object)mod))
                         throw new InternalError("Can't add module definition for {0}", mod.ModuleGuid);
+                await DataProvider.CommitTransactionAsync();
                 DesignedModulesDictionary modules;
                 if (!PermanentManager.TryGetObject<DesignedModulesDictionary>(out modules) || modules == null)
                     return; // don't have a list, no need to build it (yet)

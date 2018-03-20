@@ -83,8 +83,8 @@ namespace YetaWF.DataProvider {
         public DataProviderTransaction StartTransaction() {
             throw new NotSupportedException($"{nameof(StartTransaction)} is not supported");
         }
-        public void CommitTransaction() {
-            throw new NotSupportedException($"{nameof(CommitTransaction)} is not supported");
+        public Task CommitTransactionAsync() {
+            throw new NotSupportedException($"{nameof(CommitTransactionAsync)} is not supported");
         }
         public void AbortTransaction() {
             throw new NotSupportedException($"{nameof(AbortTransaction)} is not supported");
