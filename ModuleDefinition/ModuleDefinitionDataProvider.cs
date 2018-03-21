@@ -43,43 +43,27 @@ namespace YetaWF.DataProvider
         private string CacheKey(Guid guid) {
             return string.Format("__Mod_{0}_{1}", YetaWFManager.Manager.CurrentSite.Identity, guid);
         }
-        private static object EmptyCachedObject = new object();
-        private bool GetModule(Guid guid, out ModuleDefinition mod) {
-            mod = null;
-#if MVC6
-            object o;
-            if (!YetaWFManager.MemoryCache.TryGetValue(CacheKey(guid), out o))
-                return false;
-#else
-            object o = System.Web.HttpRuntime.Cache[CacheKey(guid)];
-#endif
-            if (o == null)
-                return false;
-            if (o == EmptyCachedObject)
-                return true;
-            mod = (ModuleDefinition)new GeneralFormatter().Deserialize((byte[])o);
-            return true;
+        private class GetCachedModuleInfo {
+            public ModuleDefinition Module { get; set; }
+            public bool Success { get; set; }
         }
-        private void SetModule(ModuleDefinition mod) {
-#if MVC6
-            YetaWFManager.MemoryCache.CreateEntry(CacheKey(mod.ModuleGuid)).SetValue(new GeneralFormatter().Serialize(mod));
-#else
-            System.Web.HttpRuntime.Cache[CacheKey(mod.ModuleGuid)] = new GeneralFormatter().Serialize(mod);
-#endif
+        private async Task<GetCachedModuleInfo> GetCachedModuleAsync(Guid guid) {
+            GetCachedModuleInfo modInfo = new GetCachedModuleInfo();
+            GetObjectInfo<ModuleDefinition> objInfo = await Caching.SharedCacheProvider.GetAsync<ModuleDefinition>(CacheKey(guid));
+            if (!objInfo.Success)
+                return modInfo;
+            modInfo.Success = true;
+            modInfo.Module = objInfo.Data;
+            return modInfo;
         }
-        private void SetEmptyModule(Guid guid) {
-#if MVC6
-            YetaWFManager.MemoryCache.CreateEntry(CacheKey(guid)).SetValue(EmptyCachedObject);
-#else
-            System.Web.HttpRuntime.Cache[CacheKey(guid)] = EmptyCachedObject;
-#endif
+        private Task SetCachedModuleAsync(ModuleDefinition mod) {
+            return Caching.SharedCacheProvider.AddAsync(CacheKey(mod.ModuleGuid), mod);
         }
-        private void RemoveModule(Guid guid) {
-#if MVC6
-            YetaWFManager.MemoryCache.Remove(CacheKey(guid));
-#else
-            System.Web.HttpRuntime.Cache.Remove(CacheKey(guid));
-#endif
+        private Task SetEmptyCachedModuleAsync(Guid guid) {
+            return Caching.SharedCacheProvider.AddAsync<ModuleDefinition>(CacheKey(guid), null);
+        }
+        private Task RemoveCachedModuleAsync(Guid guid) {
+            return Caching.SharedCacheProvider.RemoveAsync(CacheKey(guid));
         }
 
         // Implementation
@@ -97,15 +81,15 @@ namespace YetaWF.DataProvider
             }
         }
         private async Task<ModuleDefinition> LoadModuleDefinitionAsync(Guid guid) {
-            ModuleDefinition mod;
-            if (GetModule(guid, out mod))
-                return mod;
+            GetCachedModuleInfo modInfo = await GetCachedModuleAsync(guid);
+            if (modInfo.Success && modInfo.Module != null)
+                return modInfo.Module;
             using (GenericModuleDefinitionDataProvider modDP = new GenericModuleDefinitionDataProvider()) {
-                mod = await modDP.LoadModuleDefinitionAsync(guid);
+                ModuleDefinition mod = await modDP.LoadModuleDefinitionAsync(guid);
                 if (mod != null)
-                    SetModule(mod);
+                    await SetCachedModuleAsync(mod);
                 else
-                    SetEmptyModule(guid);
+                    await SetEmptyCachedModuleAsync(guid);
                 return mod;
             }
         }
@@ -113,10 +97,10 @@ namespace YetaWF.DataProvider
             using (dataProvider) {
                 await dataProvider.SaveModuleDefinitionAsync(mod);
             }
-            SetModule(mod);
+            await SetCachedModuleAsync(mod);
         }
         private async Task<bool> RemoveModuleDefinitionAsync(Guid guid) {
-            RemoveModule(guid);
+            await RemoveCachedModuleAsync(guid);
             using (GenericModuleDefinitionDataProvider modDP = new GenericModuleDefinitionDataProvider()) {
                 return await modDP.RemoveModuleDefinitionAsync(guid);
             }
@@ -196,7 +180,7 @@ namespace YetaWF.DataProvider
         public async Task SaveModuleDefinitionAsync(ModuleDefinition mod) {
             mod.DateUpdated = DateTime.UtcNow;
             SaveImages(mod.ModuleGuid, mod);
-            mod.ModuleSaving();
+            await mod.ModuleSavingAsync();
             using (DataProvider.StartTransaction()) {
                 UpdateStatusEnum status = await DataProvider.UpdateAsync((KEY)(object)mod.ModuleGuid, (KEY)(object)mod.ModuleGuid, (TYPE)(object)mod);
                 if (status != UpdateStatusEnum.OK)
@@ -226,7 +210,7 @@ namespace YetaWF.DataProvider
                 try {
                     ModuleDefinition mod = await LoadModuleDefinitionAsync(key);
                     if (mod != null)
-                        mod.ModuleRemoving();
+                        await mod.ModuleRemovingAsync();
                 } catch (Exception) { }
                 DesignedModulesDictionary dict = GetDesignedModules();
                 DesignedModule desMod;
