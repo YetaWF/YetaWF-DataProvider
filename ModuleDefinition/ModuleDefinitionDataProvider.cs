@@ -63,7 +63,7 @@ namespace YetaWF.DataProvider
             return Caching.SharedCacheProvider.AddAsync<ModuleDefinition>(CacheKey(guid), null);
         }
         private Task RemoveCachedModuleAsync(Guid guid) {
-            return Caching.SharedCacheProvider.RemoveAsync(CacheKey(guid));
+            return Caching.SharedCacheProvider.RemoveAsync<ModuleDefinition>(CacheKey(guid));
         }
 
         // Implementation
@@ -142,7 +142,7 @@ namespace YetaWF.DataProvider
 
         private IDataProvider<KEY, TYPE> CreateDataProvider() {
             Package package = YetaWF.Core.Packages.Package.GetPackageFromType(typeof(TYPE));
-            return CreateDataProviderIOMode(package, ModuleDefinition.BaseFolderName, SiteIdentity: SiteIdentity, Cacheable: true, 
+            return CreateDataProviderIOMode(package, ModuleDefinition.BaseFolderName, SiteIdentity: SiteIdentity, Cacheable: true,
                 Callback: (ioMode, options) => {
                     switch (ioMode) {
                         case "sql": {
@@ -153,7 +153,7 @@ namespace YetaWF.DataProvider
                             return new File.FileDataProvider.ModuleDefinitionDataProvider<KEY, TYPE>(options);
                         default:
                             throw new InternalError($"Unsupported IOMode {ioMode} in {nameof(ModuleDefinitionDataProvider<KEY, TYPE>)}.{nameof(CreateDataProvider)}");
-                    }                    
+                    }
                 }
             );
         }
@@ -178,56 +178,65 @@ namespace YetaWF.DataProvider
         /// Save the module definition
         /// </summary>
         public async Task SaveModuleDefinitionAsync(ModuleDefinition mod) {
-            mod.DateUpdated = DateTime.UtcNow;
-            SaveImages(mod.ModuleGuid, mod);
-            await mod.ModuleSavingAsync();
-            using (DataProvider.StartTransaction()) {
-                UpdateStatusEnum status = await DataProvider.UpdateAsync((KEY)(object)mod.ModuleGuid, (KEY)(object)mod.ModuleGuid, (TYPE)(object)mod);
-                if (status != UpdateStatusEnum.OK)
-                    if (!await DataProvider.AddAsync((TYPE)(object)mod))
-                        throw new InternalError("Can't add module definition for {0}", mod.ModuleGuid);
-                await DataProvider.CommitTransactionAsync();
-                DesignedModulesDictionary modules;
-                if (!PermanentManager.TryGetObject<DesignedModulesDictionary>(out modules) || modules == null)
-                    return; // don't have a list, no need to build it (yet)
-                if (modules.ContainsKey(mod.ModuleGuid)) {
-                    DesignedModule desMod = modules[mod.ModuleGuid];
-                    desMod.Name = mod.Name;
-                } else {
-                    DesignedModule desMod = new DesignedModule() {
-                        ModuleGuid = mod.ModuleGuid,
-                        Description = mod.Description,
-                        Name = mod.Name,
-                        AreaName = mod.Area,
-                    };
-                    modules.Add(mod.ModuleGuid, desMod);
+
+            Guid key = mod.ModuleGuid;
+
+            using (await _lockObject.LockAsync()) {
+                using (IStaticLockObject lockObject = await LockAsync()) {
+                    mod.DateUpdated = DateTime.UtcNow;
+                    SaveImages(key, mod);
+                    await mod.ModuleSavingAsync();
+
+                    UpdateStatusEnum status = await DataProvider.UpdateAsync((KEY)(object)key, (KEY)(object)key, (TYPE)(object)mod);
+                    if (status != UpdateStatusEnum.OK)
+                        if (!await DataProvider.AddAsync((TYPE)(object)mod))
+                            throw new InternalError("Can't add module definition for {0}", key);
+
+                    DesignedModulesDictionary designedModules = await GetDesignedModulesAsync();
+                    if (designedModules.ContainsKey(key)) {
+                        DesignedModule desMod = designedModules[key];
+                        desMod.Name = mod.Name;
+                    } else {
+                        DesignedModule desMod = new DesignedModule() {
+                            ModuleGuid = key,
+                            Description = mod.Description,
+                            Name = mod.Name,
+                            AreaName = mod.Area,
+                        };
+                        designedModules.Add(key, desMod);
+                    }
+                    await lockObject.UnlockAsync();
                 }
             }
         }
         public async Task<bool> RemoveModuleDefinitionAsync(Guid key) {
             bool status = false;
-            await StringLocks.DoActionAsync(key.ToString(), async () => {
-                try {
-                    ModuleDefinition mod = await LoadModuleDefinitionAsync(key);
-                    if (mod != null)
-                        await mod.ModuleRemovingAsync();
-                } catch (Exception) { }
-                DesignedModulesDictionary dict = GetDesignedModules();
-                DesignedModule desMod;
-                if (!dict.TryGetValue(key, out desMod))
-                    status = false;
-                else {
-                    dict.Remove(key);
-                    status = await DataProvider.RemoveAsync((KEY)(object)key);
-                }
+            using (await _lockObject.LockAsync()) {
+                using (IStaticLockObject lockObject = await LockAsync()) {
+                    try {
+                        ModuleDefinition mod = await LoadModuleDefinitionAsync(key);
+                        if (mod != null)
+                            await mod.ModuleRemovingAsync();
+                    } catch (Exception) { }
 
-                if (status) {
-                    // remove the data folder (if any)
-                    string dir = ModuleDefinition.GetModuleDataFolder(key);
-                    DirectoryIO.DeleteFolder(dir);
+                    DesignedModulesDictionary dict = await GetDesignedModulesAsync();
+                    DesignedModule desMod;
+                    if (!dict.TryGetValue(key, out desMod))
+                        status = false;
+                    else {
+                        dict.Remove(key);
+                        status = await DataProvider.RemoveAsync((KEY)(object)key);
+                    }
+
+                    if (status) {
+                        // remove the data folder (if any) //$$$$
+                        string dir = ModuleDefinition.GetModuleDataFolder(key);
+                        DirectoryIO.DeleteFolder(dir);
+                    }
+                    await lockObject.UnlockAsync();
                 }
-            });
-            return status;
+                return status;
+            }
         }
 
         // DESIGNED MODULES
@@ -239,30 +248,19 @@ namespace YetaWF.DataProvider
         public async Task<List<DesignedModule>> LoadDesignedModulesAsync() {
             List<DesignedModule> list = new List<DesignedModule>();
             if (await DataProvider.IsInstalledAsync()) {// a new site may not have the data installed yet
-                DesignedModulesDictionary dict = GetDesignedModules();
+                DesignedModulesDictionary dict = await GetDesignedModulesAsync();
                 list = (from d in dict select d.Value).ToList();
             }
             return list;
         }
-        // This is cached so we keep it sync for simplicity
-        protected DesignedModulesDictionary GetDesignedModules() {
-            DesignedModulesDictionary modules;
-
-            if (PermanentManager.TryGetObject<DesignedModulesDictionary>(out modules))
-                return modules;
-
-            using (_lockObject.Lock()) { // lock this so we only do this once
-                // See if we already have it as a permanent object
-                if (PermanentManager.TryGetObject<DesignedModulesDictionary>(out modules))
-                    return modules;
-
-                // Load the designed pages
-                YetaWFManager.Syncify(async () => { // only done once at startup so sync it to keep things simple
-                    modules = await DataProviderIOMode.GetDesignedModulesAsync();
-                });
-                PermanentManager.AddObject<DesignedModulesDictionary>(modules);
-            }
-            return modules;
+        protected async Task<DesignedModulesDictionary> GetDesignedModulesAsync() {
+            GetObjectInfo<DesignedModulesDictionary> info = await YetaWF.Core.IO.Caching.StaticCacheProvider.GetAsync<DesignedModulesDictionary>(async () => {
+                return await DataProviderIOMode.GetDesignedModulesAsync();
+            });
+            return info.Data;
+        }
+        internal async Task<IStaticLockObject> LockAsync() {
+            return await Caching.StaticCacheProvider.LockAsync<DesignedModulesDictionary>();
         }
 
         // IINSTALLABLEMODEL
