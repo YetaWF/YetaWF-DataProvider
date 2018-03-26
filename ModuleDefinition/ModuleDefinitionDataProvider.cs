@@ -5,6 +5,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
+using YetaWF.Core.Audit;
 using YetaWF.Core.DataProvider;
 using YetaWF.Core.DataProvider.Attributes;
 using YetaWF.Core.IO;
@@ -181,6 +182,8 @@ namespace YetaWF.DataProvider
 
             Guid key = mod.ModuleGuid;
 
+            ModuleDefinition origMod = YetaWF.Core.Audit.Auditing.Active ? (ModuleDefinition)(object)await DataProvider.GetAsync((KEY)(object)key) : null;
+
             using (await _lockObject.LockAsync()) {
                 using (IStaticLockObject lockObject = await LockAsync()) {
                     mod.DateUpdated = DateTime.UtcNow;
@@ -208,13 +211,20 @@ namespace YetaWF.DataProvider
                     await lockObject.UnlockAsync();
                 }
             }
+            await Auditing.AddAuditAsync($"{nameof(ModuleDefinitionDataProvider<KEY, TYPE>)}.{nameof(SaveModuleDefinitionAsync)}", origMod?.Name, mod.ModuleGuid,
+                "Save Module",
+                DataBefore: origMod,
+                DataAfter: mod,
+                ExpensiveMultiInstance: true
+            );
         }
         public async Task<bool> RemoveModuleDefinitionAsync(Guid key) {
             bool status = false;
+            ModuleDefinition mod = null;
             using (await _lockObject.LockAsync()) {
                 using (IStaticLockObject lockObject = await LockAsync()) {
                     try {
-                        ModuleDefinition mod = await LoadModuleDefinitionAsync(key);
+                        mod = await LoadModuleDefinitionAsync(key);
                         if (mod != null)
                             await mod.ModuleRemovingAsync();
                     } catch (Exception) { }
@@ -235,8 +245,16 @@ namespace YetaWF.DataProvider
                     }
                     await lockObject.UnlockAsync();
                 }
-                return status;
             }
+            if (mod != null) {
+                await Auditing.AddAuditAsync($"{nameof(ModuleDefinitionDataProvider<KEY, TYPE>)}.{nameof(SaveModuleDefinitionAsync)}", mod.Name, mod.ModuleGuid,
+                    "Remove Module",
+                    DataBefore: mod,
+                    DataAfter: null,
+                    ExpensiveMultiInstance: true
+                );
+            }
+            return status;
         }
 
         // DESIGNED MODULES

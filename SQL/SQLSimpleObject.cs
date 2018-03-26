@@ -332,7 +332,7 @@ INTO @ident
  
 WHILE @@FETCH_STATUS = 0
 BEGIN
-	{subTablesDeletes}
+    {subTablesDeletes}
     FETCH NEXT FROM @MyCursor INTO @ident
 END; 
 
@@ -416,7 +416,7 @@ INTO @ident
  
 WHILE @@FETCH_STATUS = 0
 BEGIN
-	{subTablesSelects}
+    {subTablesSelects}
 END; 
 
 CLOSE @MyCursor ;
