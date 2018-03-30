@@ -187,7 +187,7 @@ namespace YetaWF.DataProvider
             using (await _lockObject.LockAsync()) {
                 using (IStaticLockObject lockObject = await LockAsync()) {
                     mod.DateUpdated = DateTime.UtcNow;
-                    SaveImages(key, mod);
+                    await SaveImagesAsync(key, mod);
                     await mod.ModuleSavingAsync();
 
                     UpdateStatusEnum status = await DataProvider.UpdateAsync((KEY)(object)key, (KEY)(object)key, (TYPE)(object)mod);
@@ -239,9 +239,9 @@ namespace YetaWF.DataProvider
                     }
 
                     if (status) {
-                        // remove the data folder (if any) //$$$$
+                        // remove the data folder (if any)
                         string dir = ModuleDefinition.GetModuleDataFolder(key);
-                        DirectoryIO.DeleteFolder(dir);
+                        await FileSystem.FileSystemProvider.DeleteDirectoryAsync(dir);
                     }
                     await lockObject.UnlockAsync();
                 }
@@ -300,7 +300,7 @@ namespace YetaWF.DataProvider
                 data.ModList = new SerializableList<TYPE>((List<TYPE>)exp.ObjectList);
                 foreach (TYPE m in data.ModList) {
                     ModuleDefinition mod = (ModuleDefinition)(object)m;
-                    fileList.AddRange(Package.ProcessAllFiles(mod.ModuleDataFolder));
+                    fileList.AddRange(await Package.ProcessAllFilesAsync(mod.ModuleDataFolder));
                 }
             }
             return exp.More;

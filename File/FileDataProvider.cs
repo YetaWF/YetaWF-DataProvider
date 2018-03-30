@@ -146,14 +146,14 @@ namespace YetaWF.DataProvider {
         private async Task<OBJTYPE> GetAsync(KEYTYPE key, bool SpecificType) {
             FileData<OBJTYPE> fd = GetFileDataObject(key);
             if (SpecificType) {
-                OBJTYPE o = fd.Load(SpecificType: SpecificType);
+                OBJTYPE o = await fd.LoadAsync(SpecificType: SpecificType);
                 if (o == null) return default(OBJTYPE);
                 return await UpdateCalculatedPropertiesAsync(o);
             } else
-                return await UpdateCalculatedPropertiesAsync(fd.Load());
+                return await UpdateCalculatedPropertiesAsync(await fd.LoadAsync());
         }
 
-        public Task<bool> AddAsync(OBJTYPE obj) {
+        public async Task<bool> AddAsync(OBJTYPE obj) {
 
             PropertyInfo piKey = ObjectSupport.GetProperty(typeof(OBJTYPE), Key1Name);
             KEYTYPE key = (KEYTYPE)piKey.GetValue(obj);
@@ -169,14 +169,14 @@ namespace YetaWF.DataProvider {
                     BaseFolder = BaseFolder,
                     FileName = InternalFilePrefix + IdentityName,
                 };
-                StringLocks.DoAction("YetaWF##Identity_" + BaseFolder, () => {
-                    FileIdentityCount ident = fdIdent.Load();
+                await StringLocks.DoActionAsync("YetaWF##Identity_" + BaseFolder, async () => {
+                    FileIdentityCount ident = await fdIdent.LoadAsync();
                     if (ident == null) { // new
                         ident = new FileIdentityCount(IdentitySeed);
-                        fdIdent.Add(ident);
+                        await fdIdent.AddAsync(ident);
                     } else { // existing
                         ++ident.Count;
-                        fdIdent.UpdateFile(fdIdent.FileName, ident);
+                        await fdIdent.UpdateFileAsync(fdIdent.FileName, ident);
                     }
                     identity = ident.Count;
                 });
@@ -185,30 +185,30 @@ namespace YetaWF.DataProvider {
                     key = (KEYTYPE)(object)identity;
             }
             FileData<OBJTYPE> fd = GetFileDataObject(key);
-            return Task.FromResult(fd.Add(obj));
+            return await fd.AddAsync(obj);
         }
         public Task<UpdateStatusEnum> UpdateAsync(KEYTYPE origKey, KEYTYPE newKey, OBJTYPE obj) {
-            return Task.FromResult(UpdateFile(origKey, newKey, obj));
+            return UpdateFileAsync(origKey, newKey, obj);
         }
-        private UpdateStatusEnum UpdateFile(KEYTYPE origKey, KEYTYPE newKey, OBJTYPE obj) {
+        private async Task<UpdateStatusEnum> UpdateFileAsync(KEYTYPE origKey, KEYTYPE newKey, OBJTYPE obj) {
             FileData<OBJTYPE> fd = GetFileDataObject(origKey);
-            return fd.UpdateFile(newKey.ToString(), obj);
+            return await fd.UpdateFileAsync(newKey.ToString(), obj);
         }
-        public Task<bool> RemoveAsync(KEYTYPE key) {
+        public async Task<bool> RemoveAsync(KEYTYPE key) {
             FileData<OBJTYPE> fd = GetFileDataObject(key);
-            return Task.FromResult(fd.TryRemove());
+            return await fd.TryRemoveAsync();
         }
-        public static Task<List<KEYTYPE>> GetListOfKeysAsync(string baseFolder) {
+        public static async Task<List<KEYTYPE>> GetListOfKeysAsync(string baseFolder) {
             FileData fd = new FileData {
                 BaseFolder = baseFolder,
             };
-            List<string> files = fd.GetNames();
+            List<string> files = await fd.GetNamesAsync();
             files = (from string f in files where !f.StartsWith(InternalFilePrefix) && f != Globals.DontDeployMarker select f).ToList<string>();
 
             if (typeof(KEYTYPE) == typeof(string))
-                return Task.FromResult((List<KEYTYPE>)(object)files);
+                return (List<KEYTYPE>)(object)files;
             else if (typeof(KEYTYPE) == typeof(Guid))
-                return Task.FromResult((from string f in files select (KEYTYPE)(object)new Guid(f)).ToList<KEYTYPE>());
+                return (from string f in files select (KEYTYPE)(object)new Guid(f)).ToList<KEYTYPE>();
             else
                 throw new InternalError("FileDataProvider only supports object keys of type string or Guid");
         }
@@ -234,7 +234,7 @@ namespace YetaWF.DataProvider {
             FileData fd = new FileData {
                 BaseFolder = this.BaseFolder,
             };
-            List<string> files = fd.GetNames();
+            List<string> files = await fd.GetNamesAsync();
 
             List<OBJTYPE> objects = new List<OBJTYPE>();
 
@@ -303,7 +303,7 @@ namespace YetaWF.DataProvider {
             FileData fd = new FileData {
                 BaseFolder = this.BaseFolder,
             };
-            List<string> files = fd.GetNames();
+            List<string> files = await fd.GetNamesAsync();
 
             int total = 0;
             foreach (string file in files) {
@@ -324,19 +324,19 @@ namespace YetaWF.DataProvider {
 
                 if (DataProviderImpl<OBJTYPE>.Filter(new List<OBJTYPE> { obj }, filters).Count > 0) {
                     FileData<OBJTYPE> fdtemp = GetFileDataObject(key);
-                    if (fdtemp.TryRemove())
+                    if (await fdtemp.TryRemoveAsync())
                         total++;
                 }
             }
             if (filters == null)
-                RemoveFolderIfEmpty(BaseFolder);
+                await RemoveFolderIfEmptyAsync(BaseFolder);
             return total;
         }
 
-        private void RemoveFolderIfEmpty(string path) {
+        private async Task RemoveFolderIfEmptyAsync(string path) {
             // delete the folder if it's empty now
-            if (Directory.GetDirectories(path).Count() == 0) {
-                string[] files = Directory.GetFiles(path);
+            if ((await FileSystem.FileSystemProvider.GetDirectoriesAsync(path)).Count == 0) {
+                List<string> files = await FileSystem.FileSystemProvider.GetFilesAsync(path);
                 bool empty = true;
                 foreach (string file in files) {
                     if (!Path.GetFileName(file).StartsWith(InternalFilePrefix) && file != Globals.DontDeployMarker) {// internal file
@@ -345,7 +345,7 @@ namespace YetaWF.DataProvider {
                     }
                 }
                 if (empty) {
-                    DirectoryIO.DeleteFolder(BaseFolder);
+                    await FileSystem.FileSystemProvider.DeleteDirectoryAsync(BaseFolder);
                 }
             }
         }
@@ -354,30 +354,30 @@ namespace YetaWF.DataProvider {
         // INSTALL/UNINSTALL
         // INSTALL/UNINSTALL
 
-        public Task<bool> IsInstalledAsync() {
-            return Task.FromResult(Directory.Exists(BaseFolder));
+        public async Task<bool> IsInstalledAsync() {
+            return await FileSystem.FileSystemProvider.DirectoryExistsAsync(BaseFolder);
         }
 
-        public Task<bool> InstallModelAsync(List<string> errorList) {
+        public async Task<bool> InstallModelAsync(List<string> errorList) {
             try {
-                if (!Directory.Exists(BaseFolder))
-                    Directory.CreateDirectory(BaseFolder);
-                return Task.FromResult(true);
+                if (!await FileSystem.FileSystemProvider.DirectoryExistsAsync(BaseFolder))
+                    await FileSystem.FileSystemProvider.CreateDirectoryAsync(BaseFolder);
+                return true;
             } catch (Exception exc) {
                 errorList.Add(string.Format("{0}: {1}", BaseFolder, exc.Message));
-                return Task.FromResult(false);
+                return false;
             }
         }
-        public Task<bool> UninstallModelAsync(List<string> errorList) {
+        public async Task<bool> UninstallModelAsync(List<string> errorList) {
             try {
                 FileData fd = new FileData {
                     BaseFolder = BaseFolder,
                 };
-                fd.TryRemoveAll();
-                return Task.FromResult(true);
+                await fd.TryRemoveAllAsync();
+                return true;
             } catch (Exception exc) {
                 errorList.Add(string.Format("{0}: {1}", BaseFolder, exc.Message));
-                return Task.FromResult(false);
+                return false;
             }
         }
         public Task AddSiteDataAsync() { return Task.CompletedTask; }

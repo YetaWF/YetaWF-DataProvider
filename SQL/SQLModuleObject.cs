@@ -82,7 +82,7 @@ DROP TABLE #BASETABLE
 SELECT TOP 1 * FROM {fullTableName} WITH(NOLOCK)
 INNER JOIN {fullBaseTableName} ON 
     {fullBaseTableName}.[{Key1Name}] = {fullTableName}.[{Key1Name}] AND {fullBaseTableName}.[{SiteColumn}] = {fullTableName}.[{SiteColumn}]
-WHERE {sqlHelper.Expr(Key1Name, "=", key)} {AndSiteIdentity}
+WHERE {sqlHelper.Expr(fullBaseTableName + $".[{Key1Name}]", " =", key)} AND {fullBaseTableName}.[{SiteColumn}] = {SiteIdentity}
 
 {sqlHelper.DebugInfo}";
 
