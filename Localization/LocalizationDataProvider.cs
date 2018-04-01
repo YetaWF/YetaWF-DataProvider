@@ -21,7 +21,7 @@ namespace YetaWF.Core.Models.DataProvider {
         protected YetaWFManager Manager { get { return YetaWFManager.Manager; } }
         protected bool HaveManager { get { return YetaWFManager.HaveManager; } }
 
-        public Task InitializeApplicationStartupAsync(bool firstNode) {
+        public Task InitializeApplicationStartupAsync() {
             LocalizationSupport.Load = Load;
             LocalizationSupport.SaveAsync = SaveAsync;
             LocalizationSupport.ClearPackageDataAsync = ClearPackageDataAsync;

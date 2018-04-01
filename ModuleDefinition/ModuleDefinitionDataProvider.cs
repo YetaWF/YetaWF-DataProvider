@@ -28,7 +28,7 @@ namespace YetaWF.DataProvider
         // STARTUP
         // STARTUP
 
-        public Task InitializeApplicationStartupAsync(bool firstNode) {
+        public Task InitializeApplicationStartupAsync() {
             ModuleDefinition.LoadModuleDefinitionAsync = LoadModuleDefinitionAsync;
             ModuleDefinition.SaveModuleDefinitionAsync = SaveModuleDefinitionAsync;
             ModuleDefinition.RemoveModuleDefinitionAsync = RemoveModuleDefinitionAsync;
@@ -257,7 +257,7 @@ namespace YetaWF.DataProvider
 
         // Designed modules are site specific and DesignedModules is a permanent site-specific object
 
-        private const string DESIGNEDMODULESKEY = "__DesignedModules";
+        private string DESIGNEDMODULESKEY = $"__DesignedModules__{YetaWFManager.Manager.CurrentSite.Identity}";
 
         public async Task<List<DesignedModule>> LoadDesignedModulesAsync() {
             List<DesignedModule> list = new List<DesignedModule>();
