@@ -293,10 +293,7 @@ namespace YetaWF.Core.Models.DataProvider {
             string url = VersionManager.TryGetAddOnPackageUrl(package.Domain, package.Product);
             if (string.IsNullOrWhiteSpace(url)) return new List<string>();
             string path = Path.Combine(YetaWFManager.UrlToPhysical(url), LocalizationDataProvider.FolderName);
-            FileData fdFolder = new FileData {
-                BaseFolder = path,
-            };
-            List<string> files = await fdFolder.GetNamesAsync();
+            List<string> files = await DataFilesProvider.GetDataFileNamesAsync(path);
             files = (from f in files select Path.Combine(path, f)).ToList();
             return files;
         }

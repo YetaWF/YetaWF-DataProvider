@@ -199,10 +199,7 @@ namespace YetaWF.DataProvider {
             return await fd.TryRemoveAsync();
         }
         public static async Task<List<KEYTYPE>> GetListOfKeysAsync(string baseFolder) {
-            FileData fd = new FileData {
-                BaseFolder = baseFolder,
-            };
-            List<string> files = await fd.GetNamesAsync();
+            List<string> files = await DataFilesProvider.GetDataFileNamesAsync(baseFolder);
             files = (from string f in files where !f.StartsWith(InternalFilePrefix) && f != Globals.DontDeployMarker select f).ToList<string>();
 
             if (typeof(KEYTYPE) == typeof(string))
@@ -231,10 +228,7 @@ namespace YetaWF.DataProvider {
         private async Task<DataProviderGetRecords<OBJTYPE>> GetRecords(int skip, int take, List<DataProviderSortInfo> sort, List<DataProviderFilterInfo> filters, List<JoinData> Joins = null, bool SpecificType = false) {
 
             if (Joins != null) throw new InternalError("Joins not supported");
-            FileData fd = new FileData {
-                BaseFolder = this.BaseFolder,
-            };
-            List<string> files = await fd.GetNamesAsync();
+            List<string> files = await DataFilesProvider.GetDataFileNamesAsync(BaseFolder);
 
             List<OBJTYPE> objects = new List<OBJTYPE>();
 
@@ -300,10 +294,7 @@ namespace YetaWF.DataProvider {
         // REMOVE RECORDS
 
         public async Task<int> RemoveRecordsAsync(List<DataProviderFilterInfo> filters) {
-            FileData fd = new FileData {
-                BaseFolder = this.BaseFolder,
-            };
-            List<string> files = await fd.GetNamesAsync();
+            List<string> files = await DataFilesProvider.GetDataFileNamesAsync(BaseFolder);
 
             int total = 0;
             foreach (string file in files) {
@@ -370,10 +361,7 @@ namespace YetaWF.DataProvider {
         }
         public async Task<bool> UninstallModelAsync(List<string> errorList) {
             try {
-                FileData fd = new FileData {
-                    BaseFolder = BaseFolder,
-                };
-                await fd.TryRemoveAllAsync();
+                await DataFilesProvider.RemoveAllDataFilesAsync(BaseFolder);
                 return true;
             } catch (Exception exc) {
                 errorList.Add(string.Format("{0}: {1}", BaseFolder, exc.Message));
