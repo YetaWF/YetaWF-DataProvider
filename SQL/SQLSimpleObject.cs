@@ -541,9 +541,10 @@ DROP TABLE #TEMPTABLE
         protected string SubTablesUpdates(SQLHelper sqlHelper, string tableName, object container, List<PropertyData> propData, Type tpContainer) {
             SQLBuilder sb = new SQLBuilder();
             List<SubTableInfo> subTables = GetSubTables(tableName, propData);
+            sb.Add("BEGIN TRANSACTION Upd;");
             foreach (SubTableInfo subTable in subTables) {
                 sb.Add($@"
-    DELETE FROM {subTable.Name} WHERE {SQLBase.SubTableKeyColumn} = @__IDENTITY ;
+    DELETE FROM {subTable.Name} WITH(SERIALIZABLE) WHERE {SQLBase.SubTableKeyColumn} = @__IDENTITY ;
 ");
                 List<PropertyData> subPropData = ObjectSupport.GetPropertyData(subTable.Type);
                 IEnumerable ienum = (IEnumerable)subTable.PropInfo.GetValue(container);
@@ -557,6 +558,7 @@ DROP TABLE #TEMPTABLE
 ");
                 }
             }
+            sb.Add("COMMIT TRANSACTION Upd;");
             return sb.ToString();
         }
         protected string SubTablesDeletes(string tableName, List<PropertyData> propData, Type tpContainer) {

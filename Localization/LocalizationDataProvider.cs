@@ -132,7 +132,7 @@ namespace YetaWF.Core.Models.DataProvider {
                                 if (data != null && newData != null)
                                     Merge(data, newData);// merge custom data into base data
                             }
-                            lock (package) {
+                            lock (package) { // lock used for local data
                                 if (package.CachedLocalization == null)
                                     package.CachedLocalization = new Dictionary<string, LocalizationData>();
                                 Dictionary<string, LocalizationData> cachedFiles = (Dictionary<string, LocalizationData>)package.CachedLocalization;
@@ -198,7 +198,7 @@ namespace YetaWF.Core.Models.DataProvider {
             string file = type.Split(new char[] { '+' }).First(); // use class name, not nested class name
             file = file.Trim(new char[] { '_' }); // generated templates have classes starting or ending in _
 
-            lock (package) {
+            lock (package) { // lock used for local data
                 if (package.CachedLocalization != null) {
                     Dictionary<string, LocalizationData> cachedFiles = (Dictionary<string, LocalizationData>) package.CachedLocalization;
                     cachedFiles.Remove(MakeKey(file));
