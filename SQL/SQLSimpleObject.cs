@@ -169,8 +169,8 @@ DECLARE @__IDENTITY int = @@IDENTITY
             return true;
         }
 
-        public Task<UpdateStatusEnum> UpdateAsync(KEYTYPE origKey, KEYTYPE newKey, OBJTYPE obj) {
-            return UpdateAsync(origKey, default(KEYTYPE2), newKey, default(KEYTYPE2), obj);
+        public async Task<UpdateStatusEnum> UpdateAsync(KEYTYPE origKey, KEYTYPE newKey, OBJTYPE obj) {
+            return await UpdateAsync(origKey, default(KEYTYPE2), newKey, default(KEYTYPE2), obj);
         }
 
         public async Task<UpdateStatusEnum> UpdateAsync(KEYTYPE origKey, KEYTYPE2 origKey2, KEYTYPE newKey, KEYTYPE2 newKey2, OBJTYPE obj) {
@@ -230,8 +230,8 @@ SELECT @@ROWCOUNT --- result set
             return UpdateStatusEnum.OK;
         }
 
-        public Task<bool> RemoveAsync(KEYTYPE key) {
-            return RemoveAsync(key, default(KEYTYPE2));
+        public async Task<bool> RemoveAsync(KEYTYPE key) {
+            return await RemoveAsync(key, default(KEYTYPE2));
         }
         public async Task<bool> RemoveAsync(KEYTYPE key, KEYTYPE2 key2) {
 

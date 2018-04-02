@@ -50,21 +50,30 @@ namespace YetaWF.DataProvider
         }
         private async Task<GetCachedModuleInfo> GetCachedModuleAsync(Guid guid) {
             GetCachedModuleInfo modInfo = new GetCachedModuleInfo();
-            GetObjectInfo<ModuleDefinition> objInfo = await Caching.SharedCacheProvider.GetAsync<ModuleDefinition>(CacheKey(guid));
+            GetObjectInfo<ModuleDefinition> objInfo;
+            using (ICacheDataProvider sharedCacheDP = YetaWF.Core.IO.Caching.GetSharedCacheProvider()) {
+                objInfo = await sharedCacheDP.GetAsync<ModuleDefinition>(CacheKey(guid));
+            }
             if (!objInfo.Success)
                 return modInfo;
             modInfo.Success = true;
             modInfo.Module = objInfo.Data;
             return modInfo;
         }
-        private Task SetCachedModuleAsync(ModuleDefinition mod) {
-            return Caching.SharedCacheProvider.AddAsync(CacheKey(mod.ModuleGuid), mod);
+        private async Task SetCachedModuleAsync(ModuleDefinition mod) {
+            using (ICacheDataProvider sharedCacheDP = YetaWF.Core.IO.Caching.GetSharedCacheProvider()) {
+                await sharedCacheDP.AddAsync(CacheKey(mod.ModuleGuid), mod);
+            }
         }
-        private Task SetEmptyCachedModuleAsync(Guid guid) {
-            return Caching.SharedCacheProvider.AddAsync<ModuleDefinition>(CacheKey(guid), null);
+        private async Task SetEmptyCachedModuleAsync(Guid guid) {
+            using (ICacheDataProvider sharedCacheDP = YetaWF.Core.IO.Caching.GetSharedCacheProvider()) {
+                await sharedCacheDP.AddAsync<ModuleDefinition>(CacheKey(guid), null);
+            }
         }
-        private Task RemoveCachedModuleAsync(Guid guid) {
-            return Caching.SharedCacheProvider.RemoveAsync<ModuleDefinition>(CacheKey(guid));
+        private async Task RemoveCachedModuleAsync(Guid guid) {
+            using (ICacheDataProvider sharedCacheDP = YetaWF.Core.IO.Caching.GetSharedCacheProvider()) {
+                await sharedCacheDP.RemoveAsync<ModuleDefinition>(CacheKey(guid));
+            }
         }
 
         // Implementation
@@ -268,13 +277,17 @@ namespace YetaWF.DataProvider
             return list;
         }
         protected async Task<DesignedModulesDictionary> GetDesignedModulesAsync() {
-            DesignedModulesDictionary data = await YetaWF.Core.IO.Caching.StaticCacheProvider.GetAsync<DesignedModulesDictionary>(DESIGNEDMODULESKEY, async() => {
-                return await DataProviderIOMode.GetDesignedModulesAsync();
-            });
-            return data;
+            using (ICacheStaticDataProvider staticCacheDP = YetaWF.Core.IO.Caching.GetStaticCacheProvider()) {
+                DesignedModulesDictionary data = await staticCacheDP.GetAsync<DesignedModulesDictionary>(DESIGNEDMODULESKEY, async () => {
+                    return await DataProviderIOMode.GetDesignedModulesAsync();
+                });
+                return data;
+            }
         }
         internal async Task<IStaticLockObject> LockAsync() {
-            return await Caching.StaticCacheProvider.LockAsync<DesignedModulesDictionary>(DESIGNEDMODULESKEY);
+            using (ICacheStaticDataProvider staticCacheDP = YetaWF.Core.IO.Caching.GetStaticCacheProvider()) {
+                return await staticCacheDP.LockAsync<DesignedModulesDictionary>(DESIGNEDMODULESKEY);
+            }
         }
 
         // IINSTALLABLEMODEL
