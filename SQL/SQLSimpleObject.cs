@@ -541,6 +541,7 @@ DROP TABLE #TEMPTABLE
         protected string SubTablesUpdates(SQLHelper sqlHelper, string tableName, object container, List<PropertyData> propData, Type tpContainer) {
             SQLBuilder sb = new SQLBuilder();
             List<SubTableInfo> subTables = GetSubTables(tableName, propData);
+            if (subTables.Count == 0) return null;
             sb.Add("BEGIN TRANSACTION Upd;");
             foreach (SubTableInfo subTable in subTables) {
                 sb.Add($@"
