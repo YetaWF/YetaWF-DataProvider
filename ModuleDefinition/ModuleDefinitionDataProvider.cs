@@ -34,6 +34,7 @@ namespace YetaWF.DataProvider
             ModuleDefinition.RemoveModuleDefinitionAsync = RemoveModuleDefinitionAsync;
             DesignedModules.LoadDesignedModulesAsync = LoadDesignedModulesAsync;
             ModuleDefinition.GetModulesAsync = GetModulesAsync;
+            ModuleDefinition.LockModuleAsync = LockModuleAsync;
             return Task.CompletedTask;
         }
 
@@ -92,7 +93,7 @@ namespace YetaWF.DataProvider
         }
         private async Task<ModuleDefinition> LoadModuleDefinitionAsync(Guid guid) {
             GetCachedModuleInfo modInfo = await GetCachedModuleAsync(guid);
-            if (modInfo.Success && modInfo.Module != null)
+            if (modInfo.Success)
                 return modInfo.Module;
             using (GenericModuleDefinitionDataProvider modDP = new GenericModuleDefinitionDataProvider()) {
                 ModuleDefinition mod = await modDP.LoadModuleDefinitionAsync(guid);
@@ -114,6 +115,12 @@ namespace YetaWF.DataProvider
             using (GenericModuleDefinitionDataProvider modDP = new GenericModuleDefinitionDataProvider()) {
                 return await modDP.RemoveModuleDefinitionAsync(guid);
             }
+        }
+
+        private string MODULEKEY = $"__Module__{YetaWFManager.Manager.CurrentSite.Identity}__";
+
+        private async Task<ILockObject> LockModuleAsync(Guid moduleGuid) {
+            return await YetaWF.Core.IO.Caching.LockProvider.LockResourceAsync(MODULEKEY + moduleGuid.ToString());
         }
     }
 
@@ -191,7 +198,7 @@ namespace YetaWF.DataProvider
 
             ModuleDefinition origMod = YetaWF.Core.Audit.Auditing.Active ? (ModuleDefinition)(object)await DataProvider.GetAsync((KEY)(object)key) : null;
 
-            using (IStaticLockObject lockObject = await LockAsync()) {
+            using (ILockObject lockObject = await LockDesignedModulesAsync()) {
                 mod.DateUpdated = DateTime.UtcNow;
                 await SaveImagesAsync(key, mod);
                 await mod.ModuleSavingAsync();
@@ -226,7 +233,7 @@ namespace YetaWF.DataProvider
         public async Task<bool> RemoveModuleDefinitionAsync(Guid key) {
             bool status = false;
             ModuleDefinition mod = null;
-            using (IStaticLockObject lockObject = await LockAsync()) {
+            using (ILockObject lockObject = await LockDesignedModulesAsync()) {
                 try {
                     mod = await LoadModuleDefinitionAsync(key);
                     if (mod != null)
@@ -284,10 +291,8 @@ namespace YetaWF.DataProvider
                 return data;
             }
         }
-        internal async Task<IStaticLockObject> LockAsync() {
-            using (ICacheStaticDataProvider staticCacheDP = YetaWF.Core.IO.Caching.GetStaticCacheProvider()) {
-                return await staticCacheDP.LockAsync<DesignedModulesDictionary>(DESIGNEDMODULESKEY);
-            }
+        private async Task<ILockObject> LockDesignedModulesAsync() {
+            return await YetaWF.Core.IO.Caching.LockProvider.LockResourceAsync(DESIGNEDMODULESKEY);
         }
 
         // IINSTALLABLEMODEL
