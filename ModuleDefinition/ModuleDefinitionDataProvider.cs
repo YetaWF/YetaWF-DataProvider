@@ -284,10 +284,18 @@ namespace YetaWF.DataProvider
             return list;
         }
         protected async Task<DesignedModulesDictionary> GetDesignedModulesAsync() {
-            using (ICacheStaticDataProvider staticCacheDP = YetaWF.Core.IO.Caching.GetStaticCacheProvider()) {
-                DesignedModulesDictionary data = await staticCacheDP.GetAsync<DesignedModulesDictionary>(DESIGNEDMODULESKEY, async () => {
-                    return await DataProviderIOMode.GetDesignedModulesAsync();
-                });
+            using (ICacheDataProvider staticCacheDP = YetaWF.Core.IO.Caching.GetStaticCacheProvider()) {
+                DesignedModulesDictionary data;
+                using (ILockObject lockObject = await LockDesignedModulesAsync()) {
+                    GetObjectInfo<DesignedModulesDictionary> info = await staticCacheDP.GetAsync<DesignedModulesDictionary>(DESIGNEDMODULESKEY);
+                    if (info.Success)
+                        data = info.Data;
+                    else {
+                        data = await DataProviderIOMode.GetDesignedModulesAsync();
+                        await staticCacheDP.AddAsync(DESIGNEDMODULESKEY, data);
+                    }
+                    await lockObject.UnlockAsync();
+                }
                 return data;
             }
         }
