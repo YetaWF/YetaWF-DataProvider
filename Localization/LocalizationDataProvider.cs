@@ -21,11 +21,11 @@ namespace YetaWF.Core.Models.DataProvider {
         protected YetaWFManager Manager { get { return YetaWFManager.Manager; } }
         protected bool HaveManager { get { return YetaWFManager.HaveManager; } }
 
-        public Task InitializeApplicationStartupAsync(bool firstNode) {
+        public Task InitializeApplicationStartupAsync() {
             LocalizationSupport.Load = Load;
-            LocalizationSupport.Save = Save;
-            LocalizationSupport.ClearPackageData = ClearPackageData;
-            LocalizationSupport.GetFiles = GetFiles;
+            LocalizationSupport.SaveAsync = SaveAsync;
+            LocalizationSupport.ClearPackageDataAsync = ClearPackageDataAsync;
+            LocalizationSupport.GetFilesAsync = GetFilesAsync;
             return Task.CompletedTask;
         }
 
@@ -62,85 +62,88 @@ namespace YetaWF.Core.Models.DataProvider {
             FileData<LocalizationData> fd;
             LocalizationData data = null;
 
-            switch (location) {
-                default:
-                case LocalizationSupport.Location.DefaultResources:
-                    fd = new FileData<LocalizationData> {
-                        BaseFolder = Path.Combine(YetaWFManager.UrlToPhysical(addonUrl), FolderName),
-                        FileName = file,
-                        Format = LocalizationFormat,
-                        Cacheable = false,
-                    };
-                    data = fd.Load();
-                    break;
-                case LocalizationSupport.Location.InstalledResources:
-                    fd = new FileData<LocalizationData> {
-                        BaseFolder = Path.Combine(YetaWFManager.UrlToPhysical(addonUrl), FolderName, MultiString.ActiveLanguage),
-                        FileName = file,
-                        Format = LocalizationFormat,
-                        Cacheable = false,
-                    };
-                    data = fd.Load();
-                    break;
-                case LocalizationSupport.Location.CustomResources: {
-                    string customAddonUrl = VersionManager.GetCustomUrlFromUrl(addonUrl);
-                    fd = new FileData<LocalizationData> {
-                        BaseFolder = Path.Combine(YetaWFManager.UrlToPhysical(customAddonUrl), FolderName, MultiString.ActiveLanguage),
-                        FileName = file,
-                        Format = LocalizationFormat,
-                        Cacheable = false,
-                    };
-                    data = fd.Load();
-                    break;
-                }
-                case LocalizationSupport.Location.Merge: {
-                    LocalizationData newData = null;
-                    string customAddonUrl = VersionManager.GetCustomUrlFromUrl(addonUrl);
-                    fd = new FileData<LocalizationData> {
-                        BaseFolder = Path.Combine(YetaWFManager.UrlToPhysical(customAddonUrl), FolderName, MultiString.ActiveLanguage),
-                        FileName = file,
-                        Format = LocalizationFormat,
-                        Cacheable = false,
-                    };
-                    newData = fd.Load();
+            YetaWFManager.Syncify(async () => { // This must be sync because this is called from all kinds of property getters which can't be sync, fortunately this is cached so it only happens once
 
-                    if (newData != null) {
-                        data = newData;
-                        newData = null;
-                    } else {
-                        // get installed resources if available
+                switch (location) {
+                    default:
+                    case LocalizationSupport.Location.DefaultResources:
+                        fd = new FileData<LocalizationData> {
+                            BaseFolder = Path.Combine(YetaWFManager.UrlToPhysical(addonUrl), FolderName),
+                            FileName = file,
+                            Format = LocalizationFormat,
+                            Cacheable = false,
+                        };
+                        data = await fd.LoadAsync();
+                        break;
+                    case LocalizationSupport.Location.InstalledResources:
                         fd = new FileData<LocalizationData> {
                             BaseFolder = Path.Combine(YetaWFManager.UrlToPhysical(addonUrl), FolderName, MultiString.ActiveLanguage),
                             FileName = file,
                             Format = LocalizationFormat,
                             Cacheable = false,
                         };
-                        data = fd.Load();
-
-                        if (data == null) {
-                            // get default resource
+                        data = await fd.LoadAsync();
+                        break;
+                    case LocalizationSupport.Location.CustomResources: {
+                            string customAddonUrl = VersionManager.GetCustomUrlFromUrl(addonUrl);
                             fd = new FileData<LocalizationData> {
-                                BaseFolder = Path.Combine(YetaWFManager.UrlToPhysical(addonUrl), FolderName),
+                                BaseFolder = Path.Combine(YetaWFManager.UrlToPhysical(customAddonUrl), FolderName, MultiString.ActiveLanguage),
                                 FileName = file,
                                 Format = LocalizationFormat,
                                 Cacheable = false,
                             };
-                            data = fd.Load();
+                            data = await fd.LoadAsync();
+                            break;
                         }
-                        if (data != null && newData != null)
-                            Merge(data, newData);// merge custom data into base data
-                    }
-                    lock (package) {
-                        if (package.CachedLocalization == null)
-                            package.CachedLocalization = new Dictionary<string, LocalizationData>();
-                        Dictionary<string, LocalizationData> cachedFiles = (Dictionary<string, LocalizationData>) package.CachedLocalization;
-                        string key = MakeKey(file);
-                        if (!cachedFiles.ContainsKey(key))
-                            cachedFiles.Add(key, data);
-                    }
-                    break;
+                    case LocalizationSupport.Location.Merge: {
+                            LocalizationData newData = null;
+                            string customAddonUrl = VersionManager.GetCustomUrlFromUrl(addonUrl);
+                            fd = new FileData<LocalizationData> {
+                                BaseFolder = Path.Combine(YetaWFManager.UrlToPhysical(customAddonUrl), FolderName, MultiString.ActiveLanguage),
+                                FileName = file,
+                                Format = LocalizationFormat,
+                                Cacheable = false,
+                            };
+                            newData = await fd.LoadAsync();
+
+                            if (newData != null) {
+                                data = newData;
+                                newData = null;
+                            } else {
+                                // get installed resources if available
+                                fd = new FileData<LocalizationData> {
+                                    BaseFolder = Path.Combine(YetaWFManager.UrlToPhysical(addonUrl), FolderName, MultiString.ActiveLanguage),
+                                    FileName = file,
+                                    Format = LocalizationFormat,
+                                    Cacheable = false,
+                                };
+                                data = await fd.LoadAsync();
+
+                                if (data == null) {
+                                    // get default resource
+                                    fd = new FileData<LocalizationData> {
+                                        BaseFolder = Path.Combine(YetaWFManager.UrlToPhysical(addonUrl), FolderName),
+                                        FileName = file,
+                                        Format = LocalizationFormat,
+                                        Cacheable = false,
+                                    };
+                                    data = await fd.LoadAsync();
+                                }
+                                if (data != null && newData != null)
+                                    Merge(data, newData);// merge custom data into base data
+                            }
+                            lock (package) { // lock used for local data
+                                if (package.CachedLocalization == null)
+                                    package.CachedLocalization = new Dictionary<string, LocalizationData>();
+                                Dictionary<string, LocalizationData> cachedFiles = (Dictionary<string, LocalizationData>)package.CachedLocalization;
+                                string key = MakeKey(file);
+                                if (!cachedFiles.ContainsKey(key))
+                                    cachedFiles.Add(key, data);
+                            }
+                            break;
+                        }
                 }
-            }
+            });
             return data;
         }
 
@@ -187,7 +190,7 @@ namespace YetaWF.Core.Models.DataProvider {
                 }
             }
         }
-        public void Save(Package package, string type, LocalizationSupport.Location location, LocalizationData data) {
+        public async Task SaveAsync(Package package, string type, LocalizationSupport.Location location, LocalizationData data) {
             if (!Startup.Started || !HaveManager) throw new InternalError("Can't save resource files during startup");
             if (!Manager.LocalizationSupportEnabled) throw new InternalError("Can't save resource files during startup");
             string addonUrl = VersionManager.GetAddOnPackageUrl(package.Domain, package.Product);
@@ -195,7 +198,7 @@ namespace YetaWF.Core.Models.DataProvider {
             string file = type.Split(new char[] { '+' }).First(); // use class name, not nested class name
             file = file.Trim(new char[] { '_' }); // generated templates have classes starting or ending in _
 
-            lock (package) {
+            lock (package) { // lock used for local data
                 if (package.CachedLocalization != null) {
                     Dictionary<string, LocalizationData> cachedFiles = (Dictionary<string, LocalizationData>) package.CachedLocalization;
                     cachedFiles.Remove(MakeKey(file));
@@ -212,7 +215,7 @@ namespace YetaWF.Core.Models.DataProvider {
                         Format = LocalizationFormat,
                         Cacheable = false,
                     };
-                    fd.TryRemove();
+                    await fd.TryRemoveAsync();
                 } else  if (location == LocalizationSupport.Location.InstalledResources && MultiString.ActiveLanguage != MultiString.DefaultLanguage) {
                     fd = new FileData<LocalizationData> {
                         BaseFolder = Path.Combine(YetaWFManager.UrlToPhysical(addonUrl), FolderName, MultiString.ActiveLanguage),
@@ -220,7 +223,7 @@ namespace YetaWF.Core.Models.DataProvider {
                         Format = LocalizationFormat,
                         Cacheable = false,
                     };
-                    fd.TryRemove();
+                    await fd.TryRemoveAsync();
                 } else
                     throw new InternalError("Only custom localization and non US-English installed resources can be removed");
             } else {
@@ -269,13 +272,13 @@ namespace YetaWF.Core.Models.DataProvider {
                     case LocalizationSupport.Location.Merge:
                         throw new InternalError("Merge can't be used when saving");
                 }
-                fd.TryRemove();
-                fd.Add(data);
+                await fd.TryRemoveAsync();
+                await fd.AddAsync(data);
             }
             ObjectSupport.InvalidateAll();
         }
-        private void ClearPackageData(Package package) {
-            List<string> entries = GetFiles(package);
+        private async Task ClearPackageDataAsync(Package package) {
+            List<string> entries = await GetFilesAsync(package);
             foreach (var file in entries) {
                 FileData<LocalizationData> fd = new FileData<LocalizationData> {
                     BaseFolder = Path.GetDirectoryName(file),
@@ -283,17 +286,14 @@ namespace YetaWF.Core.Models.DataProvider {
                     Format = LocalizationFormat,
                     Cacheable = false,
                 };
-                fd.Remove();
+                await fd.RemoveAsync();
             }
         }
-        public List<string> GetFiles(Package package) {
+        public async Task<List<string>> GetFilesAsync(Package package) {
             string url = VersionManager.TryGetAddOnPackageUrl(package.Domain, package.Product);
             if (string.IsNullOrWhiteSpace(url)) return new List<string>();
             string path = Path.Combine(YetaWFManager.UrlToPhysical(url), LocalizationDataProvider.FolderName);
-            FileData fdFolder = new FileData {
-                BaseFolder = path,
-            };
-            List<string> files = fdFolder.GetNames();
+            List<string> files = await DataFilesProvider.GetDataFileNamesAsync(path);
             files = (from f in files select Path.Combine(path, f)).ToList();
             return files;
         }

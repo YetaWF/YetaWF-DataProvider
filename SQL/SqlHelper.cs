@@ -72,12 +72,12 @@ namespace YetaWF.DataProvider.SQL {
             return obj;
         }
         public void FillObject(IDataReader dr, object obj) {
-            var columns = new Hashtable();
+            List<string> columns = new List<string>();
             for (var ci = 0; ci < dr.FieldCount; ci++)
-                columns[dr.GetName(ci)] = "";
+                columns.Add(dr.GetName(ci));
             FillObject(dr, obj, columns);
         }
-        private void FillObject(IDataReader dr, object container, Hashtable columns, string prefix = "") {
+        private void FillObject(IDataReader dr, object container, List<string> columns, string prefix = "") {
             Type tpContainer = container.GetType();
             List<PropertyData> propData = ObjectSupport.GetPropertyData(tpContainer);
             foreach (PropertyData prop in propData) {
@@ -85,7 +85,7 @@ namespace YetaWF.DataProvider.SQL {
                 if (pi.CanRead && pi.CanWrite && !prop.HasAttribute("DontSave")) {
                     string colName = prefix + prop.Name;
                     if (prop.HasAttribute(Data_BinaryAttribute.AttributeName)) {
-                        if (columns.ContainsKey(colName)) {
+                        if (columns.Contains(colName)) {
                             object val = dr[colName];
                             if (!(val is System.DBNull)) {
                                 byte[] btes = (byte[])val;
@@ -102,7 +102,7 @@ namespace YetaWF.DataProvider.SQL {
                         MultiString ms = prop.GetPropertyValue<MultiString>(container);
                         foreach (var lang in Languages) {
                             string key = colName + "_" + lang.Id.Replace("-", "_");
-                            if (columns.ContainsKey(key)) {
+                            if (columns.Contains(key)) {
                                 object value = dr[key];
                                 if (!(value is System.DBNull)) {
                                     string s = (string)value;
@@ -112,7 +112,7 @@ namespace YetaWF.DataProvider.SQL {
                             }
                         }
                     } else if (pi.PropertyType == typeof(Image)) {
-                        if (columns.ContainsKey(colName)) {
+                        if (columns.Contains(colName)) {
                             byte[] btes = (byte[])dr[colName];
                             if (btes.Length > 1) {
                                 using (MemoryStream ms = new MemoryStream(btes)) {
@@ -126,7 +126,7 @@ namespace YetaWF.DataProvider.SQL {
                         if (propVal != null)
                             FillObject(dr, propVal, columns, colName + "_");
                     } else {
-                        if (columns.ContainsKey(prefix + pi.Name)) {
+                        if (columns.Contains(prefix + pi.Name)) {
                             object value = dr[prefix + pi.Name];
                             pi.SetValue(container, GetValue(pi.PropertyType, value), BindingFlags.Default, null, null, null);
                         }
@@ -134,9 +134,9 @@ namespace YetaWF.DataProvider.SQL {
                 }
             }
         }
-        private bool ComplexTypeInColumns(Hashtable columns, string prefix) {
-            foreach (var column in columns.Keys) {
-                if (column.ToString().StartsWith(prefix))
+        private bool ComplexTypeInColumns(List<string> columns, string prefix) {
+            foreach (var column in columns) {
+                if (column.StartsWith(prefix))
                     return true;
             }
             return false;

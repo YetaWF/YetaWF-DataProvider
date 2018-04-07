@@ -65,7 +65,10 @@ namespace YetaWF.DataProvider.SQL {
                 if (table == null)
                     return false;
                 try {
-                    dbEntry.Tables.Add(tableName, new TableEntry { });
+#if DEBUG
+                    if (!dbEntry.Tables.ContainsKey(tableName)) // minimize exception spam
+#endif
+                       dbEntry.Tables.Add(tableName, new TableEntry { });
                 } catch (Exception) { }// can fail if duplicate added (we prefer not to lock)
             }
             return true;
@@ -89,7 +92,10 @@ namespace YetaWF.DataProvider.SQL {
                     throw new InternalError("Request for db {0} table {1} which doesn't exist", databaseName, tableName);
                 tableEntry = new TableEntry { };
                 try {
-                    dbEntry.Tables.Add(tableName, tableEntry);
+#if DEBUG // minimize exception spam
+                    if (!dbEntry.Tables.ContainsKey(tableName))
+#endif
+                        dbEntry.Tables.Add(tableName, tableEntry);
                 } catch (Exception) {// can fail if duplicate added (we prefer not to lock)
                     tableEntry = dbEntry.Tables[tableName];// if we had a dup, make sure to get the real entry
                 }

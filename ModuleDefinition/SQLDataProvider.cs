@@ -5,6 +5,7 @@ using System.Collections.Generic;
 using System.Threading.Tasks;
 using YetaWF.Core.DataProvider;
 using YetaWF.Core.Modules;
+using YetaWF.Core.Serializers;
 
 namespace YetaWF.DataProvider.SQL {
 
@@ -14,19 +15,19 @@ namespace YetaWF.DataProvider.SQL {
 
             public ModuleDefinitionDataProvider(Dictionary<string, object> options) : base(options) { }
 
-            public async Task<DesignedModulesDictionary> GetDesignedModulesAsync() {
+            public async Task<SerializableList<DesignedModule>> GetDesignedModulesAsync() {
                 using (SQLSimpleObject<Guid, TempDesignedModule> dp = new SQLSimpleObject<Guid, TempDesignedModule>(Options)) {
                     DataProviderGetRecords<TempDesignedModule> modules = await dp.GetRecordsAsync(0, 0, null, null);
-                    DesignedModulesDictionary designedMods = new DesignedModulesDictionary();
+                    SerializableList<DesignedModule> list = new SerializableList<DesignedModule>();
                     foreach (TempDesignedModule mod in modules.Data) {
-                        designedMods.Add(mod.ModuleGuid, new DesignedModule {
+                        list.Add(new DesignedModule {
                             ModuleGuid = mod.ModuleGuid,
                             Name = mod.Name,
                             Description = mod.Description,
                             AreaName = mod.DerivedAssemblyName.Replace(".", "_"),
                         });
                     }
-                    return designedMods;
+                    return list;
                 }
             }
         }

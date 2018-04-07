@@ -169,8 +169,8 @@ DECLARE @__IDENTITY int = @@IDENTITY
             return true;
         }
 
-        public Task<UpdateStatusEnum> UpdateAsync(KEYTYPE origKey, KEYTYPE newKey, OBJTYPE obj) {
-            return UpdateAsync(origKey, default(KEYTYPE2), newKey, default(KEYTYPE2), obj);
+        public async Task<UpdateStatusEnum> UpdateAsync(KEYTYPE origKey, KEYTYPE newKey, OBJTYPE obj) {
+            return await UpdateAsync(origKey, default(KEYTYPE2), newKey, default(KEYTYPE2), obj);
         }
 
         public async Task<UpdateStatusEnum> UpdateAsync(KEYTYPE origKey, KEYTYPE2 origKey2, KEYTYPE newKey, KEYTYPE2 newKey2, OBJTYPE obj) {
@@ -230,8 +230,8 @@ SELECT @@ROWCOUNT --- result set
             return UpdateStatusEnum.OK;
         }
 
-        public Task<bool> RemoveAsync(KEYTYPE key) {
-            return RemoveAsync(key, default(KEYTYPE2));
+        public async Task<bool> RemoveAsync(KEYTYPE key) {
+            return await RemoveAsync(key, default(KEYTYPE2));
         }
         public async Task<bool> RemoveAsync(KEYTYPE key, KEYTYPE2 key2) {
 
@@ -332,7 +332,7 @@ INTO @ident
  
 WHILE @@FETCH_STATUS = 0
 BEGIN
-	{subTablesDeletes}
+    {subTablesDeletes}
     FETCH NEXT FROM @MyCursor INTO @ident
 END; 
 
@@ -416,7 +416,7 @@ INTO @ident
  
 WHILE @@FETCH_STATUS = 0
 BEGIN
-	{subTablesSelects}
+    {subTablesSelects}
 END; 
 
 CLOSE @MyCursor ;
@@ -541,9 +541,11 @@ DROP TABLE #TEMPTABLE
         protected string SubTablesUpdates(SQLHelper sqlHelper, string tableName, object container, List<PropertyData> propData, Type tpContainer) {
             SQLBuilder sb = new SQLBuilder();
             List<SubTableInfo> subTables = GetSubTables(tableName, propData);
+            if (subTables.Count == 0) return null;
+            sb.Add("BEGIN TRANSACTION Upd;");
             foreach (SubTableInfo subTable in subTables) {
                 sb.Add($@"
-    DELETE FROM {subTable.Name} WHERE {SQLBase.SubTableKeyColumn} = @__IDENTITY ;
+    DELETE FROM {subTable.Name} WITH(SERIALIZABLE) WHERE {SQLBase.SubTableKeyColumn} = @__IDENTITY ;
 ");
                 List<PropertyData> subPropData = ObjectSupport.GetPropertyData(subTable.Type);
                 IEnumerable ienum = (IEnumerable)subTable.PropInfo.GetValue(container);
@@ -557,6 +559,7 @@ DROP TABLE #TEMPTABLE
 ");
                 }
             }
+            sb.Add("COMMIT TRANSACTION Upd;");
             return sb.ToString();
         }
         protected string SubTablesDeletes(string tableName, List<PropertyData> propData, Type tpContainer) {
