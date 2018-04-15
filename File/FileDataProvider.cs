@@ -31,7 +31,7 @@ namespace YetaWF.DataProvider {
         public static readonly string ExternalName = "File";
     }
 
-    public class FileDataProvider<KEYTYPE, OBJTYPE> : FileDataProviderBase, IDataProvider<KEYTYPE, OBJTYPE>, IDataProviderTransactions {
+    public class FileDataProvider<KEYTYPE, OBJTYPE> : FileDataProviderBase, IDataProvider<KEYTYPE, OBJTYPE>, IDisposable, IDataProviderTransactions {
 
         public Dictionary<string, object> Options { get; private set; }
         public Package Package { get; private set; }
@@ -146,12 +146,9 @@ namespace YetaWF.DataProvider {
         }
         private async Task<OBJTYPE> GetAsync(KEYTYPE key, bool SpecificType) {
             FileData<OBJTYPE> fd = GetFileDataObject(key);
-            if (SpecificType) {
-                OBJTYPE o = await fd.LoadAsync(SpecificType: SpecificType);
-                if (o == null) return default(OBJTYPE);
-                return await UpdateCalculatedPropertiesAsync(o);
-            } else
-                return await UpdateCalculatedPropertiesAsync(await fd.LoadAsync());
+            OBJTYPE o = await fd.LoadAsync(SpecificType: SpecificType);
+            if (o == null) return default(OBJTYPE);
+            return await UpdateCalculatedPropertiesAsync(o);
         }
 
         public async Task<bool> AddAsync(OBJTYPE obj) {
@@ -200,7 +197,7 @@ namespace YetaWF.DataProvider {
             FileData<OBJTYPE> fd = GetFileDataObject(key);
             return await fd.TryRemoveAsync();
         }
-        public static async Task<List<KEYTYPE>> GetListOfKeysAsync(string baseFolder) {
+        public async Task<List<KEYTYPE>> GetListOfKeysAsync(string baseFolder) {
             List<string> files = await DataFilesProvider.GetDataFileNamesAsync(baseFolder);
             files = (from string f in files where !f.StartsWith(InternalFilePrefix) && f != Globals.DontDeployMarker select f).ToList<string>();
 
