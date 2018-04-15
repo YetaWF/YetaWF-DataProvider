@@ -12,6 +12,6 @@ using YetaWF.PackageAttributes;
 [assembly: AssemblyTrademark("")]
 [assembly: AssemblyCulture("")]
 
-[assembly: AssemblyVersion("2.8.0.0")]
+[assembly: AssemblyVersion("3.0.0.0")]
 
 [assembly: Package(PackageTypeEnum.DataProvider, "YetaWF")]
