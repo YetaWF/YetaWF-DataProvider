@@ -139,14 +139,14 @@ namespace YetaWF.DataProvider {
             return fd;
         }
         public async Task<OBJTYPE> GetAsync(KEYTYPE key) {
-            return await GetAsync(key, SpecificType: false);
+            return await GetAsync(key, SpecificTypeOnly: false);
         }
         public async Task<OBJTYPE> GetSpecificTypeAsync(KEYTYPE key) {
-            return await GetAsync(key, SpecificType: true);
+            return await GetAsync(key, SpecificTypeOnly: true);
         }
-        private async Task<OBJTYPE> GetAsync(KEYTYPE key, bool SpecificType) {
+        private async Task<OBJTYPE> GetAsync(KEYTYPE key, bool SpecificTypeOnly) {
             FileData<OBJTYPE> fd = GetFileDataObject(key);
-            OBJTYPE o = await fd.LoadAsync(SpecificType: SpecificType);
+            OBJTYPE o = await fd.LoadAsync(SpecificTypeOnly: SpecificTypeOnly);
             if (o == null) return default(OBJTYPE);
             return await UpdateCalculatedPropertiesAsync(o);
         }
@@ -219,12 +219,12 @@ namespace YetaWF.DataProvider {
             return await UpdateCalculatedPropertiesAsync(objs.Data.FirstOrDefault());
         }
         public Task<DataProviderGetRecords<OBJTYPE>> GetRecordsAsync(int skip, int take, List<DataProviderSortInfo> sort, List<DataProviderFilterInfo> filters, List<JoinData> Joins = null) {
-            return GetRecords(skip, take, sort, filters, Joins: Joins, SpecificType: false);
+            return GetRecords(skip, take, sort, filters, Joins: Joins, SpecificTypeOnly: false);
         }
         public Task<DataProviderGetRecords<OBJTYPE>> GetRecordsSpecificTypeAsync(int skip, int take, List<DataProviderSortInfo> sort, List<DataProviderFilterInfo> filters, List<JoinData> Joins = null) {
-            return GetRecords(skip, take, sort, filters, Joins: Joins, SpecificType: true);
+            return GetRecords(skip, take, sort, filters, Joins: Joins, SpecificTypeOnly: true);
         }
-        private async Task<DataProviderGetRecords<OBJTYPE>> GetRecords(int skip, int take, List<DataProviderSortInfo> sort, List<DataProviderFilterInfo> filters, List<JoinData> Joins = null, bool SpecificType = false) {
+        private async Task<DataProviderGetRecords<OBJTYPE>> GetRecords(int skip, int take, List<DataProviderSortInfo> sort, List<DataProviderFilterInfo> filters, List<JoinData> Joins = null, bool SpecificTypeOnly = false) {
 
             if (Joins != null) throw new InternalError("Joins not supported");
             List<string> files = await DataFilesProvider.GetDataFileNamesAsync(BaseFolder);
@@ -247,7 +247,7 @@ namespace YetaWF.DataProvider {
                     throw new InternalError("FileDataProvider only supports object keys of type string, int or Guid");
 
                 OBJTYPE obj;
-                if (SpecificType) {
+                if (SpecificTypeOnly) {
                     obj = await GetSpecificTypeAsync(key);
                     if (obj == null || typeof(OBJTYPE) != obj.GetType())
                         continue;

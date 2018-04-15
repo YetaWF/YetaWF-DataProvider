@@ -341,8 +341,8 @@ namespace YetaWF.DataProvider
             return exp.More;
         }
         public new async Task ImportChunkAsync(int chunk, SerializableList<SerializableFile> fileList, object obj) {
-            ModData data = (ModData)obj;
-            await DataProvider.ImportChunkAsync(chunk, fileList, data.ModList);
+            SerializableList<TYPE> modList = (SerializableList<TYPE>)obj;
+            await DataProvider.ImportChunkAsync(chunk, fileList, modList);
         }
     }
 }
