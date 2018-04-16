@@ -320,20 +320,11 @@ namespace YetaWF.DataProvider
         // IINSTALLABLEMODEL
         // IINSTALLABLEMODEL
 
-        public class ModData {
-            public SerializableList<TYPE> ModList { get; set; } // list of modules
-            public SerializableList<SerializableFile> ImageList { get; set; } // list of image files
-            public ModData() {
-                ModList = new SerializableList<TYPE>();
-                ImageList = new SerializableList<SerializableFile>();
-            }
-        }
         public async new Task<DataProviderExportChunk> ExportChunkAsync(int count, SerializableList<SerializableFile> fileList) {
-            ModData data = new ModData();
             DataProviderExportChunk exp = await DataProvider.ExportChunkAsync(count, fileList);
             if (exp.ObjectList != null) {
-                data.ModList = new SerializableList<TYPE>((List<TYPE>)exp.ObjectList);
-                foreach (TYPE m in data.ModList) {
+                SerializableList<TYPE> modList = new SerializableList<TYPE>((List<TYPE>)exp.ObjectList);
+                foreach (TYPE m in modList) {
                     ModuleDefinition mod = (ModuleDefinition)(object)m;
                     fileList.AddRange(await Package.ProcessAllFilesAsync(mod.ModuleDataFolder));
                 }
@@ -341,8 +332,7 @@ namespace YetaWF.DataProvider
             return exp;
         }
         public new async Task ImportChunkAsync(int chunk, SerializableList<SerializableFile> fileList, object obj) {
-            SerializableList<TYPE> modList = (SerializableList<TYPE>)obj;
-            await DataProvider.ImportChunkAsync(chunk, fileList, modList);
+            await DataProvider.ImportChunkAsync(chunk, fileList, obj);
         }
     }
 }
