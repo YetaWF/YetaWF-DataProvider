@@ -578,12 +578,12 @@ DROP TABLE #TEMPTABLE
         // IINSTALLMODEL
 
         public Task<bool> IsInstalledAsync() {
-            return Task.FromResult(SQLCache.HasTable(Conn, Database, Dataset));
+            return Task.FromResult(SQLCache.HasTable(Conn, ConnectionString, Database, Dataset));
         }
 
         public Task<bool> InstallModelAsync(List<string> errorList) {
             bool success = false;
-            Database db = GetDatabase();
+            Database db = SQLCache.GetDatabase(Conn, ConnectionString);
             List<string> columns = new List<string>();
             SQLCreate sqlCreate = new SQLCreate(Languages, IdentitySeed, Logging);
             //TODO: could asyncify but probably not worth it as this is used during install/startup only
@@ -596,7 +596,7 @@ DROP TABLE #TEMPTABLE
 
         public Task<bool> UninstallModelAsync(List<string> errorList) {
             try {
-                Database db = GetDatabase();
+                Database db = SQLCache.GetDatabase(Conn, ConnectionString);
                 SQLCreate sqlCreate = new SQLCreate(Languages, IdentitySeed, Logging);
                 List<PropertyData> propData = GetPropertyData();
                 List<SubTableInfo> subTables = GetSubTables(Dataset, propData);

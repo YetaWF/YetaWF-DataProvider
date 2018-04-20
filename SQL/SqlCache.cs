@@ -1,11 +1,11 @@
 ﻿/* Copyright © 2018 Softel vdm, Inc. - https://yetawf.com/Documentation/YetaWF/Licensing */
 
+using Microsoft.SqlServer.Management.Common;
+using Microsoft.SqlServer.Management.Smo;
 using System;
 using System.Collections.Generic;
-using Microsoft.SqlServer.Management.Smo;
-using YetaWF.Core.Support;
 using System.Data.SqlClient;
-using Microsoft.SqlServer.Management.Common;
+using YetaWF.Core.Support;
 
 namespace YetaWF.DataProvider.SQL {
 
@@ -30,17 +30,27 @@ namespace YetaWF.DataProvider.SQL {
 
         private static Dictionary<string, DBEntry> Databases = new Dictionary<string, DBEntry>();
 
-        private static Database GetDatabase(SqlConnection conn) {
-            Server server = new Server(new ServerConnection(conn));
-            if (server.Databases == null || !server.Databases.Contains(conn.Database))
-                throw new InternalError("Can't connect to database {0}", conn.Database);
-            Database db = server.Databases[conn.Database];
-            if (!Databases.ContainsKey(db.Name)) {
-                try {
-                    Databases.Add(db.Name, new DBEntry());
-                } catch (Exception) { }// can fail if duplicate added (we prefer not to lock)
+        internal static Database GetDatabase(SqlConnection conn, string connectionString) {
+#if NETSTANDARD || NETCOREAPP
+            // seriously shitty regression/bug in Microsoft.SqlServer.SqlManagementObjects (at least as of latest, 140.17235.0)
+            // it appears that  new Server(new ServerConnection(sqlConn))  only works with a pristine sql connection, as otherwise
+            // it fails (login failed). as a workaround we use a new connection based on the connection string (netcoreapp/netstandard only)
+            using (SqlConnection con = new SqlConnection(connectionString))
+#else
+            SqlConnection con = conn;
+#endif
+            {
+                Server server = new Server(new ServerConnection(con));
+                if (server.Databases == null || !server.Databases.Contains(conn.Database))
+                    throw new InternalError("Can't connect to database {0}", conn.Database);
+                Database db = server.Databases[conn.Database];
+                if (!Databases.ContainsKey(db.Name)) {
+                    try {
+                        Databases.Add(db.Name, new DBEntry());
+                    } catch (Exception) { }// can fail if duplicate added (we prefer not to lock)
+                }
+                return db;
             }
-            return db;
         }
         /// <summary>
         /// Clear the cache.
@@ -49,18 +59,18 @@ namespace YetaWF.DataProvider.SQL {
             Databases = new Dictionary<string, DBEntry>();
         }
 
-        internal static bool HasTable(SqlConnection conn, string databaseName, string tableName) {
+        internal static bool HasTable(SqlConnection conn, string connectionString, string databaseName, string tableName) {
             DBEntry dbEntry;
             Database db = null;
             if (!Databases.TryGetValue(databaseName, out dbEntry)) {
-                db = GetDatabase(conn);// we need to cache it now
+                db = GetDatabase(conn, connectionString);// we need to cache it now
                 dbEntry = Databases[databaseName];
             }
             // check if we already have this table cached
             if (!dbEntry.Tables.ContainsKey(tableName)) {
                 // we don't so add it to cache now
                 if (db == null)
-                    db = GetDatabase(conn);
+                    db = GetDatabase(conn, connectionString);
                 Table table = db.Tables[tableName];
                 if (table == null)
                     return false;
@@ -73,11 +83,11 @@ namespace YetaWF.DataProvider.SQL {
             }
             return true;
         }
-        public static List<string> GetColumns(SqlConnection conn, string databaseName, string tableName) {
+        public static List<string> GetColumns(SqlConnection conn, string connectionString, string databaseName, string tableName) {
             DBEntry dbEntry;
             Database db = null;
             if (!Databases.TryGetValue(databaseName, out dbEntry)) {
-                db = GetDatabase(conn);// we need to cache it now
+                db = GetDatabase(conn, connectionString);// we need to cache it now
                 dbEntry = Databases[databaseName];
             }
             // check if we already have this table cached
@@ -86,7 +96,7 @@ namespace YetaWF.DataProvider.SQL {
             if (!dbEntry.Tables.TryGetValue(tableName, out tableEntry)) {
                 // we don't so add it to cache now
                 if (db == null)
-                    db = GetDatabase(conn);
+                    db = GetDatabase(conn, connectionString);
                 table = db.Tables[tableName];
                 if (table == null)
                     throw new InternalError("Request for db {0} table {1} which doesn't exist", databaseName, tableName);
@@ -105,7 +115,7 @@ namespace YetaWF.DataProvider.SQL {
                 List<string> cols = new List<string>();
                 if (table == null) {
                     if (db == null)
-                        db = GetDatabase(conn);
+                        db = GetDatabase(conn, connectionString);
                     table = db.Tables[tableName];
                 }
                 foreach (Column c in table.Columns)

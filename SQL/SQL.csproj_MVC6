@@ -2,8 +2,9 @@
 
   <PropertyGroup>
     <Version>3.0.0.0</Version>
-    <TargetFramework>net471</TargetFramework>
-    <DefineConstants>$(DefineConstants);MVC6</DefineConstants>
+    <TargetFramework>netcoreapp2.0</TargetFramework>
+    <RuntimeIdentifiers>win10-x64</RuntimeIdentifiers>
+    <DefineConstants>$(DefineConstants);MVC6;NETCOREAPP</DefineConstants>
     <AssemblyName>YetaWF.DataProvider.SQL</AssemblyName>
     <PackageId>SQL</PackageId>
     <GenerateAssemblyTitleAttribute>false</GenerateAssemblyTitleAttribute>
@@ -17,16 +18,11 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <PackageReference Include="Microsoft.SqlServer.SqlManagementObjects" Version="140.17235.0" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\..\CoreComponents\Core\Core.csproj" />
-  </ItemGroup>
-
-  <ItemGroup>
-    <PackageReference Include="Microsoft.SQLServer.SMO" Version="12.0.2000.8" />
-  </ItemGroup>
-
-  <ItemGroup>
-    <Reference Include="System.Data.Linq" />
-    <Reference Include="System.Transactions" />
   </ItemGroup>
 
 </Project>

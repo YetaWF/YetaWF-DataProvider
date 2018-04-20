@@ -43,7 +43,7 @@ namespace YetaWF.DataProvider.SQL {
                 }
                 sb.Add("--"); sb.Add(Environment.NewLine);
                 return sb.ToString();
-#else   
+#else
                 return null;
 #endif
             }
@@ -158,7 +158,7 @@ namespace YetaWF.DataProvider.SQL {
                             value.ToString().ToLower() == "on" ||
                             value.ToString().ToLower() == "true" ||
                             value.ToString().ToLower() == "yes") ? true : false;
-            } else if (underlyingType != null) {// Nullable types 
+            } else if (underlyingType != null) {// Nullable types
                 if (underlyingType == typeof(DateTime))
                     newValue = Convert.ToDateTime(value);
                 else if (underlyingType == typeof(TimeSpan))
@@ -223,7 +223,7 @@ namespace YetaWF.DataProvider.SQL {
         }
         public Task<object> ExecuteScalarAsync(string text) {
             return ExecuteScalarAsync(SqlConnection, SqlTransaction, CommandType.Text, text, Params);
-        }        
+        }
         public Task<int> ExecuteNonQueryAsync(string text) {
             return ExecuteNonQueryAsync(SqlConnection, SqlTransaction, CommandType.Text, text, Params);
         }
@@ -447,10 +447,6 @@ namespace YetaWF.DataProvider.SQL {
                 ms.Close();
                 value = ms.ToArray();
                 parm = new SqlParameter(name, value);
-            } else if (value is System.Data.Linq.Binary) {
-                // for Linq.Binary parameters
-                System.Data.Linq.Binary lb = (System.Data.Linq.Binary)value;
-                parm = new SqlParameter(name, lb.ToArray());
             } else if (value is System.String) {
                 string s = (string)value ?? "";
                 parm = new SqlParameter(name, SqlDbType.NVarChar, s.Length);

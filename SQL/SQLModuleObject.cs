@@ -272,10 +272,10 @@ DROP TABLE #BASETABLE
         // IINSTALLMODEL
 
         public new Task<bool> IsInstalledAsync() {
-            if (!SQLCache.HasTable(Conn, Database, BaseDataset))
+            if (!SQLCache.HasTable(Conn, ConnectionString, Database, BaseDataset))
                 return Task.FromResult(false);
             if (Dataset != BaseDataset) { 
-                if (!SQLCache.HasTable(Conn, Database, Dataset))
+                if (!SQLCache.HasTable(Conn, ConnectionString, Database, Dataset))
                     return Task.FromResult(false);
             }
             return Task.FromResult(true);
@@ -284,7 +284,7 @@ DROP TABLE #BASETABLE
         public new Task<bool> InstallModelAsync(List<string> errorList) {
             if (Dataset == BaseDataset) throw new InternalError("Base dataset is not supported");
             bool success = false;
-            Database db = GetDatabase();
+            Database db = SQLCache.GetDatabase(Conn, ConnectionString);
             success = CreateTableWithBaseType(db, errorList);
             SQLCache.ClearCache();
             return Task.FromResult(success);
@@ -307,7 +307,7 @@ DROP TABLE #BASETABLE
         public new async Task<bool> UninstallModelAsync(List<string> errorList) {
             if (Dataset == BaseDataset) throw new InternalError("Base dataset is not supported");
             try {
-                Database db = GetDatabase();
+                Database db = SQLCache.GetDatabase(Conn, ConnectionString);
                 await DropTableWithBaseType(db, errorList);
                 return true;
             } catch (Exception exc) {

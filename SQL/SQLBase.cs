@@ -57,14 +57,6 @@ namespace YetaWF.DataProvider.SQL {
         public string Dbo { get; private set; }
         public SqlConnection Conn { get; private set; }
 
-        internal Database GetDatabase() {
-            Server server = new Server(new ServerConnection(Conn));
-            if (server.Databases == null || !server.Databases.Contains(Conn.Database))
-                throw new InternalError("Can't connect to database {0}", Conn.Database);
-            Database db = server.Databases[Conn.Database];
-            return db;
-        }
-
         public string AndSiteIdentity { get; private set; }
 
         private static object _lockObject = new object();
@@ -368,7 +360,7 @@ namespace YetaWF.DataProvider.SQL {
         protected Dictionary<string, string> GetVisibleColumns(string databaseName, string dbOwner, string tableName, Type objType, List<JoinData> joins) {
             Dictionary<string, string> visibleColumns = new Dictionary<string, string>();
             tableName = tableName.Trim(new char[] { '[', ']' });
-            List<string> columns = SQLCache.GetColumns(Conn, databaseName, tableName);
+            List<string> columns = SQLCache.GetColumns(Conn, ConnectionString, databaseName, tableName);
             AddVisibleColumns(visibleColumns, databaseName, dbOwner, tableName, columns);
             if (CalculatedPropertyCallbackAsync != null) {
                 List<PropertyData> props = ObjectSupport.GetPropertyData(objType);
@@ -383,14 +375,14 @@ namespace YetaWF.DataProvider.SQL {
                     dbOwner = mainInfo.GetDbOwner();
                     tableName = mainInfo.GetTableName();
                     tableName = tableName.Split(new char[] { '.' }).Last().Trim(new char[] { '[', ']' });
-                    columns = SQLCache.GetColumns(Conn, databaseName, tableName);
+                    columns = SQLCache.GetColumns(Conn, ConnectionString, databaseName, tableName);
                     AddVisibleColumns(visibleColumns, databaseName, dbOwner, tableName, columns);
                     ISQLTableInfo joinInfo = (ISQLTableInfo)join.JoinDP.GetDataProvider();
                     databaseName = joinInfo.GetDatabaseName();
                     dbOwner = joinInfo.GetDbOwner();
                     tableName = joinInfo.GetTableName();
                     tableName = tableName.Split(new char[] { '.' }).Last().Trim(new char[] { '[', ']' });
-                    columns = SQLCache.GetColumns(join.JoinDP.GetDataProvider().Conn, databaseName, tableName);
+                    columns = SQLCache.GetColumns(join.JoinDP.GetDataProvider().Conn, join.JoinDP.GetDataProvider().ConnectionString, databaseName, tableName);
                     AddVisibleColumns(visibleColumns, databaseName, dbOwner, tableName, columns);
                 }
             }
@@ -495,7 +487,7 @@ namespace YetaWF.DataProvider.SQL {
                         }
                     } else if (pi.PropertyType == typeof(Image)) {
                         object val = pi.GetValue(container);
-                        BinaryFormatter binaryFmt = new BinaryFormatter { AssemblyFormat = FormatterAssemblyStyle.Simple };
+                        BinaryFormatter binaryFmt = new BinaryFormatter { AssemblyFormat = 0/*$$FormatterAssemblyStyle.Simple*/ };
                         using (MemoryStream ms = new MemoryStream()) {
                             binaryFmt.Serialize(ms, val);
                             sb.Add(sqlHelper.AddTempParam(ms.ToArray()));
@@ -572,7 +564,7 @@ namespace YetaWF.DataProvider.SQL {
                         }
                     } else if (pi.PropertyType == typeof(Image)) {
                         object val = pi.GetValue(container);
-                        BinaryFormatter binaryFmt = new BinaryFormatter { AssemblyFormat = FormatterAssemblyStyle.Simple };
+                        BinaryFormatter binaryFmt = new BinaryFormatter { AssemblyFormat = 0/*$$FormatterAssemblyStyle.Simple*/ };
                         using (MemoryStream ms = new MemoryStream()) {
                             binaryFmt.Serialize(ms, val);
                             sb.Add(sqlHelper.Expr(prefix + prop.Name, "=", ms.ToArray(), true));
