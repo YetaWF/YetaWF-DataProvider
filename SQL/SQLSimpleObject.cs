@@ -65,10 +65,10 @@ namespace YetaWF.DataProvider.SQL {
             string andKey2 = HasKey2 ? "AND " + sqlHelper.Expr(Key2Name, "=", key2) : null;
 
             List<PropertyData> propData = GetPropertyData();
-            string subTablesSelects = SubTablesSelects(Dataset, propData, typeof(OBJTYPE));
+            string subTablesSelects = SubTablesSelectsUsingJoin(sqlHelper, Dataset, key, propData, typeof(OBJTYPE));
 
             string scriptMain = $@"
-SELECT TOP 1 * -- result set
+SELECT * -- result set
     {calcProps} 
 FROM {fullTableName} WITH(NOLOCK) {joins}
 WHERE {sqlHelper.Expr(Key1Name, "=", key)} {andKey2} {AndSiteIdentity}
@@ -76,28 +76,12 @@ WHERE {sqlHelper.Expr(Key1Name, "=", key)} {andKey2} {AndSiteIdentity}
 {sqlHelper.DebugInfo}";
 
             string scriptWithSub = $@"
-SELECT TOP 1 *
-INTO #TEMPTABLE
+SELECT *
 FROM {fullTableName} WITH(NOLOCK) {joins}
-WHERE {sqlHelper.Expr(Key1Name, "=", key)} {andKey2} {AndSiteIdentity}
+WHERE {sqlHelper.Expr(Key1Name, "=", key)} {andKey2} {AndSiteIdentity}  --- result set
 ;
-SELECT * FROM #TEMPTABLE --- result set
-;
-DECLARE @MyCursor CURSOR;
-DECLARE @ident int;
-
-SET @MyCursor = CURSOR FOR
-SELECT [{IdentityNameOrDefault}] FROM #TEMPTABLE
-
-OPEN @MyCursor
-FETCH NEXT FROM @MyCursor
-INTO @ident
  
 {subTablesSelects}
-
-CLOSE @MyCursor ;
-DEALLOCATE @MyCursor;
-DROP TABLE #TEMPTABLE
 
 {sqlHelper.DebugInfo}";
 
@@ -499,6 +483,30 @@ DROP TABLE #TEMPTABLE
     FETCH NEXT FROM @MyCursor INTO @ident
     ;
 ");
+            }
+            return sb.ToString();
+        }
+
+        protected string SubTablesSelectsUsingJoin(SQLHelper sqlHelper, string tableName, KEYTYPE key, List<PropertyData> propData, Type tpContainer, List<DataProviderFilterInfo> filters = null, Dictionary<string, string> visibleColumns = null) {
+            SQLBuilder sb = new SQLBuilder();
+            List<SubTableInfo> subTables = GetSubTables(tableName, propData);
+            if (subTables.Count > 0) {
+                string keyExpr = (key == null ? "1=1" : $"{SQLBuilder.BuildFullColumnName(Database, Dbo, tableName, Key1Name)} = {sqlHelper.AddTempParam(key)}");
+                foreach (SubTableInfo subTable in subTables) {
+                    sb.Add($@"
+    SELECT * FROM {SQLBuilder.BuildFullTableName(Database, Dbo, subTable.Name)}   --- result set
+    INNER JOIN {SQLBuilder.BuildFullTableName(Database, Dbo, tableName)} ON {SQLBuilder.BuildFullColumnName(tableName, IdentityNameOrDefault)} = {SQLBuilder.BuildFullColumnName(subTable.Name, SubTableKeyColumn)}
+    WHERE {keyExpr} {AndSiteIdentity}
+");
+                    if (filters != null) {
+                        sb.Add(" AND (");
+                        sqlHelper.AddWhereExpr(sb, Dataset, filters, visibleColumns);
+                        sb.Add(")");
+                    }
+                    sb.Add(@"
+;
+                        ");
+                }
             }
             return sb.ToString();
         }

@@ -38,7 +38,7 @@ namespace YetaWF.DataProvider.SQL {
                 // we're reading the base and have to find the derived table
 
                 string scriptMain = $@"
-SELECT TOP 1 *
+SELECT *
 INTO #BASETABLE
 FROM {fullBaseTableName} WITH(NOLOCK)
 WHERE {sqlHelper.Expr(Key1Name, "=", key)} {AndSiteIdentity}
@@ -193,7 +193,7 @@ WHERE {sqlHelper.Expr(Key1Name, "=", origKey)} {AndSiteIdentity}
             List<PropertyData> propData = GetPropertyData();
 
             string scriptMain = $@"
-SELECT TOP 1 *
+SELECT *
 INTO #BASETABLE
 FROM {fullBaseTableName} WITH(NOLOCK)
 WHERE {sqlHelper.Expr(Key1Name, "=", key)} {AndSiteIdentity}
