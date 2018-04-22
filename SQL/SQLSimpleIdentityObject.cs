@@ -33,41 +33,16 @@ namespace YetaWF.DataProvider.SQL {
             List<PropertyData> propData = GetPropertyData();
             string subTablesSelects = SubTablesSelects(Dataset, propData, typeof(OBJTYPE));
 
-            string scriptMain = $@"
-SELECT TOP 1 * -- result set
+            string script = $@"
+SELECT TOP 1 *
     {calcProps} 
 FROM {fullTableName} WITH(NOLOCK) {joins}
-WHERE {sqlHelper.Expr(IdentityName, "=", identity)} {AndSiteIdentity}
-
-{sqlHelper.DebugInfo}";
-
-            string scriptWithSub = $@"
-SELECT TOP 1 *
-INTO #TEMPTABLE
-FROM {fullTableName} WITH(NOLOCK) {joins}
-WHERE {sqlHelper.Expr(IdentityName, "=", identity)} {AndSiteIdentity}
+WHERE {sqlHelper.Expr(IdentityName, "=", identity)} {AndSiteIdentity}  -- result set
 ;
-SELECT * FROM #TEMPTABLE --- result set
-;
-DECLARE @MyCursor CURSOR;
-DECLARE @ident int;
 
-SET @MyCursor = CURSOR FOR
-SELECT [{IdentityName}] FROM #TEMPTABLE
-
-OPEN @MyCursor
-FETCH NEXT FROM @MyCursor
-INTO @ident
- 
 {subTablesSelects}
 
-CLOSE @MyCursor ;
-DEALLOCATE @MyCursor;
-DROP TABLE #TEMPTABLE
-
 {sqlHelper.DebugInfo}";
-
-            string script = (string.IsNullOrWhiteSpace(subTablesSelects)) ? scriptMain : scriptWithSub;
 
             using (SqlDataReader reader = await sqlHelper.ExecuteReaderAsync(script)) {
                 if (!(YetaWFManager.IsSync() ? reader.Read() : await reader.ReadAsync())) return default(OBJTYPE);

@@ -37,31 +37,26 @@ namespace YetaWF.DataProvider.SQL {
             if (Dataset == BaseDataset) {
                 // we're reading the base and have to find the derived table
 
-                string scriptMain = $@"
-SELECT *
-INTO #BASETABLE
+                string script = $@"
+DECLARE @Table nvarchar(80);
+DECLARE @Type nvarchar(200);
+DECLARE @Asm nvarchar(200);
+
+SELECT TOP 1 @Table=[DerivedDataTableName], @Type=[DerivedDataType], @Asm=[DerivedAssemblyName]
 FROM {fullBaseTableName} WITH(NOLOCK)
 WHERE {sqlHelper.Expr(Key1Name, "=", key)} {AndSiteIdentity}
 
 IF @@ROWCOUNT > 0 
 BEGIN
 
-DECLARE @Table nvarchar(80);
-DECLARE @Type nvarchar(200);
-DECLARE @Asm nvarchar(200);
-
-SELECT @Table=[DerivedDataTableName], @Type=[DerivedDataType], @Asm=[DerivedAssemblyName] FROM #BASETABLE
+SELECT @Table, @Type, @Asm  --- result set
 ;
-SELECT @Table, @Type, @Asm FROM #BASETABLE --- result set
-; 
-EXEC ('SELECT TOP 1 * FROM #BASETABLE A, [' + @Table + '] B WHERE B.{Key1Name} = ''{key}''') --- result set
+EXEC ('SELECT TOP 1 * FROM {fullBaseTableName} A, [' + @Table + '] B WHERE A.[ModuleGuid] = ''{key}'' AND A.[__Site] = {SiteIdentity} AND B.{Key1Name} = ''{key}''') --- result set
 END
-
-DROP TABLE #BASETABLE
 
 {sqlHelper.DebugInfo}";
 
-                using (SqlDataReader reader = await sqlHelper.ExecuteReaderAsync(scriptMain)) {
+                using (SqlDataReader reader = await sqlHelper.ExecuteReaderAsync(script)) {
                     if (!(YetaWFManager.IsSync() ? reader.Read() : await reader.ReadAsync())) return default(OBJTYPE);
                     string derivedTableName = (string)reader[0];
                     string derivedDataType = (string)reader[1];

@@ -67,16 +67,9 @@ namespace YetaWF.DataProvider.SQL {
             List<PropertyData> propData = GetPropertyData();
             string subTablesSelects = SubTablesSelectsUsingJoin(sqlHelper, Dataset, key, propData, typeof(OBJTYPE));
 
-            string scriptMain = $@"
-SELECT * -- result set
+            string script = $@"
+SELECT TOP 1 *
     {calcProps} 
-FROM {fullTableName} WITH(NOLOCK) {joins}
-WHERE {sqlHelper.Expr(Key1Name, "=", key)} {andKey2} {AndSiteIdentity}
-
-{sqlHelper.DebugInfo}";
-
-            string scriptWithSub = $@"
-SELECT *
 FROM {fullTableName} WITH(NOLOCK) {joins}
 WHERE {sqlHelper.Expr(Key1Name, "=", key)} {andKey2} {AndSiteIdentity}  --- result set
 ;
@@ -84,8 +77,6 @@ WHERE {sqlHelper.Expr(Key1Name, "=", key)} {andKey2} {AndSiteIdentity}  --- resu
 {subTablesSelects}
 
 {sqlHelper.DebugInfo}";
-
-            string script = (string.IsNullOrWhiteSpace(subTablesSelects)) ? scriptMain : scriptWithSub;
 
             using (SqlDataReader reader = await sqlHelper.ExecuteReaderAsync(script)) {
                 if (! (YetaWFManager.IsSync() ? reader.Read() : await reader.ReadAsync())) return default(OBJTYPE);
@@ -363,9 +354,9 @@ DROP TABLE #TEMPTABLE
                 orderBy = sb.ToString();
             }
 
-            string subTablesSelects = SubTablesSelects(Dataset, propData, typeof(OBJTYPE));
+            string subTablesSelects = SubTablesSelectsUsingJoin(sqlHelper, Dataset, default(KEYTYPE), propData, typeof(OBJTYPE), filters, visibleColumns);
 
-            string scriptMain = $@"
+            string script = $@"
 {selectCount} --- result set
 SELECT {columnList} --- result set
     {calcProps} 
@@ -374,42 +365,9 @@ FROM {fullTableName} WITH(NOLOCK)
 {filter} 
 {orderBy}
 
-{sqlHelper.DebugInfo}";
-
-
-            string scriptWithSub = $@"
-{selectCount} --- result set
-SELECT {columnList}
-INTO #TEMPTABLE
-FROM {fullTableName} WITH(NOLOCK) 
-{joins} 
-{filter} 
-{orderBy}
-;
-SELECT * FROM #TEMPTABLE --- result set
-;
-DECLARE @MyCursor CURSOR;
-DECLARE @ident int;
-
-SET @MyCursor = CURSOR FOR
-SELECT [{IdentityNameOrDefault}] FROM #TEMPTABLE
-
-OPEN @MyCursor
-FETCH NEXT FROM @MyCursor
-INTO @ident
- 
-WHILE @@FETCH_STATUS = 0
-BEGIN
-    {subTablesSelects}
-END; 
-
-CLOSE @MyCursor ;
-DEALLOCATE @MyCursor;
-DROP TABLE #TEMPTABLE
+{subTablesSelects}
 
 {sqlHelper.DebugInfo}";
-
-            string script = (string.IsNullOrWhiteSpace(subTablesSelects)) ? scriptMain : scriptWithSub;
 
             using (SqlDataReader reader = await sqlHelper.ExecuteReaderAsync(script)) {
                 if (skip != 0 || take != 0) {
@@ -419,10 +377,9 @@ DROP TABLE #TEMPTABLE
                 }
                 while ((YetaWFManager.IsSync() ? reader.Read() : await reader.ReadAsync()))
                     recs.Data.Add(sqlHelper.CreateObject<OBJTYPE>(reader));
+
                 if (!string.IsNullOrWhiteSpace(subTablesSelects)) {
-                    foreach (var obj in recs.Data) {
-                        await ReadSubTablesAsync(sqlHelper, reader, Dataset, obj, propData, typeof(OBJTYPE));
-                    }
+                    await ReadSubTablesMatchupAsync(sqlHelper, reader, Dataset, recs.Data, propData, typeof(OBJTYPE));
                 }
                 if (skip == 0 && take == 0)
                     recs.Total = recs.Data.Count;
@@ -527,6 +484,51 @@ DROP TABLE #TEMPTABLE
                     addMethod.Invoke(subContainer, new object[] { obj });
                 }
             }
+        }
+
+        protected async Task ReadSubTablesMatchupAsync(SQLHelper sqlHelper, SqlDataReader reader, string tableName, List<OBJTYPE> containers, List<PropertyData> propData, Type tpContainer) {
+
+            // extract identities from container list so we can match sub-objects more easily
+            List<int> identities = GetIdentities(containers);
+
+            List<SubTableInfo> subTables = GetSubTables(tableName, propData);
+            foreach (SubTableInfo subTable in subTables) {
+
+                // find the Add method for the collection so we can add each item as its read
+                MethodInfo addMethod = subTable.PropInfo.PropertyType.GetMethod("Add", new Type[] { subTable.Type });
+                if (addMethod == null) throw new InternalError($"{nameof(ReadSubTablesMatchupAsync)} encountered a enumeration property that doesn't have an Add method");
+
+                if (!(YetaWFManager.IsSync() ? reader.NextResult() : await reader.NextResultAsync())) throw new InternalError("Expected next result set (subtable)");
+                while ((YetaWFManager.IsSync() ? reader.Read() : await reader.ReadAsync())) {
+                    int key = (int) reader[SubTableKeyColumn];
+                    object obj = sqlHelper.CreateObject(reader, subTable.Type);
+                    // find the container this subtable entry matches
+                    AddToContainer(containers, identities, subTable, obj, key, addMethod);
+                }
+            }
+        }
+
+        private List<int> GetIdentities(List<OBJTYPE> containers) {
+            List<int> list = new List<int>();
+            PropertyInfo piIdent = ObjectSupport.GetProperty(typeof(OBJTYPE), IdentityNameOrDefault);
+            if (piIdent.PropertyType != typeof(int)) throw new InternalError($"Object identities must be of type int in {typeof(OBJTYPE).FullName}");
+            foreach (OBJTYPE c in containers) {
+                int identity = (int)piIdent.GetValue(c);
+                list.Add(identity);
+            }
+            return list;
+        }
+
+        private void AddToContainer(List<OBJTYPE> containers, List<int> identities, SubTableInfo subTable, object obj, int key, MethodInfo addMethod) {
+
+            int index = identities.IndexOf(key); // find the index of the matching identity/container
+            if (index < 0) throw new InternalError($"Subtable {subTable.Name} has key {key} that doesn't match any main record");
+
+            OBJTYPE container = containers[index];
+            object subContainer = subTable.PropInfo.GetValue(container);
+            if (subContainer == null) throw new InternalError($"{nameof(AddToContainer)} encountered a enumeration property that is null");
+
+            addMethod.Invoke(subContainer, new object[] { obj });
         }
 
         protected string SubTablesInserts(SQLHelper sqlHelper, string tableName, object container, List<PropertyData> propData, Type tpContainer) {
