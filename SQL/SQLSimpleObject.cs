@@ -73,7 +73,7 @@ SELECT TOP 1 *
 FROM {fullTableName} WITH(NOLOCK) {joins}
 WHERE {sqlHelper.Expr(Key1Name, "=", key)} {andKey2} {AndSiteIdentity}  --- result set
 ;
- 
+
 {subTablesSelects}
 
 {sqlHelper.DebugInfo}";
@@ -173,7 +173,7 @@ DECLARE @__IDENTITY int;
 SELECT @__IDENTITY = [{IdentityNameOrDefault}] FROM {fullTableName} 
 WHERE {sqlHelper.Expr(Key1Name, "=", origKey)} {andKey2} {AndSiteIdentity}
 
-UPDATE {fullTableName} 
+UPDATE {fullTableName}
 SET {setColumns}
 WHERE [{IdentityNameOrDefault}] = @__IDENTITY
 ;
@@ -235,7 +235,7 @@ WHERE {sqlHelper.Expr(Key1Name, "=", key)} {andKey2} {AndSiteIdentity}
 {subTablesDeletes}
 
 DELETE
-FROM {fullTableName} 
+FROM {fullTableName}
 WHERE [{IdentityNameOrDefault}] = @ident
 ;
 SELECT @@ROWCOUNT --- result set
@@ -328,7 +328,7 @@ DROP TABLE #TEMPTABLE
 
             SQLHelper sqlHelper = new SQLHelper(Conn, null, Languages);
 
-            DataProviderGetRecords<OBJTYPE> recs = new DataProviderGetRecords<OBJTYPE>(); 
+            DataProviderGetRecords<OBJTYPE> recs = new DataProviderGetRecords<OBJTYPE>();
 
             // get total # of records (only if a subset is requested)
             string fullTableName = SQLBuilder.GetTable(Database, Dbo, Dataset);
@@ -455,7 +455,7 @@ FROM {fullTableName} WITH(NOLOCK)
     INNER JOIN {SQLBuilder.BuildFullTableName(Database, Dbo, tableName)} ON {SQLBuilder.BuildFullColumnName(tableName, IdentityNameOrDefault)} = {SQLBuilder.BuildFullColumnName(subTable.Name, SubTableKeyColumn)}
     WHERE {keyExpr} {AndSiteIdentity}
 ");
-                    if (filters != null) {
+                    if (filters != null && filters.Count > 0) {
                         sb.Add(" AND (");
                         sqlHelper.AddWhereExpr(sb, Dataset, filters, visibleColumns);
                         sb.Add(")");
