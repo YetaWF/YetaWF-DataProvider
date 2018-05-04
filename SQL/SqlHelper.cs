@@ -62,7 +62,7 @@ namespace YetaWF.DataProvider.SQL {
                 Assembly asm = Assemblies.Load(assemblyName);
                 t = asm.GetType(dataType, true);
             } catch (Exception exc) {
-                throw new InternalError($"Invalid Type {dataType}/{assemblyName} requested - {exc.Message}");
+                throw new InternalError($"Invalid Type {dataType}/{assemblyName} requested - {ErrorHandling.FormatExceptionMessage(exc)}");
             }
             return (T)CreateObject(dr, t);
         }

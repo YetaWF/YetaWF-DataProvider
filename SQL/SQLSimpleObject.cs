@@ -133,7 +133,7 @@ DECLARE @__IDENTITY int = @@IDENTITY
                 SqlException sqlExc = exc as SqlException;
                 if (sqlExc != null && sqlExc.Number == 2627) // already exists
                     return false;
-                throw new InternalError("Add failed for type {0} - {1}", typeof(OBJTYPE).FullName, exc.Message);
+                throw new InternalError("Add failed for type {0} - {1}", typeof(OBJTYPE).FullName, ErrorHandling.FormatExceptionMessage(exc));
             }
 
             if (HasIdentity(IdentityName)) {
@@ -200,7 +200,7 @@ SELECT @@ROWCOUNT --- result set
                         return UpdateStatusEnum.NewKeyExists;
                     }
                 }
-                throw new InternalError($"Update failed for type {typeof(OBJTYPE).FullName} - {exc.Message}");
+                throw new InternalError($"Update failed for type {typeof(OBJTYPE).FullName} - {ErrorHandling.FormatExceptionMessage(exc)}");
             }
             return UpdateStatusEnum.OK;
         }
@@ -617,7 +617,7 @@ FROM {fullTableName} WITH(NOLOCK)
                 sqlCreate.DropTable(db, Dbo, Dataset, errorList);
                 return Task.FromResult(true);
             } catch (Exception exc) {
-                errorList.Add(string.Format("{0}: {1}", typeof(OBJTYPE).FullName, exc.Message));
+                errorList.Add(string.Format("{0}: {1}", typeof(OBJTYPE).FullName, ErrorHandling.FormatExceptionMessage(exc)));
                 return Task.FromResult(false);
             } finally {
                 SQLCache.ClearCache();

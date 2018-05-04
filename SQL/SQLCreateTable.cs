@@ -200,8 +200,8 @@ namespace YetaWF.DataProvider {
             } catch (Exception exc) {
                 if (Logging) YetaWF.Core.Log.Logging.AddErrorLog("Couldn't create table {0}", tableName, exc);
                 errorList.Add(string.Format("Couldn't create table {0}", tableName));
-                while (exc != null && exc.Message != null) {
-                    errorList.Add(exc.Message);
+                while (exc != null && ErrorHandling.FormatExceptionMessage(exc) != null) {
+                    errorList.Add(ErrorHandling.FormatExceptionMessage(exc));
                     exc = exc.InnerException;
                 }
                 return false;
@@ -488,8 +488,8 @@ namespace YetaWF.DataProvider {
                     } catch (Exception exc) {
                         if (Logging) YetaWF.Core.Log.Logging.AddErrorLog("Couldn't drop table {0}", table.Name, exc);
                         errorList.Add(string.Format("Couldn't drop table {0}", table.Name));
-                        while (exc != null && exc.Message != null) {
-                            errorList.Add(exc.Message);
+                        while (exc != null && ErrorHandling.FormatExceptionMessage(exc) != null) {
+                            errorList.Add(ErrorHandling.FormatExceptionMessage(exc));
                             exc = exc.InnerException;
                         }
                         return false;

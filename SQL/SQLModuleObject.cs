@@ -119,7 +119,7 @@ VALUES ({values})
                 SqlException sqlExc = exc as SqlException;
                 if (sqlExc != null && sqlExc.Number == 2627) // already exists
                     return false;
-                throw new InternalError("Add failed for type {0} - {1}", typeof(OBJTYPE).FullName, exc.Message);
+                throw new InternalError("Add failed for type {0} - {1}", typeof(OBJTYPE).FullName, ErrorHandling.FormatExceptionMessage(exc));
             }
 
             if (HasIdentity(IdentityName)) {
@@ -173,7 +173,7 @@ WHERE {sqlHelper.Expr(Key1Name, "=", origKey)} {AndSiteIdentity}
                         return UpdateStatusEnum.NewKeyExists;
                     }
                 }
-                throw new InternalError($"Update failed for type {typeof(OBJTYPE).FullName} - {exc.Message}");
+                throw new InternalError($"Update failed for type {typeof(OBJTYPE).FullName} - {ErrorHandling.FormatExceptionMessage(exc)}");
             }
             return UpdateStatusEnum.OK;
         }
@@ -306,7 +306,7 @@ DROP TABLE #BASETABLE
                 await DropTableWithBaseType(db, errorList);
                 return true;
             } catch (Exception exc) {
-                errorList.Add(string.Format("{0}: {1}", typeof(OBJTYPE).FullName, exc.Message));
+                errorList.Add(string.Format("{0}: {1}", typeof(OBJTYPE).FullName, ErrorHandling.FormatExceptionMessage(exc)));
                 return false;
             } finally {
                 SQLCache.ClearCache();
@@ -339,7 +339,7 @@ SELECT COUNT(*) FROM  {BaseDataset}
                 }
             } catch (Exception exc) {
                 if (Logging) YetaWF.Core.Log.Logging.AddErrorLog("Couldn't drop table", exc);
-                errorList.Add(string.Format("Couldn't drop table - {0}.", exc.Message));
+                errorList.Add(string.Format("Couldn't drop table - {0}.", ErrorHandling.FormatExceptionMessage(exc)));
                 return false;
             }
             return true;

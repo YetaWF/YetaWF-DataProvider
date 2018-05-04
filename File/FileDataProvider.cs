@@ -354,7 +354,7 @@ namespace YetaWF.DataProvider {
                     await FileSystem.FileSystemProvider.CreateDirectoryAsync(BaseFolder);
                 return true;
             } catch (Exception exc) {
-                errorList.Add(string.Format("{0}: {1}", BaseFolder, exc.Message));
+                errorList.Add(string.Format("{0}: {1}", BaseFolder, ErrorHandling.FormatExceptionMessage(exc)));
                 return false;
             }
         }
@@ -363,7 +363,7 @@ namespace YetaWF.DataProvider {
                 await DataFilesProvider.RemoveAllDataFilesAsync(BaseFolder);
                 return true;
             } catch (Exception exc) {
-                errorList.Add(string.Format("{0}: {1}", BaseFolder, exc.Message));
+                errorList.Add(string.Format("{0}: {1}", BaseFolder, ErrorHandling.FormatExceptionMessage(exc)));
                 return false;
             }
         }

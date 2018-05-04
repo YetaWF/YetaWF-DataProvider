@@ -136,7 +136,7 @@ SELECT @@ROWCOUNT --- result set
                 if (changed > 1)
                     throw new InternalError($"Update failed - {changed} records updated");
             } catch (Exception exc) {
-                throw new InternalError($"Update failed for type {typeof(OBJTYPE).FullName} - {exc.Message}");
+                throw new InternalError($"Update failed for type {typeof(OBJTYPE).FullName} - {ErrorHandling.FormatExceptionMessage(exc)}");
             }
             return UpdateStatusEnum.OK;
         }
