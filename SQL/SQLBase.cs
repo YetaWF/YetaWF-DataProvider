@@ -14,6 +14,7 @@ using System.Runtime.Serialization.Formatters;
 using System.Runtime.Serialization.Formatters.Binary;
 using System.Threading.Tasks;
 using System.Transactions;
+using YetaWF.Core.Components;
 using YetaWF.Core.DataProvider;
 using YetaWF.Core.DataProvider.Attributes;
 using YetaWF.Core.Language;
@@ -263,7 +264,7 @@ namespace YetaWF.DataProvider.SQL {
             filters = (from f in filters select new DataProviderFilterInfo(f)).ToList();// copy list
             foreach (DataProviderFilterInfo f in filters)
                 if (f.Field != null) f.Field = f.Field.Replace(".", "_");
-            GridHelper.NormalizeFilters(type, filters);
+            Grid.NormalizeFilters(type, filters);
             foreach (DataProviderFilterInfo filter in filters) {
                 if (filter.Filters != null)
                     filter.Filters = NormalizeFilter(type, filter.Filters);
