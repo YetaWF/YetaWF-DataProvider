@@ -2,7 +2,6 @@
 
 using System;
 using System.Collections.Generic;
-using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
 using YetaWF.Core.Audit;
@@ -14,14 +13,12 @@ using YetaWF.Core.Modules;
 using YetaWF.Core.Packages;
 using YetaWF.Core.Serializers;
 using YetaWF.Core.Support;
-using YetaWF.Core.Support.Serializers;
 #if MVC6
 using Microsoft.Extensions.Caching.Memory;
 #else
 #endif
 
-namespace YetaWF.DataProvider
-{
+namespace YetaWF.DataProvider {
     public class GenericModuleDefinitionDataProviderImpl : IInitializeApplicationStartup {
 
         // STARTUP
@@ -99,7 +96,7 @@ namespace YetaWF.DataProvider
                 ModuleDefinition mod;
                 if (modInfo.Success) {
                     mod = modInfo.Module;
-                } else { 
+                } else {
                     mod = await modDP.LoadModuleDefinitionAsync(guid);
                     if (mod != null)
                         await SetCachedModuleAsync(mod);
@@ -300,7 +297,7 @@ namespace YetaWF.DataProvider
                 GetObjectInfo<SerializableList<DesignedModule>> info = await staticCacheDP.GetAsync<SerializableList<DesignedModule>>(DESIGNEDMODULESKEY);
                 if (info.Success)
                     list = info.Data;
-                else { 
+                else {
                     list = await DataProviderIOMode.GetDesignedModulesAsync();
                     await staticCacheDP.AddAsync(DESIGNEDMODULESKEY, list);
                 }
