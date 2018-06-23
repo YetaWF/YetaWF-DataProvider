@@ -62,7 +62,7 @@ namespace YetaWF.Core.Models.DataProvider {
             FileData<LocalizationData> fd;
             LocalizationData data = null;
 
-            YetaWFManager.Syncify(async () => { // This must be sync because this is called from all kinds of property getters which can't be sync, fortunately this is cached so it only happens once
+            YetaWFManager.Syncify(async () => { // This must be sync because this is called from all kinds of property getters which can't be async, fortunately this is cached so it only happens once
 
                 switch (location) {
                     default:
