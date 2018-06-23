@@ -42,7 +42,7 @@ namespace YetaWF.DataProvider.SQL {
         public string Database { get; private set; }
         public string TypeName { get; protected set; }
         public int SiteIdentity { get; private set; }
-        public int IdentitySeed { get; private set; }        
+        public int IdentitySeed { get; private set; }
         public bool Cacheable { get; private set; }
         public bool Logging { get; private set; }
         public bool NoLanguages { get; private set; }
