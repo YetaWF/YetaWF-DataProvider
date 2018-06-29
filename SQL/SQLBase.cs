@@ -366,6 +366,7 @@ namespace YetaWF.DataProvider.SQL {
                     visibleColumns.Add(prop.Name, prop.Name);
             }
             if (joins != null) {
+                // no support for calculated properties in joined tables
                 foreach (JoinData join in joins) {
                     ISQLTableInfo mainInfo = (ISQLTableInfo)join.MainDP.GetDataProvider();
                     databaseName = mainInfo.GetDatabaseName();

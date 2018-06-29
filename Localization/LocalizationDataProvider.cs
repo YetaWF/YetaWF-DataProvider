@@ -1,5 +1,6 @@
 ﻿/* Copyright © 2018 Softel vdm, Inc. - https://yetawf.com/Documentation/YetaWF/Licensing */
 
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -29,11 +30,25 @@ namespace YetaWF.Core.Models.DataProvider {
             return Task.CompletedTask;
         }
 
-        public const string FolderName = "Localization";
+        // API
+        // API
+        // API
 
-        // API
-        // API
-        // API
+        public const string LocalizationFolder = "Localization";
+        public const string LocalizationCustomFolder = "LocalizationCustom";
+
+        private string GetDefaultLanguageFolder(Package package) {
+            return GetLanguageFolder(package, MultiString.DefaultLanguage);
+        }
+        private string GetActiveLanguageFolder(Package package) {
+            return GetLanguageFolder(package, MultiString.ActiveLanguage);
+        }
+        private string GetCustomLanguageFolder(Package package) {
+            return Path.Combine(YetaWFManager.RootFolderWebProject, LocalizationCustomFolder, MultiString.ActiveLanguage, package.Domain, package.Product);
+        }
+        private string GetLanguageFolder(Package package, string language) {
+            return Path.Combine(YetaWFManager.RootFolderWebProject, LocalizationFolder, language, package.Domain, package.Product);
+        }
 
         public LocalizationData Load(Package package, string type, LocalizationSupport.Location location) {
 
@@ -46,7 +61,9 @@ namespace YetaWF.Core.Models.DataProvider {
             } else
                 manager = YetaWFManager.Manager;
 
-            string addonUrl = VersionManager.GetAddOnPackageUrl(package.Domain, package.Product);
+            string defaultLanguageFolder = GetDefaultLanguageFolder(package);
+            string customLanguageFolder = GetCustomLanguageFolder(package);
+            string activeLanguageFolder = GetActiveLanguageFolder(package);
 
             string file = type.Split(new char[] { '+' }).First(); // use class name, not nested class name
             file = file.Trim(new char[] { '_' }); // generated templates have classes starting or ending in _
@@ -68,7 +85,7 @@ namespace YetaWF.Core.Models.DataProvider {
                     default:
                     case LocalizationSupport.Location.DefaultResources:
                         fd = new FileData<LocalizationData> {
-                            BaseFolder = Path.Combine(YetaWFManager.UrlToPhysical(addonUrl), FolderName),
+                            BaseFolder = defaultLanguageFolder,
                             FileName = file,
                             Format = LocalizationFormat,
                             Cacheable = false,
@@ -77,7 +94,7 @@ namespace YetaWF.Core.Models.DataProvider {
                         break;
                     case LocalizationSupport.Location.InstalledResources:
                         fd = new FileData<LocalizationData> {
-                            BaseFolder = Path.Combine(YetaWFManager.UrlToPhysical(addonUrl), FolderName, MultiString.ActiveLanguage),
+                            BaseFolder = activeLanguageFolder,
                             FileName = file,
                             Format = LocalizationFormat,
                             Cacheable = false,
@@ -85,9 +102,8 @@ namespace YetaWF.Core.Models.DataProvider {
                         data = await fd.LoadAsync();
                         break;
                     case LocalizationSupport.Location.CustomResources: {
-                            string customAddonUrl = VersionManager.GetCustomUrlFromUrl(addonUrl);
                             fd = new FileData<LocalizationData> {
-                                BaseFolder = Path.Combine(YetaWFManager.UrlToPhysical(customAddonUrl), FolderName, MultiString.ActiveLanguage),
+                                BaseFolder = customLanguageFolder,
                                 FileName = file,
                                 Format = LocalizationFormat,
                                 Cacheable = false,
@@ -97,9 +113,8 @@ namespace YetaWF.Core.Models.DataProvider {
                         }
                     case LocalizationSupport.Location.Merge: {
                             LocalizationData newData = null;
-                            string customAddonUrl = VersionManager.GetCustomUrlFromUrl(addonUrl);
                             fd = new FileData<LocalizationData> {
-                                BaseFolder = Path.Combine(YetaWFManager.UrlToPhysical(customAddonUrl), FolderName, MultiString.ActiveLanguage),
+                                BaseFolder = customLanguageFolder,
                                 FileName = file,
                                 Format = LocalizationFormat,
                                 Cacheable = false,
@@ -112,7 +127,7 @@ namespace YetaWF.Core.Models.DataProvider {
                             } else {
                                 // get installed resources if available
                                 fd = new FileData<LocalizationData> {
-                                    BaseFolder = Path.Combine(YetaWFManager.UrlToPhysical(addonUrl), FolderName, MultiString.ActiveLanguage),
+                                    BaseFolder = activeLanguageFolder,
                                     FileName = file,
                                     Format = LocalizationFormat,
                                     Cacheable = false,
@@ -122,7 +137,7 @@ namespace YetaWF.Core.Models.DataProvider {
                                 if (data == null) {
                                     // get default resource
                                     fd = new FileData<LocalizationData> {
-                                        BaseFolder = Path.Combine(YetaWFManager.UrlToPhysical(addonUrl), FolderName),
+                                        BaseFolder = defaultLanguageFolder,
                                         FileName = file,
                                         Format = LocalizationFormat,
                                         Cacheable = false,
@@ -193,7 +208,6 @@ namespace YetaWF.Core.Models.DataProvider {
         public async Task SaveAsync(Package package, string type, LocalizationSupport.Location location, LocalizationData data) {
             if (!Startup.Started || !HaveManager) throw new InternalError("Can't save resource files during startup");
             if (!Manager.LocalizationSupportEnabled) throw new InternalError("Can't save resource files during startup");
-            string addonUrl = VersionManager.GetAddOnPackageUrl(package.Domain, package.Product);
 
             string file = type.Split(new char[] { '+' }).First(); // use class name, not nested class name
             file = file.Trim(new char[] { '_' }); // generated templates have classes starting or ending in _
@@ -205,12 +219,15 @@ namespace YetaWF.Core.Models.DataProvider {
                 }
             }
 
+            string defaultLanguageFolder = GetDefaultLanguageFolder(package);
+            string customLanguageFolder = GetCustomLanguageFolder(package);
+            string activeLanguageFolder = GetActiveLanguageFolder(package);
+
             FileData<LocalizationData> fd;
             if (data == null) {
                 if (location == LocalizationSupport.Location.CustomResources) {
-                    string customAddonUrl = VersionManager.GetCustomUrlFromUrl(addonUrl);
                     fd = new FileData<LocalizationData> {
-                        BaseFolder = Path.Combine(YetaWFManager.UrlToPhysical(customAddonUrl), FolderName, MultiString.ActiveLanguage),
+                        BaseFolder = customLanguageFolder,
                         FileName = file,
                         Format = LocalizationFormat,
                         Cacheable = false,
@@ -218,7 +235,7 @@ namespace YetaWF.Core.Models.DataProvider {
                     await fd.TryRemoveAsync();
                 } else  if (location == LocalizationSupport.Location.InstalledResources && MultiString.ActiveLanguage != MultiString.DefaultLanguage) {
                     fd = new FileData<LocalizationData> {
-                        BaseFolder = Path.Combine(YetaWFManager.UrlToPhysical(addonUrl), FolderName, MultiString.ActiveLanguage),
+                        BaseFolder = activeLanguageFolder,
                         FileName = file,
                         Format = LocalizationFormat,
                         Cacheable = false,
@@ -243,7 +260,7 @@ namespace YetaWF.Core.Models.DataProvider {
                     default:
                     case LocalizationSupport.Location.DefaultResources: {
                         fd = new FileData<LocalizationData> {
-                            BaseFolder = Path.Combine(YetaWFManager.UrlToPhysical(addonUrl), FolderName),
+                            BaseFolder = defaultLanguageFolder,
                             FileName = file,
                             Format = LocalizationFormat,
                             Cacheable = false,
@@ -252,7 +269,7 @@ namespace YetaWF.Core.Models.DataProvider {
                     }
                     case LocalizationSupport.Location.InstalledResources: {
                         fd = new FileData<LocalizationData> {
-                            BaseFolder = Path.Combine(YetaWFManager.UrlToPhysical(addonUrl), FolderName, MultiString.ActiveLanguage),
+                            BaseFolder = activeLanguageFolder,
                             FileName = file,
                             Format = LocalizationFormat,
                             Cacheable = false,
@@ -260,9 +277,8 @@ namespace YetaWF.Core.Models.DataProvider {
                         break;
                     }
                     case LocalizationSupport.Location.CustomResources: {
-                        string customAddonUrl = VersionManager.GetCustomUrlFromUrl(addonUrl);
                         fd = new FileData<LocalizationData> {
-                            BaseFolder = Path.Combine(YetaWFManager.UrlToPhysical(customAddonUrl), FolderName, MultiString.ActiveLanguage),
+                            BaseFolder = customLanguageFolder,
                             FileName = file,
                             Format = LocalizationFormat,
                             Cacheable = false,
@@ -277,8 +293,8 @@ namespace YetaWF.Core.Models.DataProvider {
             }
             ObjectSupport.InvalidateAll();
         }
-        private async Task ClearPackageDataAsync(Package package) {
-            List<string> entries = await GetFilesAsync(package);
+        private async Task ClearPackageDataAsync(Package package, string language) {
+            List<string> entries = await GetFilesAsync(package, language);
             foreach (var file in entries) {
                 FileData<LocalizationData> fd = new FileData<LocalizationData> {
                     BaseFolder = Path.GetDirectoryName(file),
@@ -289,10 +305,8 @@ namespace YetaWF.Core.Models.DataProvider {
                 await fd.RemoveAsync();
             }
         }
-        public async Task<List<string>> GetFilesAsync(Package package) {
-            string url = VersionManager.TryGetAddOnPackageUrl(package.Domain, package.Product);
-            if (string.IsNullOrWhiteSpace(url)) return new List<string>();
-            string path = Path.Combine(YetaWFManager.UrlToPhysical(url), LocalizationDataProvider.FolderName);
+        public async Task<List<string>> GetFilesAsync(Package package, string language) {
+            string path = GetLanguageFolder(package, language);
             List<string> files = await DataFilesProvider.GetDataFileNamesAsync(path);
             files = (from f in files select Path.Combine(path, f)).ToList();
             return files;
