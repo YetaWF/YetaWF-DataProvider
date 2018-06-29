@@ -1,11 +1,9 @@
 ﻿/* Copyright © 2018 Softel vdm, Inc. - https://yetawf.com/Documentation/YetaWF/Licensing */
 
-using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
-using YetaWF.Core.Addons;
 using YetaWF.Core.IO;
 using YetaWF.Core.Localize;
 using YetaWF.Core.Packages;
@@ -307,8 +305,11 @@ namespace YetaWF.Core.Models.DataProvider {
         }
         public async Task<List<string>> GetFilesAsync(Package package, string language) {
             string path = GetLanguageFolder(package, language);
-            List<string> files = await DataFilesProvider.GetDataFileNamesAsync(path);
-            files = (from f in files select Path.Combine(path, f)).ToList();
+            List<string> files = new List<string>();
+            if (await FileSystem.FileSystemProvider.DirectoryExistsAsync(path)) {
+                files = await FileSystem.FileSystemProvider.GetFilesAsync(path);
+                files = (from f in files select Path.Combine(path, f)).ToList();
+            }
             return files;
         }
     }
