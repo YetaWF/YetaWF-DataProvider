@@ -699,7 +699,6 @@ DELETE FROM {fullTableName} WHERE [{SiteColumn}] = {SiteIdentity}
 
             await LocalizeModelAsync(language, isHtml, translateStringsAsync, translateComplexStringAsync,
                 async (int offset, int skip) => {
-                    // GetRecordsAsync doesn't read subtables or derived tables, so we just use it to get the keys, then we retrieve the full data using get //$$$
                     return await GetRecordsAsync(offset, skip, null, null);
                 },
                 async (OBJTYPE record, PropertyInfo pi, PropertyInfo pi2) => {
@@ -737,9 +736,8 @@ DELETE FROM {fullTableName} WHERE [{SiteColumn}] = {SiteIdentity}
                 DataProviderGetRecords<OBJTYPE> data = await getRecords(offset, RECORDS);
                 if (data.Data.Count == 0)
                     break;
-                bool changed = false;
                 foreach (OBJTYPE record in data.Data) {
-                    changed = changed || await ObjectSupport.TranslateObject(record, language, isHtml, translateStringsAsync, translateComplexStringAsync, props);
+                    bool changed = await ObjectSupport.TranslateObject(record, language, isHtml, translateStringsAsync, translateComplexStringAsync, props);
                     if (changed) {
                         UpdateStatusEnum status = await saveRecordAsync(record, key1Prop, key2Prop);
                         if (status != UpdateStatusEnum.OK)

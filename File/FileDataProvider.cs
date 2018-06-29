@@ -47,6 +47,7 @@ namespace YetaWF.DataProvider {
 
         private const int ChunkSize = 100;
 
+        [System.Diagnostics.CodeAnalysis.SuppressMessage("Microsoft.Usage", "CA2214:DoNotCallOverridableMethodsInConstructors")]
         public FileDataProvider(Dictionary<string, object> options) {
             Options = options;
             if (!Options.ContainsKey("Package") || !(Options["Package"] is Package))
@@ -391,6 +392,24 @@ namespace YetaWF.DataProvider {
                         OBJTYPE item = serList[processed];
                         await AddAsync(item);
                     }
+                }
+            }
+        }
+        public async Task LocalizeModelAsync(string language,
+                Func<string, bool> isHtml,
+                Func<List<string>, Task<List<string>>> translateStringsAsync, Func<string, Task<string>> translateComplexStringAsync) {
+
+            List<PropertyInfo> props = ObjectSupport.GetProperties(typeof(OBJTYPE));
+            PropertyInfo key1Prop = ObjectSupport.GetProperty(typeof(OBJTYPE), Key1Name);
+
+            DataProviderGetRecords<OBJTYPE> data = await GetRecordsAsync(0, 0, null, null);
+            foreach (OBJTYPE record in data.Data) {
+                bool changed = await ObjectSupport.TranslateObject(record, language, isHtml, translateStringsAsync, translateComplexStringAsync, props);
+                if (changed) {
+                    KEYTYPE key1 = (KEYTYPE)key1Prop.GetValue(record);
+                    UpdateStatusEnum status = await UpdateAsync(key1, key1, record);
+                    if (status != UpdateStatusEnum.OK)
+                        throw new InternalError($"Update failed for type {typeof(OBJTYPE).FullName} ({status})");
                 }
             }
         }
