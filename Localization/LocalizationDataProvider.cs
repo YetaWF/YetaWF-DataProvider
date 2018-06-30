@@ -231,7 +231,7 @@ namespace YetaWF.Core.Models.DataProvider {
                         Cacheable = false,
                     };
                     await fd.TryRemoveAsync();
-                } else  if (location == LocalizationSupport.Location.InstalledResources && MultiString.ActiveLanguage != MultiString.DefaultLanguage) {
+                } else if (location == LocalizationSupport.Location.InstalledResources && MultiString.ActiveLanguage != MultiString.DefaultLanguage) {
                     fd = new FileData<LocalizationData> {
                         BaseFolder = activeLanguageFolder,
                         FileName = file,
@@ -292,7 +292,7 @@ namespace YetaWF.Core.Models.DataProvider {
             ObjectSupport.InvalidateAll();
         }
         private async Task ClearPackageDataAsync(Package package, string language) {
-            List<string> entries = await GetFilesAsync(package, language);
+            List<string> entries = await GetFilesAsync(package, language, false);
             foreach (var file in entries) {
                 FileData<LocalizationData> fd = new FileData<LocalizationData> {
                     BaseFolder = Path.GetDirectoryName(file),
@@ -303,11 +303,13 @@ namespace YetaWF.Core.Models.DataProvider {
                 await fd.RemoveAsync();
             }
         }
-        public async Task<List<string>> GetFilesAsync(Package package, string language) {
+        public async Task<List<string>> GetFilesAsync(Package package, string language, bool rawName) {
             string path = GetLanguageFolder(package, language);
             List<string> files = new List<string>();
             if (await FileSystem.FileSystemProvider.DirectoryExistsAsync(path)) {
                 files = await FileSystem.FileSystemProvider.GetFilesAsync(path);
+                if (!rawName)
+                    files = (from f in files select Path.GetFileNameWithoutExtension(f)).ToList();
                 files = (from f in files select Path.Combine(path, f)).ToList();
             }
             return files;
