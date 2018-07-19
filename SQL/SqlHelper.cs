@@ -93,7 +93,7 @@ namespace YetaWF.DataProvider.SQL {
                                     if (btes.Length > 0)
                                         pi.SetValue(container, btes, null);
                                 } else {
-                                    object data = new GeneralFormatter().Deserialize(btes);
+                                    object data = new GeneralFormatter().Deserialize<object>(btes);
                                     pi.SetValue(container, data, null);
                                 }
                             }

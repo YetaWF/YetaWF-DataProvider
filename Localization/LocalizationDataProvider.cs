@@ -15,7 +15,7 @@ namespace YetaWF.Core.Models.DataProvider {
 
     public class LocalizationDataProvider : IInitializeApplicationStartup {
 
-        private static GeneralFormatter.Style LocalizationFormat = GeneralFormatter.Style.Xml;
+        private static GeneralFormatter.Style LocalizationFormat = GeneralFormatter.Style.JSON;
 
         protected YetaWFManager Manager { get { return YetaWFManager.Manager; } }
         protected bool HaveManager { get { return YetaWFManager.HaveManager; } }
