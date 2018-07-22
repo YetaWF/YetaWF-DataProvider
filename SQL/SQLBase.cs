@@ -485,7 +485,7 @@ namespace YetaWF.DataProvider.SQL {
                         }
                     } else if (pi.PropertyType == typeof(Image)) {
                         object val = pi.GetValue(container);
-                        BinaryFormatter binaryFmt = new BinaryFormatter { AssemblyFormat = System.Runtime.Serialization.Formatters.FormatterAssemblyStyle.Simple };
+                        BinaryFormatter binaryFmt = new BinaryFormatter { AssemblyFormat = 0/*System.Runtime.Serialization.Formatters.FormatterAssemblyStyle.Simple*/ };
                         using (MemoryStream ms = new MemoryStream()) {
                             binaryFmt.Serialize(ms, val);
                             sb.Add(sqlHelper.AddTempParam(ms.ToArray()));
@@ -562,7 +562,7 @@ namespace YetaWF.DataProvider.SQL {
                         }
                     } else if (pi.PropertyType == typeof(Image)) {
                         object val = pi.GetValue(container);
-                        BinaryFormatter binaryFmt = new BinaryFormatter { AssemblyFormat = System.Runtime.Serialization.Formatters.FormatterAssemblyStyle.Simple };
+                        BinaryFormatter binaryFmt = new BinaryFormatter { AssemblyFormat = 0/*System.Runtime.Serialization.Formatters.FormatterAssemblyStyle.Simple*/ };
                         using (MemoryStream ms = new MemoryStream()) {
                             binaryFmt.Serialize(ms, val);
                             sb.Add(sqlHelper.Expr(prefix + prop.Name, "=", ms.ToArray(), true));
