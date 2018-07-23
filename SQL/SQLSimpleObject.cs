@@ -45,6 +45,8 @@ namespace YetaWF.DataProvider.SQL {
 
         protected const int ChunkSize = 100;
 
+        protected bool Warnings = true;
+
         protected List<PropertyData> GetPropertyData() {
             if (_propertyData == null)
                 _propertyData = ObjectSupport.GetPropertyData(typeof(OBJTYPE));
@@ -159,16 +161,25 @@ DECLARE @__IDENTITY int = @@IDENTITY
 
             string subTablesUpdates = SubTablesUpdates(sqlHelper, Dataset, obj, propData, typeof(OBJTYPE));
 
+            string warningsOff = !Warnings ? " SET ANSI_WARNINGS OFF" : null;
+            string warningsOn = !Warnings ? " SET ANSI_WARNINGS ON" : null;
+
             string scriptMain = $@"
+{warningsOff}
+
 UPDATE {fullTableName} 
 SET {setColumns}
 WHERE {sqlHelper.Expr(Key1Name, "=", origKey)} {andKey2} {AndSiteIdentity}
 ;
 SELECT @@ROWCOUNT --- result set
 
+{warningsOn}
+
 {sqlHelper.DebugInfo}";
 
             string scriptWithSub = $@"
+{warningsOff}
+
 DECLARE @__IDENTITY int;
 SELECT @__IDENTITY = [{IdentityNameOrDefault}] FROM {fullTableName} 
 WHERE {sqlHelper.Expr(Key1Name, "=", origKey)} {andKey2} {AndSiteIdentity}
@@ -181,6 +192,7 @@ SELECT @@ROWCOUNT --- result set
 
 {subTablesUpdates}
 
+{warningsOn}
 {sqlHelper.DebugInfo}";
 
             string script = (string.IsNullOrWhiteSpace(subTablesUpdates)) ? scriptMain : scriptWithSub;
@@ -330,7 +342,6 @@ DROP TABLE #TEMPTABLE
 
             DataProviderGetRecords<OBJTYPE> recs = new DataProviderGetRecords<OBJTYPE>();
 
-            // get total # of records (only if a subset is requested)
             string fullTableName = SQLBuilder.GetTable(Database, Dbo, Dataset);
             List<PropertyData> propData = GetPropertyData();
             Dictionary<string, string> visibleColumns = GetVisibleColumns(Database, Dbo, Dataset, typeof(OBJTYPE), Joins);
@@ -338,6 +349,7 @@ DROP TABLE #TEMPTABLE
             string joins = MakeJoins(sqlHelper, Joins);
             string filter = MakeFilter(sqlHelper, filters, visibleColumns);
             string calcProps = await CalculatedPropertiesAsync(typeof(OBJTYPE));
+            // get total # of records (only if a subset is requested)
             string selectCount = null;
             if (skip != 0 || take != 0) {
                 SQLBuilder sb = new SQLBuilder();
@@ -354,8 +366,6 @@ DROP TABLE #TEMPTABLE
                 orderBy = sb.ToString();
             }
 
-            string subTablesSelects = SubTablesSelectsUsingJoin(sqlHelper, Dataset, default(KEYTYPE), propData, typeof(OBJTYPE), filters, visibleColumns);
-
             string script = $@"
 {selectCount} --- result set
 SELECT {columnList} --- result set
@@ -365,9 +375,10 @@ FROM {fullTableName} WITH(NOLOCK)
 {filter} 
 {orderBy}
 
-{subTablesSelects}
-
 {sqlHelper.DebugInfo}";
+
+            string subTablesSelects = "";
+            SQLHelper subSqlHelper = new SQLHelper(Conn, null, Languages);
 
             using (SqlDataReader reader = await sqlHelper.ExecuteReaderAsync(script)) {
                 if (skip != 0 || take != 0) {
@@ -375,16 +386,28 @@ FROM {fullTableName} WITH(NOLOCK)
                     recs.Total = reader.GetInt32(0);
                     if (!(YetaWFManager.IsSync() ? reader.NextResult() : await reader.NextResultAsync())) throw new InternalError("Expected next result set (main table)");
                 }
-                while ((YetaWFManager.IsSync() ? reader.Read() : await reader.ReadAsync()))
-                    recs.Data.Add(sqlHelper.CreateObject<OBJTYPE>(reader));
+                while ((YetaWFManager.IsSync() ? reader.Read() : await reader.ReadAsync())) {
+                    OBJTYPE o = sqlHelper.CreateObject<OBJTYPE>(reader);
+                    recs.Data.Add(o);
 
-                if (!string.IsNullOrWhiteSpace(subTablesSelects)) {
-                    await ReadSubTablesMatchupAsync(sqlHelper, reader, Dataset, recs.Data, propData, typeof(OBJTYPE));
+                    PropertyInfo piIdent = ObjectSupport.GetProperty(typeof(OBJTYPE), Key1Name);
+                    KEYTYPE keyVal = (KEYTYPE)piIdent.GetValue(o);
+
+                    //TODO: should be expanded to support Key2
+                    subTablesSelects += SubTablesSelectsUsingJoin(subSqlHelper, Dataset, keyVal, propData, typeof(OBJTYPE), filters, visibleColumns);
                 }
-                if (skip == 0 && take == 0)
-                    recs.Total = recs.Data.Count;
-                return recs;
             }
+            if (!string.IsNullOrWhiteSpace(subTablesSelects)) {
+                subTablesSelects += $@"
+
+{subSqlHelper.DebugInfo}";
+                using (SqlDataReader reader = await subSqlHelper.ExecuteReaderAsync(subTablesSelects)) {
+                    await ReadSubTablesMatchupAsync(subSqlHelper, reader, Dataset, recs.Data, propData, typeof(OBJTYPE));
+                }
+            }
+            if (skip == 0 && take == 0)
+                recs.Total = recs.Data.Count;
+            return recs;
         }
 
         public class SubTableInfo {
@@ -448,7 +471,7 @@ FROM {fullTableName} WITH(NOLOCK)
             SQLBuilder sb = new SQLBuilder();
             List<SubTableInfo> subTables = GetSubTables(tableName, propData);
             if (subTables.Count > 0) {
-                string keyExpr = (key == null ? "1=1" : $"{SQLBuilder.BuildFullColumnName(Database, Dbo, tableName, Key1Name)} = {sqlHelper.AddTempParam(key)}");
+                string keyExpr = (key == null || key.Equals(default(KEYTYPE)) ? "1=1" : $"{SQLBuilder.BuildFullColumnName(Database, Dbo, tableName, Key1Name)} = {sqlHelper.AddTempParam(key)}");
                 foreach (SubTableInfo subTable in subTables) {
                     sb.Add($@"
     SELECT * FROM {SQLBuilder.BuildFullTableName(Database, Dbo, subTable.Name)}   --- result set
@@ -498,13 +521,14 @@ FROM {fullTableName} WITH(NOLOCK)
                 MethodInfo addMethod = subTable.PropInfo.PropertyType.GetMethod("Add", new Type[] { subTable.Type });
                 if (addMethod == null) throw new InternalError($"{nameof(ReadSubTablesMatchupAsync)} encountered a enumeration property that doesn't have an Add method");
 
-                if (!(YetaWFManager.IsSync() ? reader.NextResult() : await reader.NextResultAsync())) throw new InternalError("Expected next result set (subtable)");
-                while ((YetaWFManager.IsSync() ? reader.Read() : await reader.ReadAsync())) {
-                    int key = (int) reader[SubTableKeyColumn];
-                    object obj = sqlHelper.CreateObject(reader, subTable.Type);
-                    // find the container this subtable entry matches
-                    AddToContainer(containers, identities, subTable, obj, key, addMethod);
-                }
+                do {
+                    while ((YetaWFManager.IsSync() ? reader.Read() : await reader.ReadAsync())) {
+                        int key = (int)reader[SubTableKeyColumn];
+                        object obj = sqlHelper.CreateObject(reader, subTable.Type);
+                        // find the container this subtable entry matches
+                        AddToContainer(containers, identities, subTable, obj, key, addMethod);
+                    }
+                } while ((YetaWFManager.IsSync() ? reader.NextResult() : await reader.NextResultAsync()));
             }
         }
 
@@ -669,6 +693,60 @@ DELETE FROM {fullTableName} WHERE [{SiteColumn}] = {SiteIdentity}
                     ObjectList = new SerializableList<OBJTYPE>(recs.Data),
                     More = count >= ChunkSize,
                 };
+            }
+        }
+        public async Task LocalizeModelAsync(string language, Func<string, bool> isHtml, Func<List<string>, Task<List<string>>> translateStringsAsync, Func<string, Task<string>> translateComplexStringAsync) {
+
+            await LocalizeModelAsync(language, isHtml, translateStringsAsync, translateComplexStringAsync,
+                async (int offset, int skip) => {
+                    return await GetRecordsAsync(offset, skip, null, null);
+                },
+                async (OBJTYPE record, PropertyInfo pi, PropertyInfo pi2) => {
+                    UpdateStatusEnum status;
+                    KEYTYPE key1 = (KEYTYPE)pi.GetValue(record);
+                    Warnings = false; // we're turning warnings off in case strings get truncated
+                    try {
+                        if (HasKey2) {
+                            KEYTYPE2 key2 = (KEYTYPE2)pi2.GetValue(record);
+                            status = await UpdateAsync(key1, key2, key1, key2, record);
+                        } else {
+                            status = await UpdateAsync(key1, key1, record);
+                        }
+                    } catch (Exception) {
+                        throw;
+                    } finally {
+                        Warnings = true;// turn warnings back on
+                    }
+                    return status;
+                });
+        }
+        protected async Task LocalizeModelAsync(string language,
+                Func<string, bool> isHtml,
+                Func<List<string>, Task<List<string>>> translateStringsAsync, Func<string, Task<string>> translateComplexStringAsync, Func<int, int, Task<DataProviderGetRecords<OBJTYPE>>> getRecords, Func<OBJTYPE, PropertyInfo, PropertyInfo, Task<UpdateStatusEnum>> saveRecordAsync) {
+
+            const int RECORDS = 20;
+
+            List<PropertyInfo> props = ObjectSupport.GetProperties(typeof(OBJTYPE));
+            PropertyInfo key1Prop = ObjectSupport.GetProperty(typeof(OBJTYPE), Key1Name);
+            PropertyInfo key2Prop = null;
+            if (HasKey2)
+                key2Prop = ObjectSupport.GetProperty(typeof(OBJTYPE), Key2Name);
+
+            for (int offset = 0; ;) {
+                DataProviderGetRecords<OBJTYPE> data = await getRecords(offset, RECORDS);
+                if (data.Data.Count == 0)
+                    break;
+                foreach (OBJTYPE record in data.Data) {
+                    bool changed = await ObjectSupport.TranslateObject(record, language, isHtml, translateStringsAsync, translateComplexStringAsync, props);
+                    if (changed) {
+                        UpdateStatusEnum status = await saveRecordAsync(record, key1Prop, key2Prop);
+                        if (status != UpdateStatusEnum.OK)
+                            throw new InternalError($"Update failed for type {typeof(OBJTYPE).FullName} ({status})");
+                    }
+                }
+                offset += data.Data.Count;
+                if (offset >= data.Total)
+                    break;
             }
         }
     }

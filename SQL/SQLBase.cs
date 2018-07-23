@@ -1,7 +1,5 @@
 ﻿/* Copyright © 2018 Softel vdm, Inc. - https://yetawf.com/Documentation/YetaWF/Licensing */
 
-using Microsoft.SqlServer.Management.Common;
-using Microsoft.SqlServer.Management.Smo;
 using System;
 using System.Collections;
 using System.Collections.Generic;
@@ -10,10 +8,10 @@ using System.Drawing;
 using System.IO;
 using System.Linq;
 using System.Reflection;
-using System.Runtime.Serialization.Formatters;
 using System.Runtime.Serialization.Formatters.Binary;
 using System.Threading.Tasks;
 using System.Transactions;
+using YetaWF.Core.Components;
 using YetaWF.Core.DataProvider;
 using YetaWF.Core.DataProvider.Attributes;
 using YetaWF.Core.Language;
@@ -21,7 +19,6 @@ using YetaWF.Core.Models;
 using YetaWF.Core.Packages;
 using YetaWF.Core.Support;
 using YetaWF.Core.Support.Serializers;
-using YetaWF.Core.Views.Shared;
 
 namespace YetaWF.DataProvider.SQL {
 
@@ -45,7 +42,7 @@ namespace YetaWF.DataProvider.SQL {
         public string Database { get; private set; }
         public string TypeName { get; protected set; }
         public int SiteIdentity { get; private set; }
-        public int IdentitySeed { get; private set; }        
+        public int IdentitySeed { get; private set; }
         public bool Cacheable { get; private set; }
         public bool Logging { get; private set; }
         public bool NoLanguages { get; private set; }
@@ -263,7 +260,7 @@ namespace YetaWF.DataProvider.SQL {
             filters = (from f in filters select new DataProviderFilterInfo(f)).ToList();// copy list
             foreach (DataProviderFilterInfo f in filters)
                 if (f.Field != null) f.Field = f.Field.Replace(".", "_");
-            GridHelper.NormalizeFilters(type, filters);
+            Grid.NormalizeFilters(type, filters);
             foreach (DataProviderFilterInfo filter in filters) {
                 if (filter.Filters != null)
                     filter.Filters = NormalizeFilter(type, filter.Filters);
@@ -369,6 +366,7 @@ namespace YetaWF.DataProvider.SQL {
                     visibleColumns.Add(prop.Name, prop.Name);
             }
             if (joins != null) {
+                // no support for calculated properties in joined tables
                 foreach (JoinData join in joins) {
                     ISQLTableInfo mainInfo = (ISQLTableInfo)join.MainDP.GetDataProvider();
                     databaseName = mainInfo.GetDatabaseName();
@@ -487,7 +485,7 @@ namespace YetaWF.DataProvider.SQL {
                         }
                     } else if (pi.PropertyType == typeof(Image)) {
                         object val = pi.GetValue(container);
-                        BinaryFormatter binaryFmt = new BinaryFormatter { AssemblyFormat = 0/*$$FormatterAssemblyStyle.Simple*/ };
+                        BinaryFormatter binaryFmt = new BinaryFormatter { AssemblyFormat = 0/*System.Runtime.Serialization.Formatters.FormatterAssemblyStyle.Simple*/ };
                         using (MemoryStream ms = new MemoryStream()) {
                             binaryFmt.Serialize(ms, val);
                             sb.Add(sqlHelper.AddTempParam(ms.ToArray()));
@@ -564,7 +562,7 @@ namespace YetaWF.DataProvider.SQL {
                         }
                     } else if (pi.PropertyType == typeof(Image)) {
                         object val = pi.GetValue(container);
-                        BinaryFormatter binaryFmt = new BinaryFormatter { AssemblyFormat = 0/*$$FormatterAssemblyStyle.Simple*/ };
+                        BinaryFormatter binaryFmt = new BinaryFormatter { AssemblyFormat = 0/*System.Runtime.Serialization.Formatters.FormatterAssemblyStyle.Simple*/ };
                         using (MemoryStream ms = new MemoryStream()) {
                             binaryFmt.Serialize(ms, val);
                             sb.Add(sqlHelper.Expr(prefix + prop.Name, "=", ms.ToArray(), true));

@@ -46,12 +46,17 @@ SELECT TOP 1 @Table=[DerivedDataTableName], @Type=[DerivedDataType], @Asm=[Deriv
 FROM {fullBaseTableName} WITH(NOLOCK)
 WHERE {sqlHelper.Expr(Key1Name, "=", key)} {AndSiteIdentity}
 
-IF @@ROWCOUNT > 0 
+IF @@ROWCOUNT > 0
 BEGIN
 
 SELECT @Table, @Type, @Asm  --- result set
 ;
-EXEC ('SELECT TOP 1 * FROM {fullBaseTableName} A, [' + @Table + '] B WHERE A.[ModuleGuid] = ''{key}'' AND A.[__Site] = {SiteIdentity} AND B.{Key1Name} = ''{key}''') --- result set
+
+EXEC ('SELECT TOP 1 * FROM {fullBaseTableName} AS A WITH(NOLOCK)
+        LEFT JOIN [' + @Table + '] AS B ON
+        A.[{Key1Name}] = B.[{Key1Name}] AND A.[{SiteColumn}] = B.[{SiteColumn}]
+        WHERE A.[{Key1Name}] = ''{key}'' AND A.[{SiteColumn}] = {SiteIdentity}')   --- result set
+
 END
 
 {sqlHelper.DebugInfo}";
@@ -74,10 +79,10 @@ END
                 // we're reading the derived table
                 string fullTableName = SQLBuilder.GetTable(Database, Dbo, Dataset);
                 string scriptMain = $@"
-SELECT TOP 1 * FROM {fullTableName} WITH(NOLOCK)
-INNER JOIN {fullBaseTableName} ON 
-    {fullBaseTableName}.[{Key1Name}] = {fullTableName}.[{Key1Name}] AND {fullBaseTableName}.[{SiteColumn}] = {fullTableName}.[{SiteColumn}]
-WHERE {sqlHelper.Expr(fullBaseTableName + $".[{Key1Name}]", " =", key)} AND {fullBaseTableName}.[{SiteColumn}] = {SiteIdentity}
+SELECT TOP 1 * FROM {fullBaseTableName} AS A WITH(NOLOCK)
+LEFT JOIN {fullTableName} AS B ON 
+    A.[{Key1Name}] = B.[{Key1Name}] AND A.[{SiteColumn}] = B.[{SiteColumn}]
+WHERE {sqlHelper.Expr($"A.[{Key1Name}]", " =", key)} AND A.[{SiteColumn}] = {SiteIdentity}
 
 {sqlHelper.DebugInfo}";
 
@@ -152,7 +157,7 @@ WHERE {sqlHelper.Expr(Key1Name, "=", origKey)} {AndSiteIdentity}
 ;
 SELECT @@ROWCOUNT --- result set
 ;
-UPDATE {fullTableName} 
+UPDATE {fullTableName}
 SET {setColumns}
 WHERE {sqlHelper.Expr(Key1Name, "=", origKey)} {AndSiteIdentity}
 ;
@@ -196,13 +201,13 @@ WHERE {sqlHelper.Expr(Key1Name, "=", key)} {AndSiteIdentity}
 SELECT @@ROWCOUNT --- result set
 ;
 
-IF @@ROWCOUNT > 0 
+IF @@ROWCOUNT > 0
 BEGIN
 
 DECLARE @Table nvarchar(80);
 
 SELECT @Table=[DerivedDataTableName] FROM #BASETABLE
-; 
+;
 EXEC ('DELETE FROM [' + @Table + '] B WHERE B.[{Key1Name}] = ''{key}'' {AndSiteIdentity}')
 ;
 DELETE
@@ -227,7 +232,69 @@ DROP TABLE #BASETABLE
         }
 
         public new async Task<DataProviderGetRecords<OBJTYPE>> GetRecordsAsync(int skip, int take, List<DataProviderSortInfo> sorts, List<DataProviderFilterInfo> filters, List<JoinData> Joins = null) {
-            return await base.GetRecordsAsync(skip, take, sorts, filters, Joins: Joins);
+            if (Dataset == BaseDataset) {
+                // we're reading the base table
+                return await base.GetRecordsAsync(skip, take, sorts, filters, Joins: Joins);
+            } else {
+                // an explicit type is requested
+                SQLHelper sqlHelper = new SQLHelper(Conn, null, Languages);
+
+                DataProviderGetRecords<OBJTYPE> recs = new DataProviderGetRecords<OBJTYPE>();
+
+                string fullBaseTableName = SQLBuilder.GetTable(Database, Dbo, BaseDataset);
+                string fullTableName = SQLBuilder.GetTable(Database, Dbo, Dataset);
+
+                // get total # of records (only if a subset is requested)
+                string selectCount = null;
+                if (skip != 0 || take != 0) {
+                    SQLBuilder sb = new SQLBuilder();
+                    sb.Add($@"
+
+SELECT COUNT(*)
+FROM {fullBaseTableName} WITH(NOLOCK)
+
+WHERE {fullBaseTableName}.[DerivedDataTableName] = '{Dataset}' AND {fullBaseTableName}.[DerivedDataType] = '{typeof(OBJTYPE).FullName}'
+ AND {fullBaseTableName}.[{SiteColumn}] = {SiteIdentity}
+");
+
+                    selectCount = sb.ToString();
+                }
+
+                string orderby = null;
+                if (skip != 0 || take != 0)
+                    orderby = $"ORDER BY [Name] ASC OFFSET {skip} ROWS FETCH NEXT {take} ROWS ONLY";
+
+
+                string script = $@"
+{selectCount} --- result set
+
+SELECT *
+FROM {fullBaseTableName} WITH(NOLOCK)
+
+LEFT JOIN {fullTableName} ON 
+    {fullBaseTableName}.[{Key1Name}] = {fullTableName}.[{Key1Name}] AND {fullBaseTableName}.[{SiteColumn}] = {fullTableName}.[{SiteColumn}]
+
+WHERE {fullBaseTableName}.[DerivedDataTableName] = '{Dataset}' AND {fullBaseTableName}.[DerivedDataType] = '{typeof(OBJTYPE).FullName}'
+ AND {fullBaseTableName}.[{SiteColumn}] = {SiteIdentity}
+{orderby}
+
+{sqlHelper.DebugInfo}
+";
+
+                using (SqlDataReader reader = await sqlHelper.ExecuteReaderAsync(script)) {
+                    if (skip != 0 || take != 0) {
+                        if (!(YetaWFManager.IsSync() ? reader.Read() : await reader.ReadAsync())) throw new InternalError("Expected # of records");
+                        recs.Total = reader.GetInt32(0);
+                        if (!(YetaWFManager.IsSync() ? reader.NextResult() : await reader.NextResultAsync())) throw new InternalError("Expected next result set (table)");
+                    }
+                    while ((YetaWFManager.IsSync() ? reader.Read() : await reader.ReadAsync()))
+                        recs.Data.Add(sqlHelper.CreateObject<OBJTYPE>(reader));
+
+                    if (skip == 0 && take == 0)
+                        recs.Total = recs.Data.Count;
+                    return recs;
+                }
+            }
         }
 
         public new Task<int> RemoveRecordsAsync(List<DataProviderFilterInfo> filters) {
@@ -269,7 +336,7 @@ DROP TABLE #BASETABLE
         public new Task<bool> IsInstalledAsync() {
             if (!SQLCache.HasTable(Conn, ConnectionString, Database, BaseDataset))
                 return Task.FromResult(false);
-            if (Dataset != BaseDataset) { 
+            if (Dataset != BaseDataset) {
                 if (!SQLCache.HasTable(Conn, ConnectionString, Database, Dataset))
                     return Task.FromResult(false);
             }
@@ -391,8 +458,18 @@ DELETE FROM {BaseDataset} WHERE [DerivedDataTableName] = '{Dataset}' AND [{SiteC
                 };
             }
         }
-        public bool ExportChunk(int chunk, SerializableList<SerializableFile> fileList, Type type, out object obj) {
-            throw new InternalError("Typed ExportChunk not supported");
+        public new async Task LocalizeModelAsync(string language, Func<string, bool> isHtml, Func<List<string>, Task<List<string>>> translateStringsAsync, Func<string, Task<string>> translateComplexStringAsync) {
+
+            await LocalizeModelAsync(language, isHtml, translateStringsAsync, translateComplexStringAsync,
+                async (int offset, int skip) => {
+                    return await GetRecordsAsync(offset, skip, null, null);
+                },
+                async (OBJTYPE record, PropertyInfo pi, PropertyInfo pi2) => {
+                    UpdateStatusEnum status;
+                    KEY key1 = (KEY)pi.GetValue(record);
+                    status = await UpdateAsync(key1, key1, record);
+                    return status;
+                });
         }
     }
 }

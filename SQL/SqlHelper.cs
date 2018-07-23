@@ -93,7 +93,7 @@ namespace YetaWF.DataProvider.SQL {
                                     if (btes.Length > 0)
                                         pi.SetValue(container, btes, null);
                                 } else {
-                                    object data = new GeneralFormatter().Deserialize(btes);
+                                    object data = new GeneralFormatter().Deserialize<object>(btes);
                                     pi.SetValue(container, data, null);
                                 }
                             }
@@ -256,6 +256,7 @@ namespace YetaWF.DataProvider.SQL {
             }
         }
 
+        [System.Diagnostics.CodeAnalysis.SuppressMessage("Microsoft.Security", "CA2100:Review SQL queries for security vulnerabilities")]
         private static void PrepareCommand(SqlCommand command, SqlConnection connection, SqlTransaction transaction, CommandType commandType, string commandText, List<SqlParameter> sqlParms) {
 
             command.Connection = connection;
