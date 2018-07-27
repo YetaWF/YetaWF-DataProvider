@@ -35,7 +35,7 @@ namespace YetaWF.DataProvider.File {
                     ModuleDefinition mod = await GetAsync(modGuid);
                     if (mod == null)
                         throw new InternalError("No ModuleDefinition for guid {0}", modGuid);
-                    DesignedModule desMod = new DesignedModule() { ModuleGuid = modGuid, Name = mod.Name, Description = mod.Description, AreaName = mod.Area, };
+                    DesignedModule desMod = new DesignedModule() { ModuleGuid = modGuid, Name = mod.Name, Description = mod.Description, AreaName = mod.AreaName, };
                     list.Add(desMod);
                 }
                 return list;

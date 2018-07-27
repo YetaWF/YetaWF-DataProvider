@@ -228,7 +228,7 @@ namespace YetaWF.DataProvider {
                     ModuleGuid = key,
                     Description = mod.Description,
                     Name = mod.Name,
-                    AreaName = mod.Area,
+                    AreaName = mod.AreaName,
                 };
                 designedModules.Add(desMod);
             }
