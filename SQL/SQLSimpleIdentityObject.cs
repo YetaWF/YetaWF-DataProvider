@@ -17,7 +17,7 @@ namespace YetaWF.DataProvider.SQL {
         public SQLSimpleIdentityObject(Dictionary<string, object> options) : base(options) { }
     }
     public partial class SQLSimpleIdentityObjectBase<KEYTYPE, KEYTYPE2, OBJTYPE> : SQLSimpleObjectBase<KEYTYPE, KEYTYPE2, OBJTYPE>, IDataProviderIdentity<KEYTYPE, KEYTYPE2, OBJTYPE> {
-    
+
         public SQLSimpleIdentityObjectBase(Dictionary<string, object> options, bool HasKey2 = false) : base(options) {
             this.HasKey2 = HasKey2;
         }
@@ -136,6 +136,11 @@ SELECT @@ROWCOUNT --- result set
                 if (changed > 1)
                     throw new InternalError($"Update failed - {changed} records updated");
             } catch (Exception exc) {
+                SqlException sqlExc = exc as SqlException;
+                if (sqlExc != null && sqlExc.Number == 2627) {
+                    // duplicate key violation, meaning the new key already exists
+                    return UpdateStatusEnum.NewKeyExists;
+                }
                 throw new InternalError($"Update failed for type {typeof(OBJTYPE).FullName} - {ErrorHandling.FormatExceptionMessage(exc)}");
             }
             return UpdateStatusEnum.OK;

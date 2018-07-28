@@ -70,6 +70,8 @@ namespace YetaWF.DataProvider.SQL {
                 SiteIdentity = Convert.ToInt32(Options["SiteIdentity"]);
             if (Options.ContainsKey("IdentitySeed") && Options["IdentitySeed"] is int)
                 IdentitySeed = Convert.ToInt32(Options["IdentitySeed"]);
+            else
+                IdentitySeed = DataProviderImpl.IDENTITY_SEED;
             if (Options.ContainsKey("Cacheable") && Options["Cacheable"] is bool)
                 Cacheable = Convert.ToBoolean(Options["Cacheable"]);
             if (Options.ContainsKey("Logging") && Options["Logging"] is bool)

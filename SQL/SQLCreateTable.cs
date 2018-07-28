@@ -121,7 +121,7 @@ namespace YetaWF.DataProvider {
                     newColumn.Nullable = false;
                     newColumn.Identity = true;
                     newColumn.IdentityIncrement = 1;
-                    newColumn.IdentitySeed = 0;
+                    newColumn.IdentitySeed = 1;
 
                     Index index = MakeIndex(origIndexes, newTab, "K_" + tableName + "_" + SQLBase.IdentityColumn, SQLBase.IdentityColumn);
                     index.IndexKeyType = Microsoft.SqlServer.Management.Smo.IndexKeyType.DriUniqueKey;
@@ -143,7 +143,7 @@ namespace YetaWF.DataProvider {
                             newColumn.Nullable = false;
                             newColumn.Identity = true;
                             newColumn.IdentityIncrement = 1;
-                            newColumn.IdentitySeed = 0;
+                            newColumn.IdentitySeed = 1;
 
                             Index index = MakeIndex(origIndexes, newTab, "K_" + tableName + "_" + SQLBase.IdentityColumn, SQLBase.IdentityColumn);
                             index.IndexKeyType = Microsoft.SqlServer.Management.Smo.IndexKeyType.DriUniqueKey;
