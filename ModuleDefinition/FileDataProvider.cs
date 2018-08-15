@@ -32,11 +32,18 @@ namespace YetaWF.DataProvider.File {
                 SerializableList<DesignedModule> list = new SerializableList<DesignedModule>();
                 List<Guid> modGuids = await GetListOfKeysAsync(BaseFolder);
                 foreach (var modGuid in modGuids) {
-                    ModuleDefinition mod = await GetAsync(modGuid);
-                    if (mod == null)
-                        throw new InternalError("No ModuleDefinition for guid {0}", modGuid);
-                    DesignedModule desMod = new DesignedModule() { ModuleGuid = modGuid, Name = mod.Name, Description = mod.Description, AreaName = mod.AreaName, };
-                    list.Add(desMod);
+                    ModuleDefinition mod = null;
+                    try {
+                        mod = await GetAsync(modGuid);
+                        if (mod == null)
+                            throw new InternalError("No ModuleDefinition for guid {0}", modGuid);
+                    } catch (Exception) {
+                        // ignore so we can load all modules
+                    }
+                    if (mod != null) {
+                        DesignedModule desMod = new DesignedModule() { ModuleGuid = modGuid, Name = mod.Name, Description = mod.Description, AreaName = mod.AreaName, };
+                        list.Add(desMod);
+                    }
                 }
                 return list;
             }
