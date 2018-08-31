@@ -492,6 +492,7 @@ FROM {fullTableName} WITH(NOLOCK)
         }
 
         protected async Task ReadSubTablesAsync(SQLHelper sqlHelper, SqlDataReader reader, string tableName, OBJTYPE container, List<PropertyData> propData, Type tpContainer) {
+
             List<SubTableInfo> subTables = GetSubTables(tableName, propData);
             foreach (SubTableInfo subTable in subTables) {
                 object subContainer = subTable.PropInfo.GetValue(container);
@@ -521,14 +522,14 @@ FROM {fullTableName} WITH(NOLOCK)
                 MethodInfo addMethod = subTable.PropInfo.PropertyType.GetMethod("Add", new Type[] { subTable.Type });
                 if (addMethod == null) throw new InternalError($"{nameof(ReadSubTablesMatchupAsync)} encountered a enumeration property that doesn't have an Add method");
 
-                do {
-                    while ((YetaWFManager.IsSync() ? reader.Read() : await reader.ReadAsync())) {
-                        int key = (int)reader[SubTableKeyColumn];
-                        object obj = sqlHelper.CreateObject(reader, subTable.Type);
-                        // find the container this subtable entry matches
-                        AddToContainer(containers, identities, subTable, obj, key, addMethod);
-                    }
-                } while ((YetaWFManager.IsSync() ? reader.NextResult() : await reader.NextResultAsync()));
+                while ((YetaWFManager.IsSync() ? reader.Read() : await reader.ReadAsync())) {
+                    int key = (int)reader[SubTableKeyColumn];
+                    object obj = sqlHelper.CreateObject(reader, subTable.Type);
+                    // find the container this subtable entry matches
+                    AddToContainer(containers, identities, subTable, obj, key, addMethod);
+                }
+                if (!(YetaWFManager.IsSync() ? reader.NextResult() : await reader.NextResultAsync()))
+                    break;
             }
         }
 
