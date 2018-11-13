@@ -82,7 +82,7 @@ namespace YetaWF.DataProvider.SQL {
             List<PropertyData> propData = ObjectSupport.GetPropertyData(tpContainer);
             foreach (PropertyData prop in propData) {
                 PropertyInfo pi = prop.PropInfo;
-                if (pi.CanRead && pi.CanWrite && !prop.HasAttribute(Data_DontSave.AttributeName) && !prop.HasAttribute("DontSave")) {
+                if (pi.CanRead && pi.CanWrite && !prop.HasAttribute("DontSave")) {
                     string colName = prefix + prop.Name;
                     if (prop.HasAttribute(Data_BinaryAttribute.AttributeName)) {
                         if (columns.Contains(colName)) {
@@ -124,7 +124,7 @@ namespace YetaWF.DataProvider.SQL {
                     } else if (columns.Contains(prefix + pi.Name)) {
                         object value = dr[prefix + pi.Name];
                         pi.SetValue(container, GetValue(pi.PropertyType, value), BindingFlags.Default, null, null, null);
-                    } else if (pi.PropertyType.IsClass && ComplexTypeInColumns(columns, colName + "_")) {// THis is SLOW so it should be last
+                    } else if (pi.PropertyType.IsClass && ComplexTypeInColumns(columns, colName + "_")) {// This is SLOW so it should be last
                         object propVal = pi.GetValue(container);
                         if (propVal != null)
                             FillObject(dr, propVal, columns, colName + "_");
