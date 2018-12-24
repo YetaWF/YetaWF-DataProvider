@@ -606,8 +606,10 @@ namespace YetaWF.DataProvider.SQL {
             sql = sql.Replace("{TableName}", SQLBuilder.WrapBrackets(tableName));
             if (SiteIdentity > 0)
                 sql = sql.Replace($"{{{SiteColumn}}}", $"[{SiteColumn}] = {SiteIdentity}");
-            int val = Convert.ToInt32(await sqlHelper.ExecuteScalarAsync(sql));
-            return val;
+            var o = await sqlHelper.ExecuteScalarAsync(sql);
+            if (o.GetType() == typeof(System.DBNull))
+                return 0;
+            return Convert.ToInt32(o);
         }
         public Task Direct_QueryAsync(string tableName, string sql) {
             return Direct_QueryAsync(tableName, sql, new object[] { });
