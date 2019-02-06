@@ -459,10 +459,6 @@ FROM {fullTableName} WITH(NOLOCK)
     SELECT * FROM {SQLBuilder.BuildFullTableName(Database, Dbo, subTable.Name)} WHERE {SQLBuilder.BuildFullColumnName(subTable.Name, SubTableKeyColumn)} = @ident ; --- result set
 ");
                 }
-                sb.Add(@"
-    FETCH NEXT FROM @MyCursor INTO @ident
-    ;
-");
             }
             return sb.ToString();
         }

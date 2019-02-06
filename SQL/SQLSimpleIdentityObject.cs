@@ -40,6 +40,7 @@ FROM {fullTableName} WITH(NOLOCK) {joins}
 WHERE {sqlHelper.Expr(IdentityName, "=", identity)} {AndSiteIdentity}  -- result set
 ;
 
+DECLARE @ident int = {identity};
 {subTablesSelects}
 
 {sqlHelper.DebugInfo}";
@@ -61,11 +62,11 @@ WHERE {sqlHelper.Expr(IdentityName, "=", identity)} {AndSiteIdentity}  -- result
             string fullTableName = SQLBuilder.GetTable(Database, Dbo, Dataset);
             List<PropertyData> propData = GetPropertyData();
 
-            string subTablesDeletes = SubTablesDeletes(fullTableName, propData, typeof(OBJTYPE));
+            string subTablesDeletes = SubTablesDeletes(Dataset, propData, typeof(OBJTYPE));
 
             string scriptMain = $@"
 DELETE
-FROM {fullTableName} 
+FROM {fullTableName}
 WHERE {sqlHelper.Expr(IdentityName, "=", identity)} {AndSiteIdentity}
 ;
 SELECT @@ROWCOUNT --- result set
@@ -76,7 +77,7 @@ SELECT @@ROWCOUNT --- result set
 DECLARE @ident int = {identity};
 
 DELETE
-FROM {fullTableName} 
+FROM {fullTableName}
 WHERE [{IdentityName}] = @ident
 ;
 SELECT @@ROWCOUNT --- result set
@@ -105,7 +106,7 @@ SELECT @@ROWCOUNT --- result set
             string subTablesUpdates = SubTablesUpdates(sqlHelper, Dataset, obj, propData, typeof(OBJTYPE));
 
             string scriptMain = $@"
-UPDATE {fullTableName} 
+UPDATE {fullTableName}
 SET {setColumns}
 WHERE {sqlHelper.Expr(IdentityName, "=", identity)} {AndSiteIdentity}
 ;
@@ -116,7 +117,7 @@ SELECT @@ROWCOUNT --- result set
             string scriptWithSub = $@"
 DECLARE @__IDENTITY int = {identity};
 
-UPDATE {fullTableName} 
+UPDATE {fullTableName}
 SET {setColumns}
 WHERE [{IdentityName}] = @__IDENTITY
 ;
