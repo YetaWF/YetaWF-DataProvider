@@ -42,10 +42,10 @@ namespace YetaWF.Core.Models.DataProvider {
             return GetLanguageFolder(package, MultiString.ActiveLanguage);
         }
         private string GetCustomLanguageFolder(Package package) {
-            return Path.Combine(YetaWFManager.RootFolderWebProject, LocalizationCustomFolder, MultiString.ActiveLanguage, package.Domain, package.Product);
+            return Path.Combine(YetaWFManager.RootFolderWebProject, LocalizationCustomFolder, MultiString.ActiveLanguage, package.LanguageDomain, package.Product);
         }
         private string GetLanguageFolder(Package package, string language) {
-            return Path.Combine(YetaWFManager.RootFolderWebProject, LocalizationFolder, language, package.Domain, package.Product);
+            return Path.Combine(YetaWFManager.RootFolderWebProject, LocalizationFolder, language, package.LanguageDomain, package.Product);
         }
 
         public LocalizationData Load(Package package, string type, LocalizationSupport.Location location) {
