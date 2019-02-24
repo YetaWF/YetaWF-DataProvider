@@ -1,7 +1,6 @@
 ﻿/* Copyright © 2019 Softel vdm, Inc. - https://yetawf.com/Documentation/YetaWF/Licensing */
 
 using System;
-using System.Collections;
 using System.Collections.Generic;
 using System.Data;
 using System.Data.SqlClient;
@@ -18,7 +17,7 @@ using YetaWF.Core.Support.Serializers;
 
 namespace YetaWF.DataProvider.SQL {
 
-    public class SQLHelper {
+    internal class SQLHelper {
 
         public SqlConnection SqlConnection;
         public SqlTransaction SqlTransaction;
@@ -286,7 +285,7 @@ namespace YetaWF.DataProvider.SQL {
         // EXPR
         // EXPR
 
-        public void AddWhereExpr(SQLBuilder sb, string tableName, List<DataProviderFilterInfo> filters, Dictionary<string, string> visibleColumns) {
+        internal void AddWhereExpr(SQLBuilder sb, string tableName, List<DataProviderFilterInfo> filters, Dictionary<string, string> visibleColumns) {
             List<DataProviderFilterInfo> list = new List<DataProviderFilterInfo>(filters);
             if (list.Count == 1 && list[0].Filters != null && list[0].Logic == "&&") {
                 // topmost entry is just one filter, remove it - it's redundant
@@ -382,13 +381,14 @@ namespace YetaWF.DataProvider.SQL {
             return sb.ToString();
         }
         /// <summary>
-        /// Add a parameter to a WHERE statement. Will generate ColumnName {Operator} 'Value' (quotes only added if it is a string)
+        /// Adds a parameter to a WHERE statement. Will generate ColumnName {Operator} 'Value' (quotes only added if it is a string)
         /// </summary>
+        /// <param name="sb">The SQLBuilder object that holds the current SQL statement.</param>
         /// <param name="wherecolumn">The name of the column</param>
-        /// <param name="operator">The operator, e.g. = <= LIKE <> etc.</param>
+        /// <param name="operator">The operator, e.g. = &lt;= LIKE &lt;&gt; etc.</param>
         /// <param name="value">The value. If it is a string it is properly escaped etc.</param>
         /// <param name="isSet">Identifies this comparison as a set statement. Needed for setting null values.</param>
-        protected void AddExpr(SQLBuilder sb, string wherecolumn, string @operator, object value, bool isSet = false) {
+        internal void AddExpr(SQLBuilder sb, string wherecolumn, string @operator, object value, bool isSet = false) {
             if (!wherecolumn.Contains(".") && !wherecolumn.StartsWith("["))
                 wherecolumn = SQLBuilder.WrapBrackets(wherecolumn);
 
@@ -432,6 +432,7 @@ namespace YetaWF.DataProvider.SQL {
         /// </summary>
         /// <param name="name">The name of the parameter</param>
         /// <param name="value">The value of the parameter</param>
+        /// <param name="direction">The direction of the parameter (input or output).</param>
         public void AddParam(string name, object value, ParameterDirection direction = ParameterDirection.Input)/*<<<*/ {
             if (name.StartsWith("@")) name = name.Substring(1);
 

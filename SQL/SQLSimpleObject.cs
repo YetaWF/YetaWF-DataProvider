@@ -410,14 +410,14 @@ FROM {fullTableName} WITH(NOLOCK)
             return recs;
         }
 
-        public class SubTableInfo {
+        internal class SubTableInfo {
             public string Name { get; set; }
             public Type Type { get; set; }
             public PropertyInfo PropInfo { get; set; } // the container's property that hold this subtable
         }
 
         // TODO: Could add caching
-        protected List<SubTableInfo> GetSubTables(string tableName, List<PropertyData> propData) {
+        internal List<SubTableInfo> GetSubTables(string tableName, List<PropertyData> propData) {
             List<SubTableInfo> list = new List<SubTableInfo>();
             foreach (PropertyData prop in propData) {
                 PropertyInfo pi = prop.PropInfo;
@@ -463,7 +463,7 @@ FROM {fullTableName} WITH(NOLOCK)
             return sb.ToString();
         }
 
-        protected string SubTablesSelectsUsingJoin(SQLHelper sqlHelper, string tableName, KEYTYPE key, List<PropertyData> propData, Type tpContainer, List<DataProviderFilterInfo> filters = null, Dictionary<string, string> visibleColumns = null) {
+        internal string SubTablesSelectsUsingJoin(SQLHelper sqlHelper, string tableName, KEYTYPE key, List<PropertyData> propData, Type tpContainer, List<DataProviderFilterInfo> filters = null, Dictionary<string, string> visibleColumns = null) {
             SQLBuilder sb = new SQLBuilder();
             List<SubTableInfo> subTables = GetSubTables(tableName, propData);
             if (subTables.Count > 0) {
@@ -487,7 +487,7 @@ FROM {fullTableName} WITH(NOLOCK)
             return sb.ToString();
         }
 
-        protected async Task ReadSubTablesAsync(SQLHelper sqlHelper, SqlDataReader reader, string tableName, OBJTYPE container, List<PropertyData> propData, Type tpContainer) {
+        internal async Task ReadSubTablesAsync(SQLHelper sqlHelper, SqlDataReader reader, string tableName, OBJTYPE container, List<PropertyData> propData, Type tpContainer) {
 
             List<SubTableInfo> subTables = GetSubTables(tableName, propData);
             foreach (SubTableInfo subTable in subTables) {
@@ -506,7 +506,7 @@ FROM {fullTableName} WITH(NOLOCK)
             }
         }
 
-        protected async Task ReadSubTablesMatchupAsync(SQLHelper sqlHelper, SqlDataReader reader, string tableName, List<OBJTYPE> containers, List<PropertyData> propData, Type tpContainer) {
+        internal async Task ReadSubTablesMatchupAsync(SQLHelper sqlHelper, SqlDataReader reader, string tableName, List<OBJTYPE> containers, List<PropertyData> propData, Type tpContainer) {
 
             // extract identities from container list so we can match sub-objects more easily
             List<int> identities = GetIdentities(containers);
@@ -556,7 +556,7 @@ FROM {fullTableName} WITH(NOLOCK)
             addMethod.Invoke(subContainer, new object[] { obj });
         }
 
-        protected string SubTablesInserts(SQLHelper sqlHelper, string tableName, object container, List<PropertyData> propData, Type tpContainer) {
+        internal string SubTablesInserts(SQLHelper sqlHelper, string tableName, object container, List<PropertyData> propData, Type tpContainer) {
             SQLBuilder sb = new SQLBuilder();
             List<SubTableInfo> subTables = GetSubTables(tableName, propData);
             foreach (SubTableInfo subTable in subTables) {
@@ -573,7 +573,7 @@ FROM {fullTableName} WITH(NOLOCK)
             }
             return sb.ToString();
         }
-        protected string SubTablesUpdates(SQLHelper sqlHelper, string tableName, object container, List<PropertyData> propData, Type tpContainer) {
+        internal string SubTablesUpdates(SQLHelper sqlHelper, string tableName, object container, List<PropertyData> propData, Type tpContainer) {
             SQLBuilder sb = new SQLBuilder();
             List<SubTableInfo> subTables = GetSubTables(tableName, propData);
             if (subTables.Count == 0) return null;

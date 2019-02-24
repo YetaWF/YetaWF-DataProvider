@@ -204,7 +204,7 @@ namespace YetaWF.DataProvider {
         /// <summary>
         /// Starts a transaction that can be committed, saving all updates, or aborted to abandon all updates.
         /// </summary>
-        /// <returns>Returns a DataProviderTransaction object.</returns>
+        /// <returns>Returns a YetaWF.Core.DataProvider.DataProviderTransaction object.</returns>
         /// <remarks>This method is defined for symmetry with other data providers, but file data providers do not support transactions.</remarks>
         public DataProviderTransaction StartTransaction() {
             throw new NotSupportedException($"{nameof(StartTransaction)} is not supported");

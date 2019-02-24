@@ -17,7 +17,7 @@ using YetaWF.DataProvider.SQL;
 
 namespace YetaWF.DataProvider {
 
-    public class SQLCreate {
+    internal class SQLCreate {
 
         public int IdentitySeed { get; private set; }
         public bool Logging { get; private set; }
@@ -345,8 +345,8 @@ namespace YetaWF.DataProvider {
                             bool success = CreateTable(db, dbOwner, subTableName, SQLBase.SubTableKeyColumn, null,
                                 HasIdentity(identityName) ? identityName : SQLBase.IdentityColumn, subPropData, subType, errorList, columns,
                                 TopMost: false,
-                                ForeignKeyTable: tableName, 
-                                SubTable: true, 
+                                ForeignKeyTable: tableName,
+                                SubTable: true,
                                 SiteSpecific: false);
                             if (!success)
                                 throw new InternalError("Creation of subtable failed");

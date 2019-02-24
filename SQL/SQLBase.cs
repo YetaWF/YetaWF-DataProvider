@@ -24,10 +24,10 @@ namespace YetaWF.DataProvider.SQL {
 
     public abstract class SQLBase : IDisposable, IDataProviderTransactions {
 
-        public static readonly string ExternalName = "SQL";
-
-        public const string DefaultString = "Default";
+        public const string ExternalName = "SQL";
         public const string SQLConnectString = "SQLConnect";
+
+        private const string DefaultString = "Default";
         private const string SQLDboString = "SQLDbo";
 
         public const string SiteColumn = "__Site";
@@ -37,7 +37,7 @@ namespace YetaWF.DataProvider.SQL {
         public Dictionary<string, object> Options { get; private set; }
 
         public Package Package { get; private set; }
-        public string WebConfigArea { get; set; }
+        public string WebConfigArea { get; private set; }
         public string Dataset { get; protected set; }
         public string Database { get; private set; }
         public string TypeName { get; protected set; }
@@ -54,7 +54,7 @@ namespace YetaWF.DataProvider.SQL {
         public string Dbo { get; private set; }
         public SqlConnection Conn { get; private set; }
 
-        public string AndSiteIdentity { get; private set; }
+        internal string AndSiteIdentity { get; private set; }
 
         private static object _lockObject = new object();
 
@@ -116,7 +116,7 @@ namespace YetaWF.DataProvider.SQL {
             }
         }
 
-        protected string GetSqlConnectionString() {
+        private string GetSqlConnectionString() {
             string connString = WebConfigHelper.GetValue<string>(string.IsNullOrWhiteSpace(WebConfigArea) ? Dataset : WebConfigArea, SQLConnectString);
             if (string.IsNullOrWhiteSpace(connString)) {
                 if (string.IsNullOrWhiteSpace(WebConfigArea))
@@ -133,7 +133,7 @@ namespace YetaWF.DataProvider.SQL {
             if (string.IsNullOrWhiteSpace(connString)) throw new InternalError($"No SQL connection string provided (also no default)");
             return connString;
         }
-        protected string GetSqlDbo() {
+        private string GetSqlDbo() {
             string dbo = WebConfigHelper.GetValue<string>(string.IsNullOrWhiteSpace(WebConfigArea) ? Dataset : WebConfigArea, SQLDboString);
             if (string.IsNullOrWhiteSpace(dbo)) {
                 if (string.IsNullOrWhiteSpace(WebConfigArea))
@@ -234,11 +234,18 @@ namespace YetaWF.DataProvider.SQL {
 
         private TransactionScope Trans { get; set; }
 
+        /// <summary>
+        /// Starts a transaction that can be committed, saving all updates, or aborted to abandon all updates.
+        /// </summary>
+        /// <returns>Returns a YetaWF.Core.DataProvider.DataProviderTransaction object.</returns>
         public DataProviderTransaction StartTransaction() {
             if (Trans != null) throw new InternalError("StartTransaction has already been called for this data provider");
             Trans = new TransactionScope(TransactionScopeOption.Required, new TransactionOptions { IsolationLevel = IsolationLevel.Serializable }, TransactionScopeAsyncFlowOption.Enabled);
             return new DataProviderTransaction(CommitTransactionAsync, AbortTransaction);
         }
+        /// <summary>
+        /// Commits a transaction, saving all updates.
+        /// </summary>
         public Task CommitTransactionAsync() {
             if (Trans == null) throw new InternalError("StartTransaction was not called for this data provider - nothing to commit");
             Trans.Complete();//TODO: Asyncify
@@ -246,6 +253,9 @@ namespace YetaWF.DataProvider.SQL {
             Trans = null;
             return Task.CompletedTask;
         }
+        /// <summary>
+        /// Aborts a transaction, abandoning all updates.
+        /// </summary>
         public void AbortTransaction() {
             if (Trans != null)
                 Trans.Dispose();
@@ -291,14 +301,13 @@ namespace YetaWF.DataProvider.SQL {
             }
             return sorts;
         }
-        public static string ColumnFromPropertyWithLanguage(string langId, string field) {
+        internal static string ColumnFromPropertyWithLanguage(string langId, string field) {
             return field + "_" + langId.Replace("-", "_");
         }
-        public static string GetLanguageSuffix() {
+        internal static string GetLanguageSuffix() {
             return ColumnFromPropertyWithLanguage(MultiString.ActiveLanguage, "");
         }
-
-        protected string MakeJoins(SQLHelper helper, List<JoinData> joins) {
+        internal string MakeJoins(SQLHelper helper, List<JoinData> joins) {
             SQLBuilder sb = new SQLBuilder();
             if (joins != null) {
                 foreach (JoinData join in joins) {
@@ -320,7 +329,7 @@ namespace YetaWF.DataProvider.SQL {
             }
             return sb.ToString();
         }
-        protected string MakeFilter(SQLHelper sqlHelper, List<DataProviderFilterInfo> filters, Dictionary<string, string> visibleColumns = null) {
+        internal string MakeFilter(SQLHelper sqlHelper, List<DataProviderFilterInfo> filters, Dictionary<string, string> visibleColumns = null) {
             SQLBuilder sb = new SQLBuilder();
             if (filters != null && filters.Count() > 0) {
                 if (SiteIdentity > 0)
@@ -336,8 +345,7 @@ namespace YetaWF.DataProvider.SQL {
             }
             return sb.ToString();
         }
-
-        protected string MakeColumnList(SQLHelper sqlHelper, Dictionary<string, string> visibleColumns, List<JoinData> joins) {
+        internal string MakeColumnList(SQLHelper sqlHelper, Dictionary<string, string> visibleColumns, List<JoinData> joins) {
             SQLBuilder sb = new SQLBuilder();
             if (joins != null && joins.Count > 0) {
                 foreach (string col in visibleColumns.Values) {
@@ -454,7 +462,7 @@ namespace YetaWF.DataProvider.SQL {
             sb.RemoveLastCharacter();// ,
             return sb.ToString();
         }
-        protected string GetValueList(SQLHelper sqlHelper, string tableName, object container, List<PropertyData> propData, Type tpContainer,
+        internal string GetValueList(SQLHelper sqlHelper, string tableName, object container, List<PropertyData> propData, Type tpContainer,
                 string prefix = "", bool topMost = false,
                 bool SiteSpecific = false,
                 Type DerivedType = null, string DerivedTableName = null,
@@ -537,7 +545,7 @@ namespace YetaWF.DataProvider.SQL {
             return sb.ToString();
         }
 
-        protected string SetColumns(SQLHelper sqlHelper, string tableName, List<PropertyData> propData, object container, Type tpContainer, string prefix = "", bool topMost = false, bool SiteSpecific = false) {
+        internal string SetColumns(SQLHelper sqlHelper, string tableName, List<PropertyData> propData, object container, Type tpContainer, string prefix = "", bool topMost = false, bool SiteSpecific = false) {
             SQLBuilder sb = new SQLBuilder();
             foreach (PropertyData prop in propData) {
                 PropertyInfo pi = prop.PropInfo;
@@ -601,8 +609,16 @@ namespace YetaWF.DataProvider.SQL {
         // DIRECT
         // DIRECT
 
-        public async Task<int> Direct_ScalarIntAsync(string tableName, string sql) {
+        /// <summary>
+        /// Executes the provided SQL statement(s) and returns a scalar integer.
+        /// </summary>
+        /// <param name="sql">The SQL statement(s).</param>
+        /// <returns>Returns a scalar integer.</returns>
+        /// <remarks>This is used by application data providers to build and execute complex queries that are not possible with the standard data providers.
+        /// Use of this method limits the application data provider to SQL repositories.</remarks>
+        public async Task<int> Direct_ScalarIntAsync(string sql) {
             SQLHelper sqlHelper = new SQLHelper(Conn, null, Languages);
+            string tableName = GetTableName();
             sql = sql.Replace("{TableName}", SQLBuilder.WrapBrackets(tableName));
             if (SiteIdentity > 0)
                 sql = sql.Replace($"{{{SiteColumn}}}", $"[{SiteColumn}] = {SiteIdentity}");
@@ -611,11 +627,33 @@ namespace YetaWF.DataProvider.SQL {
                 return 0;
             return Convert.ToInt32(o);
         }
-        public Task Direct_QueryAsync(string tableName, string sql) {
-            return Direct_QueryAsync(tableName, sql, new object[] { });
+        /// <summary>
+        /// Executes the provided SQL statement(s).
+        /// </summary>
+        /// <param name="sql">The SQL statement(s).</param>
+        /// <remarks>This is used by application data providers to build and execute complex queries that are not possible with the standard data providers.
+        /// Use of this method limits the application data provider to SQL repositories.
+        ///
+        /// When using arguments, they are referenced in the SQL statement(s) <paramref name="sql"/> using @p1, @p2, etc. where @p1 is replaced by the first optional argument, etc.
+        /// SQL injection attacks are not possible when using parameters.
+        /// </remarks>
+        public Task Direct_QueryAsync(string sql) {
+            return Direct_QueryAsync(sql, new object[] { });
         }
-        public async Task Direct_QueryAsync(string tableName, string sql, params object[] args) {
+        /// <summary>
+        /// Executes the provided SQL statement(s).
+        /// </summary>
+        /// <param name="sql">The SQL statement(s).</param>
+        /// <param name="args">Optional arguments that are passed when executing the SQL statements.</param>
+        /// <remarks>This is used by application data providers to build and execute complex queries that are not possible with the standard data providers.
+        /// Use of this method limits the application data provider to SQL repositories.
+        ///
+        /// When using arguments, they are referenced in the SQL statement(s) <paramref name="sql"/> using @p1, @p2, etc. where @p1 is replaced by the first optional argument.
+        /// SQL injection attacks are not possible when using parameters.
+        /// </remarks>
+        public async Task Direct_QueryAsync(string sql, params object[] args) {
             SQLHelper sqlHelper = new SQLHelper(Conn, null, Languages);
+            string tableName = GetTableName();
             int count = 0;
             foreach (object arg in args) {
                 ++count;
@@ -626,8 +664,15 @@ namespace YetaWF.DataProvider.SQL {
                 sql = sql.Replace($"{{{SiteColumn}}}", $"[{SiteColumn}] = {SiteIdentity}");
             await sqlHelper.ExecuteNonQueryAsync(sql);
         }
-        public async Task<List<TYPE>> Direct_QueryListAsync<TYPE>(string tableName, string sql) {
+        /// <summary>
+        /// Executes the provided SQL statement(s) and returns a collection of objects (one for each row retrieved).
+        /// </summary>
+        /// <param name="sql">The SQL statement(s).</param>
+        /// <remarks>This is used by application data providers to build and execute complex queries that are not possible with the standard data providers.
+        /// Use of this method limits the application data provider to SQL repositories.</remarks>
+        public async Task<List<TYPE>> Direct_QueryListAsync<TYPE>(string sql) {
             SQLHelper sqlHelper = new SQLHelper(Conn, null, Languages);
+            string tableName = GetTableName();
             sql = sql.Replace("{TableName}", SQLBuilder.WrapBrackets(tableName));
             if (SiteIdentity > 0)
                 sql = sql.Replace($"{{{SiteColumn}}}", $"[{SiteColumn}] = {SiteIdentity}");
@@ -639,28 +684,55 @@ namespace YetaWF.DataProvider.SQL {
             return list;
         }
 
+        // ISQLTableInfo
+        // ISQLTableInfo
+        // ISQLTableInfo
+
+        /// <summary>
+        /// Returns the SQL connection string used by the data provider.
+        /// </summary>
+        /// <returns>Returns the SQL connection string used by the data provider.</returns>
         public string GetConnectionString() {
             return ConnectionString;
         }
-
+        /// <summary>
+        /// Returns the database name used by the data provider.
+        /// </summary>
+        /// <returns>Returns the SQL database name used by the data provider.</returns>
+        public string GetDatabaseName() {
+            return Database;
+        }
+        /// <summary>
+        /// Returns the database owner used by the data provider.
+        /// </summary>
+        /// <returns>Returns the database owner used by the data provider.</returns>
         public string GetDbOwner() {
             return Dbo;
         }
-
+        /// <summary>
+        /// Returns the table name used by the data provider.
+        /// </summary>
+        /// <returns>Returns the table name used by the data provider.</returns>
         public string GetTableName() {
             return SQLBuilder.BuildFullTableName(Database, Dbo, Dataset);
         }
-
+        /// <summary>
+        /// Replaces search text in a SQL string fragment with the table name used by the data provider.
+        /// </summary>
+        /// <param name="text">A SQL fragment where occurrences of <paramref name="searchText"/> are replaced by the table name used by the data provider.</param>
+        /// <param name="searchText">The text searched in <paramref name="text"/> that is replaced by the table name used by the data provider.</param>
+        /// <returns>Returns the SQL string fragment with <paramref name="searchText"/> replaced by the table name used by the data provider.</returns>
         public string ReplaceWithTableName(string text, string searchText) {
             return text.Replace(searchText, GetTableName());
         }
-
+        /// <summary>
+        /// Replaces search text in a SQL string fragment with the language used by the data provider.
+        /// </summary>
+        /// <param name="text">A SQL fragment where occurrences of <paramref name="searchText"/> are replaced by the language used by the data provider.</param>
+        /// <param name="searchText">The text searched in <paramref name="text"/> that is replaced by the language used by the data provider.</param>
+        /// <returns>Returns the SQL string fragment with <paramref name="searchText"/> replaced by the language used by the data provider.</returns>
         public string ReplaceWithLanguage(string text, string searchText) {
             return text.Replace(searchText, GetLanguageSuffix());
-        }
-
-        public string GetDatabaseName() {
-            return Database;
         }
     }
 }
