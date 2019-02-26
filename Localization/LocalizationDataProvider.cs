@@ -6,25 +6,40 @@ using System.Linq;
 using System.Threading.Tasks;
 using YetaWF.Core.IO;
 using YetaWF.Core.Localize;
+using YetaWF.Core.Models;
 using YetaWF.Core.Packages;
 using YetaWF.Core.Serializers;
 using YetaWF.Core.Support;
 using YetaWF.Core.Support.Serializers;
 
-namespace YetaWF.Core.Models.DataProvider {
+namespace YetaWF.DataProvider.Localization {
 
+    /// <summary>
+    /// This class is used to install the required localization data provider support during application startup, by setting properties in the static class YetaWF.Core.IO.Localization class.
+    /// This class implements the support to load and save localization files in the .\Localization and .\LocalizationCustom folders.
+    /// </summary>
+    /// <remarks>This class should not be instantiated and has no callable methods.
+    /// It installs the localization load/save support in the framework's core YetaWF.Core.IO.Localization class during application startup.
+    ///
+    /// The localization data provider's load/save methods cache all localization data as needed (lazy loading).
+    /// </remarks>
     public class LocalizationDataProvider : IInitializeApplicationStartup {
 
         private static GeneralFormatter.Style LocalizationFormat = GeneralFormatter.Style.JSON;
 
-        protected YetaWFManager Manager { get { return YetaWFManager.Manager; } }
-        protected bool HaveManager { get { return YetaWFManager.HaveManager; } }
+        internal YetaWFManager Manager { get { return YetaWFManager.Manager; } }
+        internal bool HaveManager { get { return YetaWFManager.HaveManager; } }
 
+        /// <summary>
+        /// Called during application startup.
+        ///
+        /// Installs all required methods to load/save localization resources.
+        /// </summary>
         public Task InitializeApplicationStartupAsync() {
-            LocalizationSupport.Load = Load;
-            LocalizationSupport.SaveAsync = SaveAsync;
-            LocalizationSupport.ClearPackageDataAsync = ClearPackageDataAsync;
-            LocalizationSupport.GetFilesAsync = GetFilesAsync;
+            YetaWF.Core.IO.Localization.Load = Load;
+            YetaWF.Core.IO.Localization.SaveAsync = SaveAsync;
+            YetaWF.Core.IO.Localization.ClearPackageDataAsync = ClearPackageDataAsync;
+            YetaWF.Core.IO.Localization.GetFilesAsync = GetFilesAsync;
             return Task.CompletedTask;
         }
 
@@ -48,10 +63,10 @@ namespace YetaWF.Core.Models.DataProvider {
             return Path.Combine(YetaWFManager.RootFolderWebProject, LocalizationFolder, language, package.LanguageDomain, package.Product);
         }
 
-        private LocalizationData Load(Package package, string type, LocalizationSupport.Location location) {
+        private LocalizationData Load(Package package, string type, YetaWF.Core.IO.Localization.Location location) {
 
             YetaWFManager manager;
-            if (location == LocalizationSupport.Location.Merge) {
+            if (location == YetaWF.Core.IO.Localization.Location.Merge) {
                 if (!LocalizationSupport.UseLocalizationResources || !YetaWFManager.HaveManager)
                     return null;// maybe too soon or async
                 manager = YetaWFManager.Manager;
@@ -67,7 +82,7 @@ namespace YetaWF.Core.Models.DataProvider {
             file = file.Trim(new char[] { '_' }); // generated templates have classes starting or ending in _
 
             // check if we have this cached
-            if (location == LocalizationSupport.Location.Merge && package.CachedLocalization != null) {
+            if (location == YetaWF.Core.IO.Localization.Location.Merge && package.CachedLocalization != null) {
                 Dictionary<string, LocalizationData> cachedFiles = (Dictionary<string, LocalizationData>) package.CachedLocalization;
                 LocalizationData localizationData = null;
                 if (cachedFiles.TryGetValue(MakeKey(file), out localizationData))
@@ -81,7 +96,7 @@ namespace YetaWF.Core.Models.DataProvider {
 
                 switch (location) {
                     default:
-                    case LocalizationSupport.Location.DefaultResources:
+                    case YetaWF.Core.IO.Localization.Location.DefaultResources:
                         fd = new FileData<LocalizationData> {
                             BaseFolder = defaultLanguageFolder,
                             FileName = file,
@@ -90,7 +105,7 @@ namespace YetaWF.Core.Models.DataProvider {
                         };
                         data = await fd.LoadAsync();
                         break;
-                    case LocalizationSupport.Location.InstalledResources:
+                    case YetaWF.Core.IO.Localization.Location.InstalledResources:
                         fd = new FileData<LocalizationData> {
                             BaseFolder = activeLanguageFolder,
                             FileName = file,
@@ -99,7 +114,7 @@ namespace YetaWF.Core.Models.DataProvider {
                         };
                         data = await fd.LoadAsync();
                         break;
-                    case LocalizationSupport.Location.CustomResources: {
+                    case YetaWF.Core.IO.Localization.Location.CustomResources: {
                             fd = new FileData<LocalizationData> {
                                 BaseFolder = customLanguageFolder,
                                 FileName = file,
@@ -109,7 +124,7 @@ namespace YetaWF.Core.Models.DataProvider {
                             data = await fd.LoadAsync();
                             break;
                         }
-                    case LocalizationSupport.Location.Merge: {
+                    case YetaWF.Core.IO.Localization.Location.Merge: {
                             LocalizationData newData = null;
                             fd = new FileData<LocalizationData> {
                                 BaseFolder = customLanguageFolder,
@@ -203,7 +218,7 @@ namespace YetaWF.Core.Models.DataProvider {
                 }
             }
         }
-        private async Task SaveAsync(Package package, string type, LocalizationSupport.Location location, LocalizationData data) {
+        private async Task SaveAsync(Package package, string type, YetaWF.Core.IO.Localization.Location location, LocalizationData data) {
             if (!Startup.Started || !HaveManager) throw new InternalError("Can't save resource files during startup");
             if (!Manager.LocalizationSupportEnabled) throw new InternalError("Can't save resource files during startup");
 
@@ -223,7 +238,7 @@ namespace YetaWF.Core.Models.DataProvider {
 
             FileData<LocalizationData> fd;
             if (data == null) {
-                if (location == LocalizationSupport.Location.CustomResources) {
+                if (location == YetaWF.Core.IO.Localization.Location.CustomResources) {
                     fd = new FileData<LocalizationData> {
                         BaseFolder = customLanguageFolder,
                         FileName = file,
@@ -231,7 +246,7 @@ namespace YetaWF.Core.Models.DataProvider {
                         Cacheable = false,
                     };
                     await fd.TryRemoveAsync();
-                } else if (location == LocalizationSupport.Location.InstalledResources && MultiString.ActiveLanguage != MultiString.DefaultLanguage) {
+                } else if (location == YetaWF.Core.IO.Localization.Location.InstalledResources && MultiString.ActiveLanguage != MultiString.DefaultLanguage) {
                     fd = new FileData<LocalizationData> {
                         BaseFolder = activeLanguageFolder,
                         FileName = file,
@@ -256,7 +271,7 @@ namespace YetaWF.Core.Models.DataProvider {
 
                 switch (location) {
                     default:
-                    case LocalizationSupport.Location.DefaultResources: {
+                    case YetaWF.Core.IO.Localization.Location.DefaultResources: {
                         fd = new FileData<LocalizationData> {
                             BaseFolder = defaultLanguageFolder,
                             FileName = file,
@@ -265,7 +280,7 @@ namespace YetaWF.Core.Models.DataProvider {
                         };
                         break;
                     }
-                    case LocalizationSupport.Location.InstalledResources: {
+                    case YetaWF.Core.IO.Localization.Location.InstalledResources: {
                         fd = new FileData<LocalizationData> {
                             BaseFolder = activeLanguageFolder,
                             FileName = file,
@@ -274,7 +289,7 @@ namespace YetaWF.Core.Models.DataProvider {
                         };
                         break;
                     }
-                    case LocalizationSupport.Location.CustomResources: {
+                    case YetaWF.Core.IO.Localization.Location.CustomResources: {
                         fd = new FileData<LocalizationData> {
                             BaseFolder = customLanguageFolder,
                             FileName = file,
@@ -283,7 +298,7 @@ namespace YetaWF.Core.Models.DataProvider {
                         };
                         break;
                     }
-                    case LocalizationSupport.Location.Merge:
+                    case YetaWF.Core.IO.Localization.Location.Merge:
                         throw new InternalError("Merge can't be used when saving");
                 }
                 await fd.TryRemoveAsync();
