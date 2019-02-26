@@ -21,7 +21,7 @@ using Microsoft.Extensions.Caching.Memory;
 namespace YetaWF.DataProvider {
 
     /// <summary>
-    /// This class is used to install the required module repository support during application startup
+    /// This class is used to install the required module repository support during application startup, by setting properties in the static class YetaWF.Core.IO.Module.
     /// </summary>
     /// <remarks>This class should not be instantiated and has no callable methods.</remarks>
     public class GenericModuleDefinitionDataProviderImpl : IInitializeApplicationStartup {
@@ -36,12 +36,12 @@ namespace YetaWF.DataProvider {
         /// Installs all required methods to load/save/retrieve modules.
         /// </summary>
         public Task InitializeApplicationStartupAsync() {
-            ModuleDefinition.LoadModuleDefinitionAsync = LoadModuleDefinitionAsync;
-            ModuleDefinition.SaveModuleDefinitionAsync = SaveModuleDefinitionAsync;
-            ModuleDefinition.RemoveModuleDefinitionAsync = RemoveModuleDefinitionAsync;
+            Module.LoadModuleDefinitionAsync = LoadModuleDefinitionAsync;
+            Module.SaveModuleDefinitionAsync = SaveModuleDefinitionAsync;
+            Module.RemoveModuleDefinitionAsync = RemoveModuleDefinitionAsync;
             DesignedModules.LoadDesignedModulesAsync = LoadDesignedModulesAsync;
-            ModuleDefinition.GetModulesAsync = GetModulesAsync;
-            ModuleDefinition.LockModuleAsync = LockModuleAsync;
+            Module.GetModulesAsync = GetModulesAsync;
+            Module.LockModuleAsync = LockModuleAsync;
             return Task.CompletedTask;
         }
 
@@ -95,7 +95,7 @@ namespace YetaWF.DataProvider {
                 }
             }
         }
-        private async Task GetModulesAsync(ModuleDefinition.ModuleBrowseInfo info) {
+        private async Task GetModulesAsync(Module.ModuleBrowseInfo info) {
             using (GenericModuleDefinitionDataProvider modDP = new GenericModuleDefinitionDataProvider()) {
                 DataProviderGetRecords<ModuleDefinition> recs = await modDP.GetModulesAsync(info.Skip, info.Take, info.Sort, info.Filters);
                 info.Modules = recs.Data;
@@ -130,7 +130,6 @@ namespace YetaWF.DataProvider {
             }
         }
 
-        //$$$$$$ THIS DOES NOT REMOVE THE DERIVED PORTION
         private async Task<bool> RemoveModuleDefinitionAsync(Guid guid) {
             using (GenericModuleDefinitionDataProvider modDP = new GenericModuleDefinitionDataProvider()) {
                 using (ILockObject lockObject = await modDP.LockDesignedModulesAsync()) {
