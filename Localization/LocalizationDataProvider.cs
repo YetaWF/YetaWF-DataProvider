@@ -32,8 +32,8 @@ namespace YetaWF.Core.Models.DataProvider {
         // API
         // API
 
-        public const string LocalizationFolder = "Localization";
-        public const string LocalizationCustomFolder = "LocalizationCustom";
+        private const string LocalizationFolder = "Localization";
+        private const string LocalizationCustomFolder = "LocalizationCustom";
 
         private string GetDefaultLanguageFolder(Package package) {
             return GetLanguageFolder(package, MultiString.DefaultLanguage);
@@ -48,7 +48,7 @@ namespace YetaWF.Core.Models.DataProvider {
             return Path.Combine(YetaWFManager.RootFolderWebProject, LocalizationFolder, language, package.LanguageDomain, package.Product);
         }
 
-        public LocalizationData Load(Package package, string type, LocalizationSupport.Location location) {
+        private LocalizationData Load(Package package, string type, LocalizationSupport.Location location) {
 
             YetaWFManager manager;
             if (location == LocalizationSupport.Location.Merge) {
@@ -203,7 +203,7 @@ namespace YetaWF.Core.Models.DataProvider {
                 }
             }
         }
-        public async Task SaveAsync(Package package, string type, LocalizationSupport.Location location, LocalizationData data) {
+        private async Task SaveAsync(Package package, string type, LocalizationSupport.Location location, LocalizationData data) {
             if (!Startup.Started || !HaveManager) throw new InternalError("Can't save resource files during startup");
             if (!Manager.LocalizationSupportEnabled) throw new InternalError("Can't save resource files during startup");
 
@@ -303,7 +303,7 @@ namespace YetaWF.Core.Models.DataProvider {
                 await fd.RemoveAsync();
             }
         }
-        public async Task<List<string>> GetFilesAsync(Package package, string language, bool rawName) {
+        private async Task<List<string>> GetFilesAsync(Package package, string language, bool rawName) {
             string path = GetLanguageFolder(package, language);
             List<string> files = new List<string>();
             if (await FileSystem.FileSystemProvider.DirectoryExistsAsync(path)) {
