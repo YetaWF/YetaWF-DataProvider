@@ -10,18 +10,51 @@ using YetaWF.Core.Support;
 
 namespace YetaWF.DataProvider.SQL {
 
+    /// <summary>
+    /// This class implements access to objects (records), with a primary and secondary key (composite) and with an identity column.
+    /// </summary>
     public partial class SQLSimple2IdentityObject<KEYTYPE, KEYTYPE2, OBJTYPE> : SQLSimpleIdentityObjectBase<KEYTYPE, KEYTYPE2, OBJTYPE> {
+
+        /// <summary>
+        /// Constructor.
+        /// </summary>
+        /// <param name="options">A dictionary of options and optional parameters as provided to the YetaWF.Core.DataProvider.DataProviderImpl.MakeDataProvider method when the data provider is created.</param>
+        /// <remarks>
+        /// Data providers are instantiated when the YetaWF.Core.DataProvider.DataProviderImpl.MakeDataProvider method is called, usually by an application data provider.
+        /// </remarks>
         public SQLSimple2IdentityObject(Dictionary<string, object> options) : base(options, HasKey2: true) { }
+
     }
+    /// <summary>
+    /// This class implements access to objects (records), with one primary key and with an identity column.
+    /// </summary>
     public partial class SQLSimpleIdentityObject<KEYTYPE, OBJTYPE> : SQLSimpleIdentityObjectBase<KEYTYPE, object, OBJTYPE> {
+
+        /// <summary>
+        /// Constructor.
+        /// </summary>
+        /// <param name="options">A dictionary of options and optional parameters as provided to the YetaWF.Core.DataProvider.DataProviderImpl.MakeDataProvider method when the data provider is created.</param>
+        /// <remarks>
+        /// Data providers are instantiated when the YetaWF.Core.DataProvider.DataProviderImpl.MakeDataProvider method is called, usually by an application data provider.
+        /// </remarks>
         public SQLSimpleIdentityObject(Dictionary<string, object> options) : base(options) { }
     }
+
+    /// <summary>
+    /// This base class implements access to objects, with a primary and secondary key (composite) and with an identity column.
+    /// This base class is not intended for use by application data providers. These use one of the more specialized derived classes instead.
+    /// </summary>
     public partial class SQLSimpleIdentityObjectBase<KEYTYPE, KEYTYPE2, OBJTYPE> : SQLSimpleObjectBase<KEYTYPE, KEYTYPE2, OBJTYPE>, IDataProviderIdentity<KEYTYPE, KEYTYPE2, OBJTYPE> {
 
-        public SQLSimpleIdentityObjectBase(Dictionary<string, object> options, bool HasKey2 = false) : base(options) {
+        internal SQLSimpleIdentityObjectBase(Dictionary<string, object> options, bool HasKey2 = false) : base(options) {
             this.HasKey2 = HasKey2;
         }
 
+        /// <summary>
+        /// Retrieves one record from the database table that satisfies the specified identity <paramref name="identity"/>.
+        /// </summary>
+        /// <param name="identity">The identity value.</param>
+        /// <returns>Returns the record that satisfies the specified identity value. If no record exists null is returned.</returns>
         public async Task<OBJTYPE> GetByIdentityAsync(int identity) {
 
             SQLHelper sqlHelper = new SQLHelper(Conn, null, Languages);
@@ -55,6 +88,11 @@ DECLARE @ident int = {identity};
             }
         }
 
+        /// <summary>
+        /// Removes an existing record with the specified identity value.
+        /// </summary>
+        /// <param name="identity">The identity value of the record to remove.</param>
+        /// <returns>Returns true if the record was removed, or false if the record was not found. Other errors cause an exception.</returns>
         public async Task<bool> RemoveByIdentityAsync(int identity) {
 
             SQLHelper sqlHelper = new SQLHelper(Conn, null, Languages);
@@ -95,6 +133,13 @@ SELECT @@ROWCOUNT --- result set
             return deleted > 0;
         }
 
+        /// <summary>
+        /// Updates an existing record with the specified existing identity value <paramref name="identity"/> in the database table.
+        /// The primary/secondary keys can be changed in the object.
+        /// </summary>
+        /// <param name="identity">The identity value of the record.</param>
+        /// <param name="obj">The object being updated.</param>
+        /// <returns>Returns a status indicator.</returns>
         public async Task<UpdateStatusEnum> UpdateByIdentityAsync(int identity, OBJTYPE obj) {
 
             SQLHelper sqlHelper = new SQLHelper(Conn, null, Languages);

@@ -47,6 +47,7 @@ namespace YetaWF.DataProvider {
 
     /// <summary>
     /// The base class for the file data provider.
+    /// This base class is not intended for use by application data providers. These use one of the more specialized derived classes instead.
     /// </summary>
     public class FileDataProviderBase {
         /// <summary>
@@ -89,6 +90,8 @@ namespace YetaWF.DataProvider {
         public string BaseFolder { get; private set; }
         /// <summary>
         /// The site identity provided to the YetaWF.Core.DataProvider.DataProviderImpl.MakeDataProvider method when the data provider was created.
+        ///
+        /// This may be 0 if no specific site is associated with the data provider.
         /// </summary>
         public int SiteIdentity { get; private set; }
         /// <summary>
@@ -109,7 +112,7 @@ namespace YetaWF.DataProvider {
         /// Defines whether logging is wanted for the data provider. The default value is false, but this can be overridden by passing an
         /// optional Logging parameter to the YetaWF.Core.DataProvider.DataProviderImpl.MakeDataProvider method when the data provider is created.
         ///
-        /// This does not appear to be used at this time by any data provider.
+        /// This does not appear to be used at this time by this data provider.
         /// </summary>
         public bool Logging { get; private set; }
 
@@ -331,7 +334,7 @@ namespace YetaWF.DataProvider {
             return await fd.AddAsync(obj);
         }
         /// <summary>
-        /// Updates an existing record.
+        /// Updates an existing record with the specified primary key.
         /// </summary>
         /// <param name="origKey">The original primary key value of the record.</param>
         /// <param name="newKey">The new primary key value of the record. This may be the same value as <paramref name="origKey"/>. </param>
@@ -345,10 +348,10 @@ namespace YetaWF.DataProvider {
             return await fd.UpdateFileAsync(newKey.ToString(), obj);
         }
         /// <summary>
-        /// Removes an existing record.
+        /// Removes an existing record with the specified primary key.
         /// </summary>
         /// <param name="key">The primary key value of the record to remove.</param>
-        /// <returns>true if the record was remove, or false if the record was not found. Other errors cause an exception.</returns>
+        /// <returns>Returns true if the record was removed, or false if the record was not found. Other errors cause an exception.</returns>
         public async Task<bool> RemoveAsync(KEYTYPE key) {
             FileData<OBJTYPE> fd = GetFileDataObject(key);
             return await fd.TryRemoveAsync();
@@ -389,7 +392,7 @@ namespace YetaWF.DataProvider {
             return await UpdateCalculatedPropertiesAsync(objs.Data.FirstOrDefault());
         }
         /// <summary>
-        /// Retrieves a collection of record using filtering criteria with sorting, with support for paging.
+        /// Retrieves a collection of records using filtering criteria with sorting, with support for paging.
         /// </summary>
         /// <param name="skip">The number of records to skip.</param>
         /// <param name="take">The number of records to retrieve. If more records are available they are dropped.</param>
@@ -657,7 +660,8 @@ namespace YetaWF.DataProvider {
         ///
         /// The YetaWF.Core.Models.ObjectSupport.TranslateObject method can be used to translate all YetaWF.Core.Models.MultiString instances.
         ///
-        /// The translated data should be stored separately from the default language (except YetaWF.Core.Models.MultiString, which is part of the record). Using the <paramref name="language"/> parameter, a different folder should be used to store the translated data.
+        /// The translated data should be stored separately from the default language (except YetaWF.Core.Models.MultiString, which is part of the record).
+        /// Using the <paramref name="language"/> parameter, a different folder should be used to store the translated data.
         /// </remarks>
         public async Task LocalizeModelAsync(string language,
                 Func<string, bool> isHtml,

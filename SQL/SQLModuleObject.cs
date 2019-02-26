@@ -17,8 +17,19 @@ using YetaWF.Core.Support;
 
 namespace YetaWF.DataProvider.SQL {
 
-    public partial class SQLModuleObject<KEY, OBJTYPE> : SQLSimpleObject<KEY, OBJTYPE>, IDataProvider<KEY, OBJTYPE> {
+    /// <summary>
+    /// This class implements the base functionality to access the repository containing YetaWF modules.
+    /// It is only used by the YetaWF.DataProvider.ModuleDefinition package and is not intended for application use.
+    /// </summary>
+    public class SQLModuleObject<KEY, OBJTYPE> : SQLSimpleObject<KEY, OBJTYPE>, IDataProvider<KEY, OBJTYPE> {
 
+        /// <summary>
+        /// Constructor.
+        /// </summary>
+        /// <param name="options">A dictionary of options and optional parameters as provided to the YetaWF.Core.DataProvider.DataProviderImpl.MakeDataProvider method when the data provider is created.</param>
+        /// <remarks>
+        /// Data providers are instantiated when the YetaWF.Core.DataProvider.DataProviderImpl.MakeDataProvider method is called, usually by an application data provider.
+        /// </remarks>
         public SQLModuleObject(Dictionary<string, object> options) : base(options) {
             if (typeof(KEY) != typeof(Guid)) throw new InternalError("Only Guid is supported as Key");
             BaseDataset = ModuleDefinition.BaseFolderName;
@@ -26,8 +37,18 @@ namespace YetaWF.DataProvider.SQL {
                 Dataset = ModuleDefinition.BaseFolderName + "_" + Package.AreaName + "_" + typeof(OBJTYPE).Name;
         }
 
+        /// <summary>
+        /// Defines the base dataset for base module definitions.
+        /// </summary>
+        /// <remarks>All modules classes are derived from YetaWF.Core.Modules.ModuleDefinition. The data of the base class (YetaWF.Core.Modules.ModuleDefinition) is stored in the
+        /// data provider's dataset defined by BaseDataset. All data for the derived class is stored in the data provider's dataset defined by Dataset.</remarks>
         public string BaseDataset { get; protected set; }
 
+        /// <summary>
+        /// Retrieves one record from the database table that satisfies the specified primary key <paramref name="key"/>.
+        /// </summary>
+        /// <param name="key">The primary key value.</param>
+        /// <returns>Returns the record that satisfies the specified primary key. If no record exists null is returned.</returns>
         public new async Task<OBJTYPE> GetAsync(KEY key) {
 
             SQLHelper sqlHelper = new SQLHelper(Conn, null, Languages);
@@ -94,6 +115,14 @@ WHERE {sqlHelper.Expr($"A.[{Key1Name}]", " =", key)} AND A.[{SiteColumn}] = {Sit
             }
         }
 
+        /// <summary>
+        /// Adds a new record to the database table.
+        /// </summary>
+        /// <param name="obj">The record data.</param>
+        /// <returns>Returns true if successful, false if a record with the primary (and secondary) key values already exists.
+        ///
+        /// For all other errors, an exception occurs.
+        /// </returns>
         public new async Task<bool> AddAsync(OBJTYPE obj) {
             if (Dataset == BaseDataset) throw new InternalError("Only derived types are supported");
 
@@ -135,6 +164,14 @@ VALUES ({values})
             return true;
         }
 
+        /// <summary>
+        /// Updates an existing record with the specified existing primary key <paramref name="origKey"/> in the database table.
+        /// The primary key can be changed to the new value in <paramref name="newKey"/>.
+        /// </summary>
+        /// <param name="origKey">The original primary key value of the record.</param>
+        /// <param name="newKey">The new primary key value of the record. This may be the same value as <paramref name="origKey"/>. </param>
+        /// <param name="obj">The object being updated.</param>
+        /// <returns>Returns a status indicator.</returns>
         public new async Task<UpdateStatusEnum> UpdateAsync(KEY origKey, KEY newKey, OBJTYPE obj) {
             if (Dataset == BaseDataset) throw new InternalError("Only derived types are supported");
 
@@ -183,6 +220,11 @@ WHERE {sqlHelper.Expr(Key1Name, "=", origKey)} {AndSiteIdentity}
             return UpdateStatusEnum.OK;
         }
 
+        /// <summary>
+        /// Removes an existing record with the specified primary key.
+        /// </summary>
+        /// <param name="key">The primary key value of the record to remove.</param>
+        /// <returns>Returns true if the record was removed, or false if the record was not found. Other errors cause an exception.</returns>
         public new async Task<bool> RemoveAsync(KEY key) {
             if (Dataset != BaseDataset) throw new InternalError("Only base types are supported");
 
@@ -227,10 +269,29 @@ DROP TABLE #BASETABLE
             return deleted > 0;
         }
 
+        /// <summary>
+        /// Retrieves one record using filtering criteria.
+        /// </summary>
+        /// <param name="filters">A collection describing the filtering criteria.</param>
+        /// <param name="Joins">A collection describing the dataset joins.</param>
+        /// <returns>If more than one record match the filtering criteria, the first one is returned.
+        /// If no record matches, null is returned.</returns>
+        /// <remarks>
+        /// This is not implemented as it is not required for module storage.
+        /// </remarks>
         public new Task<OBJTYPE> GetOneRecordAsync(List<DataProviderFilterInfo> filters, List<JoinData> Joins = null) {
             throw new NotImplementedException();
         }
 
+        /// <summary>
+        /// Retrieves a collection of records using filtering criteria with sorting, with support for paging.
+        /// </summary>
+        /// <param name="skip">The number of records to skip.</param>
+        /// <param name="take">The number of records to retrieve. If more records are available they are dropped.</param>
+        /// <param name="sorts">A collection describing the sort order.</param>
+        /// <param name="filters">A collection describing the filtering criteria.</param>
+        /// <param name="Joins">A collection describing the dataset joins.</param>
+        /// <returns>Returns a YetaWF.Core.DataProvider.DataProviderGetRecords object describing the data returned.</returns>
         public new async Task<DataProviderGetRecords<OBJTYPE>> GetRecordsAsync(int skip, int take, List<DataProviderSortInfo> sorts, List<DataProviderFilterInfo> filters, List<JoinData> Joins = null) {
             if (Dataset == BaseDataset) {
                 // we're reading the base table
@@ -297,18 +358,26 @@ WHERE {fullBaseTableName}.[DerivedDataTableName] = '{Dataset}' AND {fullBaseTabl
             }
         }
 
+        /// <summary>
+        /// Removes records using filtering criteria.
+        /// </summary>
+        /// <param name="filters">A collection describing the filtering criteria.</param>
+        /// <returns>Returns the number of records removed.</returns>
+        /// <remarks>
+        /// This is not implemented as it is not required for module storage.
+        /// </remarks>
         public new Task<int> RemoveRecordsAsync(List<DataProviderFilterInfo> filters) {
             throw new NotImplementedException();
         }
 
-        protected List<PropertyData> GetBasePropertyData() {
+        internal List<PropertyData> GetBasePropertyData() {
             if (_basePropertyData == null)
                 _basePropertyData = ObjectSupport.GetPropertyData(typeof(ModuleDefinition));
             return _basePropertyData;
         }
         private static List<PropertyData> _basePropertyData;
 
-        protected new List<PropertyData> GetPropertyData() {
+        internal new List<PropertyData> GetPropertyData() {
             if (_propertyData == null) {
                 List<PropertyData> propData = ObjectSupport.GetPropertyData(typeof(OBJTYPE));
                 // subtract all properties that are already defined in the base type
@@ -333,6 +402,10 @@ WHERE {fullBaseTableName}.[DerivedDataTableName] = '{Dataset}' AND {fullBaseTabl
         // IINSTALLMODEL
         // IINSTALLMODEL
 
+        /// <summary>
+        /// Returns whether the data provider is installed and available.
+        /// </summary>
+        /// <returns>true if the data provider is installed and available, false otherwise.</returns>
         public new Task<bool> IsInstalledAsync() {
             if (!SQLCache.HasTable(Conn, ConnectionString, Database, BaseDataset))
                 return Task.FromResult(false);
@@ -343,6 +416,14 @@ WHERE {fullBaseTableName}.[DerivedDataTableName] = '{Dataset}' AND {fullBaseTabl
             return Task.FromResult(true);
         }
 
+        /// <summary>
+        /// Installs all data models (files, tables, etc.) for the data provider.
+        /// </summary>
+        /// <param name="errorList">A collection of error strings in user displayable format.</param>
+        /// <returns>true if the models were created successfully, false otherwise.
+        /// If the models could not be created, <paramref name="errorList"/> contains the reason for the failure.</returns>
+        /// <remarks>
+        /// While a package is installed, all data models are installed by calling the InstallModelAsync method.</remarks>
         public new Task<bool> InstallModelAsync(List<string> errorList) {
             if (Dataset == BaseDataset) throw new InternalError("Base dataset is not supported");
             bool success = false;
@@ -366,6 +447,14 @@ WHERE {fullBaseTableName}.[DerivedDataTableName] = '{Dataset}' AND {fullBaseTabl
                 ForeignKeyTable: BaseDataset);
         }
 
+        /// <summary>
+        /// Uninstalls all data models (files, tables, etc.) for the data provider.
+        /// </summary>
+        /// <param name="errorList">A collection of error strings in user displayable format.</param>
+        /// <returns>true if the models were removed successfully, false otherwise.
+        /// If the models could not be removed, <paramref name="errorList"/> contains the reason for the failure.</returns>
+        /// <remarks>
+        /// While a package is uninstalled, all data models are uninstalled by calling the UninstallModelAsync method.</remarks>
         public new async Task<bool> UninstallModelAsync(List<string> errorList) {
             if (Dataset == BaseDataset) throw new InternalError("Base dataset is not supported");
             try {
@@ -411,6 +500,12 @@ SELECT COUNT(*) FROM  {BaseDataset}
             }
             return true;
         }
+        /// <summary>
+        /// Removes data when a site is deleted.
+        /// </summary>
+        /// <remarks>
+        /// When a site is deleted, the RemoveSiteDataAsync method is called for all data providers.
+        /// Data providers can then remove site-specific data as the site is removed.</remarks>
         public new async Task RemoveSiteDataAsync() { // remove site-specific data
             if (Dataset == BaseDataset) throw new InternalError("Base dataset is not supported");
             if (SiteIdentity > 0) {
@@ -424,6 +519,22 @@ DELETE FROM {BaseDataset} WHERE [DerivedDataTableName] = '{Dataset}' AND [{SiteC
             }
         }
 
+        /// <summary>
+        /// Imports data into the data provider.
+        /// </summary>
+        /// <param name="chunk">The zero-based chunk number as data is imported. The first call when importing begins specifies 0 as chunk number.</param>
+        /// <param name="fileList">A collection of files to be imported. Files are automatically imported, so the data provider doesn't have to process this collection.</param>
+        /// <param name="obj">The data to be imported.</param>
+        /// <remarks>
+        /// The ImportChunkAsync method is called to import data for site restores, page and module imports.
+        ///
+        /// When a data provider is called to import data, it is called repeatedly until no more data is available.
+        /// Each time it is called, it is expected to import the chunk of data defined by <paramref name="obj"/>.
+        /// Each time ImportChunkAsync method is called, the zero-based chunk number <paramref name="chunk"/> is incremented.
+        ///
+        /// The <paramref name="obj"/> parameter is provided without type but should be cast to
+        /// YetaWF.Core.Serializers.SerializableList&lt;OBJTYPE&gt; as it is a collection of records to import. All records in the collection must be imported.
+        /// </remarks>
         public new async Task ImportChunkAsync(int chunk, SerializableList<SerializableFile> fileList, object obj) {
             if (Dataset == BaseDataset) throw new InternalError("Base dataset is not supported");
             if (SiteIdentity > 0 || YetaWFManager.Manager.ImportChunksNonSiteSpecifics) {
@@ -439,6 +550,24 @@ DELETE FROM {BaseDataset} WHERE [DerivedDataTableName] = '{Dataset}' AND [{SiteC
             }
         }
 
+        /// <summary>
+        /// Exports data from the data provider.
+        /// </summary>
+        /// <param name="chunk">The zero-based chunk number as data is exported. The first call when exporting begins specifies 0 as chunk number.</param>
+        /// <param name="fileList">A collection of files. The data provider can add files to be exported to this collection when ExportChunkAsync is called.</param>
+        /// <returns>Returns a YetaWF.Core.DataProvider.DataProviderExportChunk object describing the data exported.</returns>
+        /// <remarks>
+        /// The ExportChunkAsync method is called to export data for site backups, page and module exports.
+        ///
+        /// When a data provider is called to export data, it is called repeatedly until YetaWF.Core.DataProvider.DataProviderExportChunk.More is returned as false.
+        /// Each time it is called, it is expected to export a chunk of data. The amount of data, i.e., the chunk size, is determined by the data provider.
+        ///
+        /// Each time ExportChunkAsync method is called, the zero-based chunk number <paramref name="chunk"/> is incremented.
+        /// The data provider returns data in an instance of the YetaWF.Core.DataProvider.DataProviderExportChunk object.
+        ///
+        /// Files to be exported can be added to the <paramref name="fileList"/> collection.
+        /// Only data records need to be added to the returned YetaWF.Core.DataProvider.DataProviderExportChunk object.
+        /// </remarks>
         public new async Task<DataProviderExportChunk> ExportChunkAsync(int chunk, SerializableList<SerializableFile> fileList) {
             if (Dataset == BaseDataset) throw new InternalError("Base dataset is not supported");
 
@@ -458,6 +587,22 @@ DELETE FROM {BaseDataset} WHERE [DerivedDataTableName] = '{Dataset}' AND [{SiteC
                 };
             }
         }
+        /// <summary>
+        /// Called to translate the data managed by the data provider to another language.
+        /// </summary>
+        /// <param name="language">The target language (see LanguageSettings.json).</param>
+        /// <param name="isHtml">A method that can be called by the data provider to test whether a string contains HTML.</param>
+        /// <param name="translateStringsAsync">A method that can be called to translate a collection of simple strings into the new language. A simple string does not contain HTML or newline characters.</param>
+        /// <param name="translateComplexStringAsync">A method that can be called to translate a collection of complex strings into the new language. A complex string can contain HTML and newline characters.</param>
+        /// <remarks>
+        /// The data provider has to retrieve all records and translate them as needed using the
+        /// provided <paramref name="translateStringsAsync"/> and <paramref name="translateComplexStringAsync"/> methods, and save the translated data.
+        ///
+        /// The YetaWF.Core.Models.ObjectSupport.TranslateObject method can be used to translate all YetaWF.Core.Models.MultiString instances.
+        ///
+        /// The translated data should be stored separately from the default language (except MultiString, which is part of the record).
+        /// Using the <paramref name="language"/> parameter, a different folder should be used to store the translated data.
+        /// </remarks>
         public new async Task LocalizeModelAsync(string language, Func<string, bool> isHtml, Func<List<string>, Task<List<string>>> translateStringsAsync, Func<string, Task<string>> translateComplexStringAsync) {
 
             await LocalizeModelAsync(language, isHtml, translateStringsAsync, translateComplexStringAsync,

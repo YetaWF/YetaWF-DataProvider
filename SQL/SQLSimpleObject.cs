@@ -18,18 +18,49 @@ using YetaWF.Core.Support;
 
 namespace YetaWF.DataProvider.SQL {
 
+    /// <summary>
+    /// This class implements access to objects (records), with one primary key and without identity column.
+    /// </summary>
     public partial class SQLSimpleObject<KEYTYPE, OBJTYPE> : SQLSimpleObjectBase<KEYTYPE, object, OBJTYPE> {
-        public SQLSimpleObject(Dictionary<string, object> options) : base(options) { }
-    }
-    public partial class SQLSimpleObjectBase<KEYTYPE, KEYTYPE2, OBJTYPE> : SQLBase, IDataProvider<KEYTYPE, OBJTYPE>, ISQLTableInfo {
 
-        public SQLSimpleObjectBase(Dictionary<string, object> options, bool HasKey2 = false) : base(options) {
+        /// <summary>
+        /// Constructor.
+        /// </summary>
+        /// <param name="options">A dictionary of options and optional parameters as provided to the YetaWF.Core.DataProvider.DataProviderImpl.MakeDataProvider method when the data provider is created.</param>
+        /// <remarks>
+        /// Data providers are instantiated when the YetaWF.Core.DataProvider.DataProviderImpl.MakeDataProvider method is called, usually by an application data provider.
+        /// </remarks>
+        public SQLSimpleObject(Dictionary<string, object> options) : base(options) { }
+
+    }
+
+    /// <summary>
+    /// This base class implements access to objects (records), with a primary and secondary key (composite) and without identity column.
+    /// This base class is not intended for use by application data providers. These use one of the more specialized derived classes instead.
+    /// </summary>
+    public class SQLSimpleObjectBase<KEYTYPE, KEYTYPE2, OBJTYPE> : SQLBase, IDataProvider<KEYTYPE, OBJTYPE>, ISQLTableInfo {
+
+        internal SQLSimpleObjectBase(Dictionary<string, object> options, bool HasKey2 = false) : base(options) {
             this.HasKey2 = HasKey2;
         }
-
+        /// <summary>
+        /// Defines whether the model defines a secondary key.
+        /// </summary>
         public bool HasKey2 { get; protected set; }
+        /// <summary>
+        /// The column name of the primary key.
+        /// </summary>
+        /// <remarks>If a primary key has not been defined in the model, an exception occurs when this property is retrieved.</remarks>
         public string Key1Name { get { return GetKey1Name(Dataset, GetPropertyData()); } }
+        /// <summary>
+        /// The column name of the secondary key.
+        /// </summary>
+        /// <remarks>If a secondary key has not been defined in the model, an exception occurs when this property is retrieved.</remarks>
         public string Key2Name { get { return GetKey2Name(Dataset, GetPropertyData()); } }
+        /// <summary>
+        /// The column name of the identity column.
+        /// </summary>
+        /// <remarks>If no identity column is defined for the specified table, an empty string is returned.</remarks>
         public string IdentityName { get { return GetIdentityName(Dataset, GetPropertyData()); } }
 
         private string IdentityNameOrDefault {
@@ -43,22 +74,36 @@ namespace YetaWF.DataProvider.SQL {
         }
         private string _identityOrDefault;
 
-        protected const int ChunkSize = 100;
+        /// <summary>
+        /// Defines the chunk size used by SQL data providers when exporting/importing data using the methods
+        /// YetaWF.Core.IO.IInstallableModel.ExportChunkAsync and YetaWF.Core.IO.IInstallableModel.ExportChunkAsync.ImportChunkAsync.
+        /// </summary>
+        internal const int ChunkSize = 100;
 
-        protected bool Warnings = true;
+        internal bool Warnings = true;
 
-        protected List<PropertyData> GetPropertyData() {
+        internal List<PropertyData> GetPropertyData() {
             if (_propertyData == null)
                 _propertyData = ObjectSupport.GetPropertyData(typeof(OBJTYPE));
             return _propertyData;
         }
         List<PropertyData> _propertyData;
 
+        /// <summary>
+        /// Retrieves one record from the database table that satisfies the specified primary key <paramref name="key"/>.
+        /// </summary>
+        /// <param name="key">The primary key value.</param>
+        /// <returns>Returns the record that satisfies the specified primary key. If no record exists null is returned.</returns>
         public Task<OBJTYPE> GetAsync(KEYTYPE key) {
             return GetAsync(key, default(KEYTYPE2));
         }
+        /// <summary>
+        /// Retrieves one record from the database table that satisfies the specified keys.
+        /// </summary>
+        /// <param name="key">The primary key value.</param>
+        /// <param name="key2">The secondary key value.</param>
+        /// <returns>Returns the record that satisfies the specified primary and secondary keys. If no record exists null is returned.</returns>
         public async Task<OBJTYPE> GetAsync(KEYTYPE key, KEYTYPE2 key2) {
-
             SQLHelper sqlHelper = new SQLHelper(Conn, null, Languages);
 
             string joins = null;// RFFU
@@ -90,6 +135,14 @@ WHERE {sqlHelper.Expr(Key1Name, "=", key)} {andKey2} {AndSiteIdentity}  --- resu
             }
         }
 
+        /// <summary>
+        /// Adds a new record to the database table.
+        /// </summary>
+        /// <param name="obj">The record data.</param>
+        /// <returns>Returns true if successful, false if a record with the primary (and secondary) key values already exists.
+        ///
+        /// For all other errors, an exception occurs.
+        /// </returns>
         public async Task<bool> AddAsync(OBJTYPE obj) {
 
             SQLHelper sqlHelper = new SQLHelper(Conn, null, Languages);
@@ -146,10 +199,28 @@ DECLARE @__IDENTITY int = @@IDENTITY
             return true;
         }
 
+        /// <summary>
+        /// Updates an existing record with the specified existing primary key <paramref name="origKey"/> in the database table.
+        /// The primary key can be changed to the new value in <paramref name="newKey"/>.
+        /// </summary>
+        /// <param name="origKey">The original primary key value of the record.</param>
+        /// <param name="newKey">The new primary key value of the record. This may be the same value as <paramref name="origKey"/>. </param>
+        /// <param name="obj">The object being updated.</param>
+        /// <returns>Returns a status indicator.</returns>
         public async Task<UpdateStatusEnum> UpdateAsync(KEYTYPE origKey, KEYTYPE newKey, OBJTYPE obj) {
             return await UpdateAsync(origKey, default(KEYTYPE2), newKey, default(KEYTYPE2), obj);
         }
 
+        /// <summary>
+        /// Updates an existing record with the specified existing primary and secondary keys <paramref name="origKey"/> in the database table.
+        /// The primary and secondary keys can be changed to the new values in <paramref name="newKey"/> and <paramref name="newKey2"/>.
+        /// </summary>
+        /// <param name="origKey">The original primary key value of the record.</param>
+        /// <param name="origKey2">The original secondary key value of the record.</param>
+        /// <param name="newKey">The new primary key value of the record. This may be the same value as <paramref name="origKey"/>. </param>
+        /// <param name="newKey2">The new secondary key value of the record. This may be the same value as <paramref name="origKey2"/>. </param>
+        /// <param name="obj">The object being updated.</param>
+        /// <returns>Returns a status indicator.</returns>
         public async Task<UpdateStatusEnum> UpdateAsync(KEYTYPE origKey, KEYTYPE2 origKey2, KEYTYPE newKey, KEYTYPE2 newKey2, OBJTYPE obj) {
 
             SQLHelper sqlHelper = new SQLHelper(Conn, null, Languages);
@@ -217,9 +288,20 @@ SELECT @@ROWCOUNT --- result set
             return UpdateStatusEnum.OK;
         }
 
+        /// <summary>
+        /// Removes an existing record with the specified primary key.
+        /// </summary>
+        /// <param name="key">The primary key value of the record to remove.</param>
+        /// <returns>Returns true if the record was removed, or false if the record was not found. Other errors cause an exception.</returns>
         public async Task<bool> RemoveAsync(KEYTYPE key) {
             return await RemoveAsync(key, default(KEYTYPE2));
         }
+        /// <summary>
+        /// Removes an existing record with the specified primary and secondary keys.
+        /// </summary>
+        /// <param name="key">The primary key value of the record to remove.</param>
+        /// <param name="key2">The secondary key value of the record to remove.</param>
+        /// <returns>Returns true if the record was removed, or false if the record was not found. Other errors cause an exception.</returns>
         public async Task<bool> RemoveAsync(KEYTYPE key, KEYTYPE2 key2) {
 
             SQLHelper sqlHelper = new SQLHelper(Conn, null, Languages);
@@ -263,18 +345,41 @@ SELECT @@ROWCOUNT --- result set
             return deleted > 0;
         }
 
+        /// <summary>
+        /// Retrieves one record using filtering criteria.
+        /// </summary>
+        /// <param name="filters">A collection describing the filtering criteria.</param>
+        /// <param name="Joins">A collection describing the dataset joins.</param>
+        /// <returns>If more than one record match the filtering criteria, the first one is returned.
+        /// If no record matches, null is returned.</returns>
+        /// <remarks>
+        /// </remarks>
         public async Task<OBJTYPE> GetOneRecordAsync(List<DataProviderFilterInfo> filters, List<JoinData> Joins = null) {
             filters = NormalizeFilter(typeof(OBJTYPE), filters);
             DataProviderGetRecords<OBJTYPE> recs = await GetMainTableRecordsAsync(0, 1, null, filters, Joins: Joins);
             return recs.Data.FirstOrDefault();
         }
 
+        /// <summary>
+        /// Retrieves a collection of records using filtering criteria with sorting, with support for paging.
+        /// </summary>
+        /// <param name="skip">The number of records to skip.</param>
+        /// <param name="take">The number of records to retrieve. If more records are available they are dropped.</param>
+        /// <param name="sorts">A collection describing the sort order.</param>
+        /// <param name="filters">A collection describing the filtering criteria.</param>
+        /// <param name="Joins">A collection describing the dataset joins.</param>
+        /// <returns>Returns a YetaWF.Core.DataProvider.DataProviderGetRecords object describing the data returned.</returns>
         public async Task<DataProviderGetRecords<OBJTYPE>> GetRecordsAsync(int skip, int take, List<DataProviderSortInfo> sorts, List<DataProviderFilterInfo> filters, List<JoinData> Joins = null) {
             filters = NormalizeFilter(typeof(OBJTYPE), filters);
             sorts = NormalizeSort(typeof(OBJTYPE), sorts);
             return await GetMainTableRecordsAsync(skip, take, sorts, filters, Joins: Joins);
         }
 
+        /// <summary>
+        /// Removes records using filtering criteria.
+        /// </summary>
+        /// <param name="filters">A collection describing the filtering criteria.</param>
+        /// <returns>Returns the number of records removed.</returns>
         public async Task<int> RemoveRecordsAsync(List<DataProviderFilterInfo> filters) {
             filters = NormalizeFilter(typeof(OBJTYPE), filters);
 
@@ -336,7 +441,7 @@ DROP TABLE #TEMPTABLE
             return deleted;
         }
 
-        protected async Task<DataProviderGetRecords<OBJTYPE>> GetMainTableRecordsAsync(int skip, int take, List<DataProviderSortInfo> sorts, List<DataProviderFilterInfo> filters, List<JoinData> Joins = null) {
+        internal async Task<DataProviderGetRecords<OBJTYPE>> GetMainTableRecordsAsync(int skip, int take, List<DataProviderSortInfo> sorts, List<DataProviderFilterInfo> filters, List<JoinData> Joins = null) {
 
             SQLHelper sqlHelper = new SQLHelper(Conn, null, Languages);
 
@@ -450,7 +555,7 @@ FROM {fullTableName} WITH(NOLOCK)
             return list;
         }
 
-        protected string SubTablesSelects(string tableName, List<PropertyData> propData, Type tpContainer) {
+        internal string SubTablesSelects(string tableName, List<PropertyData> propData, Type tpContainer) {
             SQLBuilder sb = new SQLBuilder();
             List<SubTableInfo> subTables = GetSubTables(tableName, propData);
             if (subTables.Count > 0) {
@@ -597,7 +702,7 @@ FROM {fullTableName} WITH(NOLOCK)
             sb.Add("COMMIT TRANSACTION Upd;");
             return sb.ToString();
         }
-        protected string SubTablesDeletes(string tableName, List<PropertyData> propData, Type tpContainer) {
+        internal string SubTablesDeletes(string tableName, List<PropertyData> propData, Type tpContainer) {
             SQLBuilder sb = new SQLBuilder();
             List<SubTableInfo> subTables = GetSubTables(tableName, propData);
             foreach (SubTableInfo subTable in subTables) {
@@ -612,10 +717,22 @@ FROM {fullTableName} WITH(NOLOCK)
         // IINSTALLMODEL
         // IINSTALLMODEL
 
+        /// <summary>
+        /// Returns whether the data provider is installed and available.
+        /// </summary>
+        /// <returns>true if the data provider is installed and available, false otherwise.</returns>
         public Task<bool> IsInstalledAsync() {
             return Task.FromResult(SQLCache.HasTable(Conn, ConnectionString, Database, Dataset));
         }
 
+        /// <summary>
+        /// Installs all data models (files, tables, etc.) for the data provider.
+        /// </summary>
+        /// <param name="errorList">A collection of error strings in user displayable format.</param>
+        /// <returns>true if the models were created successfully, false otherwise.
+        /// If the models could not be created, <paramref name="errorList"/> contains the reason for the failure.</returns>
+        /// <remarks>
+        /// While a package is installed, all data models are installed by calling the InstallModelAsync method.</remarks>
         public Task<bool> InstallModelAsync(List<string> errorList) {
             bool success = false;
             Database db = SQLCache.GetDatabase(Conn, ConnectionString);
@@ -629,6 +746,14 @@ FROM {fullTableName} WITH(NOLOCK)
             return Task.FromResult(success);
         }
 
+        /// <summary>
+        /// Uninstalls all data models (files, tables, etc.) for the data provider.
+        /// </summary>
+        /// <param name="errorList">A collection of error strings in user displayable format.</param>
+        /// <returns>true if the models were removed successfully, false otherwise.
+        /// If the models could not be removed, <paramref name="errorList"/> contains the reason for the failure.</returns>
+        /// <remarks>
+        /// While a package is uninstalled, all data models are uninstalled by calling the UninstallModelAsync method.</remarks>
         public Task<bool> UninstallModelAsync(List<string> errorList) {
             try {
                 Database db = SQLCache.GetDatabase(Conn, ConnectionString);
@@ -649,7 +774,20 @@ FROM {fullTableName} WITH(NOLOCK)
             }
         }
 
+        /// <summary>
+        /// Adds data for a new site.
+        /// </summary>
+        /// <remarks>
+        /// When a new site is created, the AddSiteDataAsync method is called for all data providers.
+        /// Data providers can then add site-specific data as the new site is added.</remarks>
         public Task AddSiteDataAsync() { return Task.CompletedTask; }
+
+        /// <summary>
+        /// Removes data when a site is deleted.
+        /// </summary>
+        /// <remarks>
+        /// When a site is deleted, the RemoveSiteDataAsync method is called for all data providers.
+        /// Data providers can then remove site-specific data as the site is removed.</remarks>
         public async Task RemoveSiteDataAsync() { // remove site-specific data
             if (SiteIdentity > 0) {
                 string fullTableName = SQLBuilder.GetTable(Database, Dbo, Dataset);
@@ -664,6 +802,22 @@ DELETE FROM {fullTableName} WHERE [{SiteColumn}] = {SiteIdentity}
             }
         }
 
+        /// <summary>
+        /// Imports data into the data provider.
+        /// </summary>
+        /// <param name="chunk">The zero-based chunk number as data is imported. The first call when importing begins specifies 0 as chunk number.</param>
+        /// <param name="fileList">A collection of files to be imported. Files are automatically imported, so the data provider doesn't have to process this collection.</param>
+        /// <param name="obj">The data to be imported.</param>
+        /// <remarks>
+        /// The ImportChunkAsync method is called to import data for site restores, page and module imports.
+        ///
+        /// When a data provider is called to import data, it is called repeatedly until no more data is available.
+        /// Each time it is called, it is expected to import the chunk of data defined by <paramref name="obj"/>.
+        /// Each time ImportChunkAsync method is called, the zero-based chunk number <paramref name="chunk"/> is incremented.
+        ///
+        /// The <paramref name="obj"/> parameter is provided without type but should be cast to
+        /// YetaWF.Core.Serializers.SerializableList&lt;OBJTYPE&gt; as it is a collection of records to import. All records in the collection must be imported.
+        /// </remarks>
         public async Task ImportChunkAsync(int chunk, SerializableList<SerializableFile> fileList, object obj) {
             if (SiteIdentity > 0 || YetaWFManager.Manager.ImportChunksNonSiteSpecifics) {
                 SerializableList<OBJTYPE> serList = (SerializableList<OBJTYPE>)obj;
@@ -678,6 +832,24 @@ DELETE FROM {fullTableName} WHERE [{SiteColumn}] = {SiteIdentity}
             }
         }
 
+        /// <summary>
+        /// Exports data from the data provider.
+        /// </summary>
+        /// <param name="chunk">The zero-based chunk number as data is exported. The first call when exporting begins specifies 0 as chunk number.</param>
+        /// <param name="fileList">A collection of files. The data provider can add files to be exported to this collection when ExportChunkAsync is called.</param>
+        /// <returns>Returns a YetaWF.Core.DataProvider.DataProviderExportChunk object describing the data exported.</returns>
+        /// <remarks>
+        /// The ExportChunkAsync method is called to export data for site backups, page and module exports.
+        ///
+        /// When a data provider is called to export data, it is called repeatedly until YetaWF.Core.DataProvider.DataProviderExportChunk.More is returned as false.
+        /// Each time it is called, it is expected to export a chunk of data. The amount of data, i.e., the chunk size, is determined by the data provider.
+        ///
+        /// Each time ExportChunkAsync method is called, the zero-based chunk number <paramref name="chunk"/> is incremented.
+        /// The data provider returns data in an instance of the YetaWF.Core.DataProvider.DataProviderExportChunk object.
+        ///
+        /// Files to be exported can be added to the <paramref name="fileList"/> collection.
+        /// Only data records need to be added to the returned YetaWF.Core.DataProvider.DataProviderExportChunk object.
+        /// </remarks>
         public async Task<DataProviderExportChunk> ExportChunkAsync(int chunk, SerializableList<SerializableFile> fileList) {
             List<DataProviderSortInfo> sorts = new List<DataProviderSortInfo> { new DataProviderSortInfo { Field = Key1Name, Order = DataProviderSortInfo.SortDirection.Ascending } };
 
@@ -696,6 +868,22 @@ DELETE FROM {fullTableName} WHERE [{SiteColumn}] = {SiteIdentity}
                 };
             }
         }
+        /// <summary>
+        /// Called to translate the data managed by the data provider to another language.
+        /// </summary>
+        /// <param name="language">The target language (see LanguageSettings.json).</param>
+        /// <param name="isHtml">A method that can be called by the data provider to test whether a string contains HTML.</param>
+        /// <param name="translateStringsAsync">A method that can be called to translate a collection of simple strings into the new language. A simple string does not contain HTML or newline characters.</param>
+        /// <param name="translateComplexStringAsync">A method that can be called to translate a collection of complex strings into the new language. A complex string can contain HTML and newline characters.</param>
+        /// <remarks>
+        /// The data provider has to retrieve all records and translate them as needed using the
+        /// provided <paramref name="translateStringsAsync"/> and <paramref name="translateComplexStringAsync"/> methods, and save the translated data.
+        ///
+        /// The YetaWF.Core.Models.ObjectSupport.TranslateObject method can be used to translate all YetaWF.Core.Models.MultiString instances.
+        ///
+        /// The translated data should be stored separately from the default language (except MultiString, which is part of the record).
+        /// Using the <paramref name="language"/> parameter, a different folder should be used to store the translated data.
+        /// </remarks>
         public async Task LocalizeModelAsync(string language, Func<string, bool> isHtml, Func<List<string>, Task<List<string>>> translateStringsAsync, Func<string, Task<string>> translateComplexStringAsync) {
 
             await LocalizeModelAsync(language, isHtml, translateStringsAsync, translateComplexStringAsync,
@@ -721,6 +909,20 @@ DELETE FROM {fullTableName} WHERE [{SiteColumn}] = {SiteIdentity}
                     return status;
                 });
         }
+        /// <summary>
+        /// Called to translate the data managed by the data provider to another language.
+        /// </summary>
+        /// <param name="language">The target language (see LanguageSettings.json).</param>
+        /// <param name="isHtml">A method that can be called by the data provider to test whether a string contains HTML.</param>
+        /// <param name="translateStringsAsync">A method that can be called to translate a collection of simple strings into the new language. A simple string does not contain HTML or newline characters.</param>
+        /// <param name="translateComplexStringAsync">A method that can be called to translate a collection of complex strings into the new language. A complex string can contain HTML and newline characters.</param>
+        /// <param name="getRecords"></param>
+        /// <param name="saveRecordAsync"></param>
+        /// <remarks>
+        /// This is used by derived classes to translate the data managed by the data provider to another language.
+        /// The derived class provides <paramref name="getRecords"/> and <paramref name="saveRecordAsync"/> methods, which are used to retrieve, translate and save the data.
+        /// The YetaWF.Core.Models.ObjectSupport.TranslateObject method is to translate all YetaWF.Core.Models.MultiString instances.
+        /// </remarks>
         protected async Task LocalizeModelAsync(string language,
                 Func<string, bool> isHtml,
                 Func<List<string>, Task<List<string>>> translateStringsAsync, Func<string, Task<string>> translateComplexStringAsync, Func<int, int, Task<DataProviderGetRecords<OBJTYPE>>> getRecords, Func<OBJTYPE, PropertyInfo, PropertyInfo, Task<UpdateStatusEnum>> saveRecordAsync) {

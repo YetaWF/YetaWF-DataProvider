@@ -19,6 +19,7 @@ using Microsoft.Extensions.Caching.Memory;
 #endif
 
 namespace YetaWF.DataProvider {
+
     public class GenericModuleDefinitionDataProviderImpl : IInitializeApplicationStartup {
 
         // STARTUP
