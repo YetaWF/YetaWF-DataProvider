@@ -9,7 +9,7 @@ using YetaWF.Core.Serializers;
 
 namespace YetaWF.DataProvider.SQL {
 
-    public class SQLDataProvider {
+    internal class SQLDataProvider {
 
         internal class ModuleDefinitionDataProvider<KEY, TYPE> : SQLModuleObject<KEY, TYPE>, ModuleDefinitionDataProviderIOMode {
 

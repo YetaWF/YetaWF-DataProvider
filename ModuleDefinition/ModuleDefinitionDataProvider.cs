@@ -20,12 +20,21 @@ using Microsoft.Extensions.Caching.Memory;
 
 namespace YetaWF.DataProvider {
 
+    /// <summary>
+    /// This class is used to install the required module repository support during application startup
+    /// </summary>
+    /// <remarks>This class should not be instantiated and has no callable methods.</remarks>
     public class GenericModuleDefinitionDataProviderImpl : IInitializeApplicationStartup {
 
         // STARTUP
         // STARTUP
         // STARTUP
 
+        /// <summary>
+        /// Called during application startup.
+        ///
+        /// Installs all required methods to load/save/retrieve modules.
+        /// </summary>
         public Task InitializeApplicationStartupAsync() {
             ModuleDefinition.LoadModuleDefinitionAsync = LoadModuleDefinitionAsync;
             ModuleDefinition.SaveModuleDefinitionAsync = SaveModuleDefinitionAsync;
@@ -76,6 +85,8 @@ namespace YetaWF.DataProvider {
         }
 
         // Implementation
+        // Implementation
+        // Implementation
 
         private async Task<SerializableList<DesignedModule>> LoadDesignedModulesAsync() {
             using (GenericModuleDefinitionDataProvider modDP = new GenericModuleDefinitionDataProvider()) {
@@ -118,6 +129,8 @@ namespace YetaWF.DataProvider {
                 }
             }
         }
+
+        //$$$$$$ THIS DOES NOT REMOVE THE DERIVED PORTION
         private async Task<bool> RemoveModuleDefinitionAsync(Guid guid) {
             using (GenericModuleDefinitionDataProvider modDP = new GenericModuleDefinitionDataProvider()) {
                 using (ILockObject lockObject = await modDP.LockDesignedModulesAsync()) {
@@ -136,10 +149,10 @@ namespace YetaWF.DataProvider {
         }
     }
 
-    public interface ModuleDefinitionDataProviderIOMode {
+    internal interface ModuleDefinitionDataProviderIOMode {
         Task<SerializableList<DesignedModule>> GetDesignedModulesAsync();
     }
-    public class TempDesignedModule {
+    internal class TempDesignedModule {
         [Data_PrimaryKey]
         public Guid ModuleGuid { get; set; }
         public string Name { get; set; }
@@ -151,10 +164,28 @@ namespace YetaWF.DataProvider {
         }
     }
 
-    // Loads/saves any module and creates the appropriate module type
+    /// <summary>
+    /// This class implements module retrieval and storage for all modules.
+    /// All modules are derived from YetaWF.Core.Modules.ModuleDefinition so this data provider can retrieve all module types, however it only returns
+    /// an instance of YetaWF.Core.Modules.ModuleDefinition and not the more specific derived type.
+    /// </summary>
+    /// <remarks>
+    /// When using a SQL database, all modules use the same database and base table named YetaWF_Modules. In addition, for each derived type an additional table is created.
+    /// The table name is derived from the module type. For example, a module of type YetaWF.Text.TextModule uses the table YetaWF_Modules_YetaWF_Text_TextModule for all
+    /// its data (except for the base data defined by its base class YetaWF.Core.Modules.ModuleDefinition, which is stored in the base table YetaWF_Modules).
+    ///
+    /// When using file I/O for module storage, all module data is stored in folder .\Data\DataFolder\YetaWF_Modules\..siteidentity.. Base and derived data is stored in the same file.
+    /// </remarks>
     internal class GenericModuleDefinitionDataProvider : ModuleDefinitionDataProvider<Guid, ModuleDefinition> { }
 
-    // Loads/saves a specific module type
+    /// <summary>
+    /// This template class implements module retrieval and storage for a specific module type.
+    ///
+    /// Every module type implements its own module data provider using this template class.
+    /// </summary>
+    /// <typeparam name="KEY">The type of the key for records managed by this data provider. For module data providers this is always System.Guid.</typeparam>
+    /// <typeparam name="TYPE">The module type, which is always a class derived from YetaWF.Core.Modules.ModuleDefinition.</typeparam>
+    /// <remarks>None of the methods in this class should be called directly by applications.</remarks>
     [System.Diagnostics.CodeAnalysis.SuppressMessage("Microsoft.Design", "CA1063:ImplementIDisposableCorrectly")]
     public class ModuleDefinitionDataProvider<KEY, TYPE> : DataProviderImpl, IModuleDefinitionIO, IInstallableModel {
 
@@ -162,8 +193,10 @@ namespace YetaWF.DataProvider {
         // IMPLEMENTATION
         // IMPLEMENTATION
 
+        /// <summary>
+        /// Constructor.
+        /// </summary>
         public ModuleDefinitionDataProvider() : base(YetaWFManager.Manager.CurrentSite.Identity) { SetDataProvider(CreateDataProvider()); }
-        public ModuleDefinitionDataProvider(int siteIdentity) : base(siteIdentity) { SetDataProvider(CreateDataProvider()); }
 
         private IDataProvider<KEY, TYPE> DataProvider { get { return GetDataProvider(); } }
         private ModuleDefinitionDataProviderIOMode DataProviderIOMode { get { return GetDataProvider(); } }
@@ -190,21 +223,34 @@ namespace YetaWF.DataProvider {
         // API
         // API
 
+        /// <summary>
+        /// Retrieves a collection of records using filtering criteria with sorting, with support for paging.
+        /// </summary>
+        /// <param name="skip">The number of records to skip.</param>
+        /// <param name="take">The number of records to retrieve. If more records are available they are dropped.</param>
+        /// <param name="sort">A collection describing the sort order.</param>
+        /// <param name="filters">A collection describing the filtering criteria.</param>
+        /// <returns>Returns a YetaWF.Core.DataProvider.DataProviderGetRecords object describing the data returned.</returns>
         internal async Task<DataProviderGetRecords<TYPE>> GetModulesAsync(int skip, int take, List<DataProviderSortInfo> sort, List<DataProviderFilterInfo> filters) {
             return await DataProvider.GetRecordsAsync(skip, take, sort, filters);
         }
 
         /// <summary>
-        /// Load the module definition
+        /// Loads the module.
         /// </summary>
-        /// <returns>ModuleDefinition or null if module doesn't exist</returns>
+        /// <param name="key">The module Guid.</param>
+        /// <returns>Returns the YetaWF.Core.Modules.ModuleDefinition instance or null if module doesn't exist.
+        /// If the template class is used with a specific derived module type, the returned instance can be cast to the more specific type.</returns>
+        /// <remarks>This is never called directly. Always use YetaWF.Core.Module.ModuleDefinition.LoadModuleDefinitionAsync to load a module.</remarks>
         public async Task<ModuleDefinition> LoadModuleDefinitionAsync(Guid key) {
             return (ModuleDefinition)(object)await DataProvider.GetAsync((KEY)(object)key);
         }
 
         /// <summary>
-        /// Save the module definition
+        /// Saves the module.
         /// </summary>
+        /// <param name="mod">The module to save.</param>
+        /// <remarks>This is never called directly. Always use YetaWF.Core.Module.ModuleDefinition.SaveModuleDefinitionAsync to save a module.</remarks>
         public async Task SaveModuleDefinitionAsync(ModuleDefinition mod) {
 
             Guid key = mod.ModuleGuid;
@@ -242,7 +288,13 @@ namespace YetaWF.DataProvider {
                 ExpensiveMultiInstance: true
             );
         }
+        /// <summary>
+        /// Removes the module.
+        /// </summary>
+        /// <param name="key">The module Guid of the module to remove.</param>
+        /// <remarks>This is never called directly. Always use YetaWF.Core.Module.ModuleDefinition.RemoveModuleDefinitionAsync to remove a module.</remarks>
         internal async Task<bool> RemoveModuleDefinitionAsync(Guid key) {
+
             bool status = false;
             ModuleDefinition mod = null;
 
@@ -293,7 +345,7 @@ namespace YetaWF.DataProvider {
             }
             return list;
         }
-        protected async Task<SerializableList<DesignedModule>> GetDesignedModulesAsync() {
+        internal async Task<SerializableList<DesignedModule>> GetDesignedModulesAsync() {
             using (ICacheDataProvider staticCacheDP = YetaWF.Core.IO.Caching.GetStaticCacheProvider()) {
                 SerializableList<DesignedModule> list;
                 GetObjectInfo<SerializableList<DesignedModule>> info = await staticCacheDP.GetAsync<SerializableList<DesignedModule>>(DESIGNEDMODULESKEY);
@@ -306,12 +358,12 @@ namespace YetaWF.DataProvider {
                 return list;
             }
         }
-        protected async Task SaveDesignedModulesAsync(SerializableList<DesignedModule> list) {
+        internal async Task SaveDesignedModulesAsync(SerializableList<DesignedModule> list) {
             using (ICacheDataProvider staticCacheDP = YetaWF.Core.IO.Caching.GetStaticCacheProvider()) {
                 await staticCacheDP.AddAsync<SerializableList<DesignedModule>>(DESIGNEDMODULESKEY, list);
             }
         }
-        public async Task<ILockObject> LockDesignedModulesAsync() {
+        internal async Task<ILockObject> LockDesignedModulesAsync() {
             return await YetaWF.Core.IO.Caching.LockProvider.LockResourceAsync(DESIGNEDMODULESKEY);
         }
 
@@ -319,8 +371,26 @@ namespace YetaWF.DataProvider {
         // IINSTALLABLEMODEL
         // IINSTALLABLEMODEL
 
-        public async new Task<DataProviderExportChunk> ExportChunkAsync(int count, SerializableList<SerializableFile> fileList) {
-            DataProviderExportChunk exp = await DataProvider.ExportChunkAsync(count, fileList);
+        /// <summary>
+        /// Exports data from the data provider.
+        /// </summary>
+        /// <param name="chunk">The zero-based chunk number as data is exported. The first call when exporting begins specifies 0 as chunk number.</param>
+        /// <param name="fileList">A collection of files. The data provider can add files to be exported to this collection when ExportChunkAsync is called.</param>
+        /// <returns>Returns a YetaWF.Core.DataProvider.DataProviderExportChunk object describing the data exported.</returns>
+        /// <remarks>
+        /// The ExportChunkAsync method is called to export data for site backups, page and module exports.
+        ///
+        /// When a data provider is called to export data, it is called repeatedly until YetaWF.Core.DataProvider.DataProviderExportChunk.More is returned as false.
+        /// Each time it is called, it is expected to export a chunk of data. The amount of data, i.e., the chunk size, is determined by the data provider.
+        ///
+        /// Each time ExportChunkAsync method is called, the zero-based chunk number <paramref name="chunk"/> is incremented.
+        /// The data provider returns data in an instance of the YetaWF.Core.DataProvider.DataProviderExportChunk object.
+        ///
+        /// Files to be exported can be added to the <paramref name="fileList"/> collection.
+        /// Only data records need to be added to the returned YetaWF.Core.DataProvider.DataProviderExportChunk object.
+        /// </remarks>
+        public async new Task<DataProviderExportChunk> ExportChunkAsync(int chunk, SerializableList<SerializableFile> fileList) {
+            DataProviderExportChunk exp = await DataProvider.ExportChunkAsync(chunk, fileList);
             if (exp.ObjectList != null) {
                 SerializableList<TYPE> modList = new SerializableList<TYPE>((List<TYPE>)exp.ObjectList);
                 foreach (TYPE m in modList) {
@@ -330,6 +400,22 @@ namespace YetaWF.DataProvider {
             }
             return exp;
         }
+        /// <summary>
+        /// Imports data into the data provider.
+        /// </summary>
+        /// <param name="chunk">The zero-based chunk number as data is imported. The first call when importing begins specifies 0 as chunk number.</param>
+        /// <param name="fileList">A collection of files to be imported. Files are automatically imported, so the data provider doesn't have to process this collection.</param>
+        /// <param name="obj">The data to be imported.</param>
+        /// <remarks>
+        /// The ImportChunkAsync method is called to import data for site restores, page and module imports.
+        ///
+        /// When a data provider is called to import data, it is called repeatedly until no more data is available.
+        /// Each time it is called, it is expected to import the chunk of data defined by <paramref name="obj"/>.
+        /// Each time ImportChunkAsync method is called, the zero-based chunk number <paramref name="chunk"/> is incremented.
+        ///
+        /// The <paramref name="obj"/> parameter is provided without type but should be cast to
+        /// YetaWF.Core.Serializers.SerializableList&lt;OBJTYPE&gt; as it is a collection of records to import. All records in the collection must be imported.
+        /// </remarks>
         public new async Task ImportChunkAsync(int chunk, SerializableList<SerializableFile> fileList, object obj) {
             await DataProvider.ImportChunkAsync(chunk, fileList, obj);
         }

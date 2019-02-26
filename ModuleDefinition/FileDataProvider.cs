@@ -10,7 +10,7 @@ using YetaWF.Core.Support;
 
 namespace YetaWF.DataProvider.File {
 
-    public class FileDataProvider {
+    internal class FileDataProvider {
 
         internal class ModuleDefinitionDataProvider<KEY, TYPE> : FileDataProvider<KEY, TYPE>, ModuleDefinitionDataProviderIOMode {
 
