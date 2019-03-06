@@ -363,8 +363,8 @@ SELECT @@ROWCOUNT --- result set
         /// <summary>
         /// Retrieves a collection of records using filtering criteria with sorting, with support for paging.
         /// </summary>
-        /// <param name="skip">The number of records to skip.</param>
-        /// <param name="take">The number of records to retrieve. If more records are available they are dropped.</param>
+        /// <param name="skip">The number of records to skip (paging support).</param>
+        /// <param name="take">The number of records to retrieve (paging support). If more records are available they are dropped.</param>
         /// <param name="sorts">A collection describing the sort order.</param>
         /// <param name="filters">A collection describing the filtering criteria.</param>
         /// <param name="Joins">A collection describing the dataset joins.</param>

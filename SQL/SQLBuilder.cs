@@ -64,7 +64,7 @@ namespace YetaWF.DataProvider.SQL {
         /// Appends a fully formatted ORDER BY clause based on the provided sort criteria and paging info.
         /// </summary>
         /// <param name="visibleColumns">The collection of columns visible in the table.</param>
-        /// <param name="sorts">The sort criteria. Cannot be null.</param>
+        /// <param name="sorts">A collection describing the sort order.</param>
         /// <param name="Offset">The number of records to skip.</param>
         /// <param name="Next">The number of records to retrieve.</param>
         /// <remarks>
