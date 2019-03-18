@@ -764,7 +764,7 @@ namespace YetaWF.DataProvider.SQL {
             if (SiteIdentity > 0)
                 sql = sql.Replace($"{{{SiteColumn}}}", $"[{SiteColumn}] = {SiteIdentity}");
             var o = await sqlHelper.ExecuteScalarAsync(sql);
-            if (o.GetType() == typeof(System.DBNull))
+            if (o == null || o.GetType() == typeof(System.DBNull))
                 return 0;
             return Convert.ToInt32(o);
         }
