@@ -440,7 +440,7 @@ namespace YetaWF.DataProvider.SQL {
 
             // special handling
             if (value is System.Drawing.Image) {
-                // for image parameters - Note that images will always be saves as jpeg (this could be changed)
+                // for image parameters - Note that images will always be saved as jpeg (this could be changed)
                 System.Drawing.Image img = (System.Drawing.Image)value;
                 System.IO.MemoryStream ms = new System.IO.MemoryStream();
                 img.Save(ms, System.Drawing.Imaging.ImageFormat.Jpeg);

@@ -183,7 +183,7 @@ namespace YetaWF.DataProvider.SQL {
         /// </summary>
         /// <param name="token">The text to bracket.</param>
         /// <returns>Returns a properly bracketed string.</returns>
-        /// <remarks>The result is bracketed. This method considers whether the parameters is already bracketed in which case no further brackets are added.</remarks>
+        /// <remarks>The result is bracketed. This method considers whether the parameter is already bracketed in which case no further brackets are added.</remarks>
         public static string WrapBrackets(string token) {
             if (token.StartsWith("["))
                 return token;
