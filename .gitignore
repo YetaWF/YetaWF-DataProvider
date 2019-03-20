@@ -11,3 +11,5 @@ app.config
 **/bin/**/*.config
 **/bin/**/*.manifest
 
+*.sqlite
+PostgreSQL/.vs/
