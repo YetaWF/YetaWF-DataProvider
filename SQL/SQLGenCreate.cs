@@ -25,6 +25,12 @@ namespace YetaWF.DataProvider {
         public bool Logging { get; private set; }
         public List<LanguageData> Languages { get; private set; }
 
+        private class TableInfo {
+            public Table CurrentTable { get; set; }
+            public Table NewTable { get; set; }
+            public List<TableInfo> SubTables { get; set; }
+        }
+
         public SQLGen(SqlConnection conn, List<LanguageData> languages, int identitySeed, bool logging) {
             Conn = conn;
             Languages = languages;
@@ -43,25 +49,50 @@ namespace YetaWF.DataProvider {
                 string ForeignKeyTable = null,
                 string DerivedDataTableName = null, string DerivedDataTypeName = null, string DerivedAssemblyName = null,
                 bool SubTable = false) {
+
+            // drop indexes, foreign keys if we're rebuilding
+            RemoveIndexesIfNeeded(dbName, dbOwner);
+
+            TableInfo tableInfo = CreateSimpleTableFromModel(dbName, dbOwner, tableName, key1Name, key2Name, identityName, propData, tpProps,
+                errorList, columns,
+                TopMost, SiteSpecific, ForeignKeyTable, DerivedDataTableName, DerivedDataTypeName, DerivedAssemblyName,
+                SubTable);
+            if (tableInfo == null)
+                return false;
+
+            MakeTables(dbName, dbOwner, tableInfo);
+
+            return true;
+        }
+
+        private TableInfo CreateSimpleTableFromModel(string dbName, string dbOwner, string tableName, string key1Name, string key2Name, string identityName, List<PropertyData> propData, Type tpProps,
+                List<string> errorList, List<string> columns,
+                bool TopMost = false,
+                bool SiteSpecific = false,
+                string ForeignKeyTable = null,
+                string DerivedDataTableName = null, string DerivedDataTypeName = null, string DerivedAssemblyName = null,
+                bool SubTable = false) {
             try {
 
-                // drop indexes, foreign keys if we're rebuilding
-                RemoveIndexesIfNeeded(dbName, dbOwner);
-
+                Table currentTable = null;
                 Table newTable = new Table {
                     Name = tableName,
                 };
+                TableInfo tableInfo = new TableInfo {
+                    NewTable = newTable,
+                    CurrentTable = null,
+                    SubTables = new List<TableInfo>(),
+                };
 
-                Table currentTable = null;
                 if (SQLManager.HasTable(Conn, dbName, dbOwner, tableName)) {
-                    currentTable = new Table() {
+                    currentTable = tableInfo.CurrentTable = new Table() {
                         Name = tableName,
                         Indexes = SQLManager.GetInfoIndexes(Conn, dbName, dbOwner, tableName),
                         ForeignKeys = SQLManager.GetInfoForeignKeys(Conn, dbName, dbOwner, tableName),
                         Columns = SQLManager.GetInfoColumns(Conn, dbName, dbOwner, tableName),
                     };
                 }
-                bool hasSubTable = AddTableColumns(dbName, dbOwner, newTable, currentTable, key1Name, key2Name, identityName, propData, tpProps, "", true, columns, errorList, SubTable: SubTable);
+                bool hasSubTable = AddTableColumns(dbName, dbOwner, tableInfo, key1Name, key2Name, identityName, propData, tpProps, "", true, columns, errorList, SubTable: SubTable);
 
                 // if this table (base class) has a derived type, add its table name and its derived type as a column
                 if (DerivedDataTableName != null) {
@@ -239,162 +270,25 @@ namespace YetaWF.DataProvider {
                         newTable.ForeignKeys.Add(fk);
                     }
                 }
-
-                if (currentTable != null) {
-                    UpdateTable(dbName, dbOwner, currentTable, newTable);
-                } else {
-                    CreateTable(dbName, dbOwner, newTable);
-                }
-                return true;
+                return tableInfo;
 
             } catch (Exception exc) {
                 if (Logging) YetaWF.Core.Log.Logging.AddErrorLog("Couldn't create table {0}", tableName, exc);
                 errorList.Add(string.Format("Couldn't create table {0}", tableName));
                 errorList.Add(ErrorHandling.FormatExceptionMessage(exc));
-                return false;
+                return null;
             }
         }
 
-        private void CreateTable(string dbName, string dbOwner, Table newTable) {
-
-            StringBuilder sb = new StringBuilder();
-            StringBuilder sbIx = new StringBuilder();
-            StringBuilder sbFk = new StringBuilder();
-            sb.Append("SET ANSI_NULLS ON;\r\n");
-            sb.Append("SET ANSI_PADDING ON;\r\n");
-            sb.Append("SET QUOTED_IDENTIFIER ON;\r\n\r\n");
-
-            sb.Append($"CREATE TABLE[{dbOwner}].[{newTable.Name}](\r\n");
-            // Columns
-            foreach (Column col in newTable.Columns) {
-                sb.Append($"    [{col.Name}] {GetDataTypeString(col)}{GetIdentity(col)}{GetNullable(col)},\r\n");
-            }
-
-            // Indexes
-
-            foreach (Index index in newTable.Indexes) {
-                switch (index.IndexType) {
-                    case IndexType.PrimaryKey:
-                    case IndexType.UniqueKey:
-                        sb.Append(GetAddIndex(index, dbName, dbOwner, newTable));
-                        break;
-                    case IndexType.Indexed:
-                        // created separately, after table
-                        sbIx.Append(GetAddIndex(index, dbName, dbOwner, newTable));
-                        break;
-                }
-            }
-            sb.RemoveLastComma();
-
-            sb.Append("\r\n) ON[PRIMARY];\r\n\r\n");
-
-            // Foreign keys
-
-            foreach (ForeignKey fk in newTable.ForeignKeys) {
-                sbFk.Append(GetAddForeignKey(fk, dbName, dbOwner, newTable));
-            }
-
-            sb.Append(sbIx.ToString());
-            sb.Append(sbFk.ToString());
-
-            sb.Append("SET ANSI_PADDING OFF;\r\n");
-
-            using (SqlCommand cmd = new SqlCommand()) {
-                cmd.Connection = Conn;
-                cmd.CommandText = sb.ToString();
-                cmd.ExecuteNonQuery();
-            }
-        }
-
-        private void UpdateTable(string dbName, string dbOwner, Table currentTable, Table newTable) {
-
-            StringBuilder sb = new StringBuilder();
-
-            List<Column> removedColumns = currentTable.Columns.Except(newTable.Columns, new ColumnComparer()).ToList();
-            List<Column> addedColumns = newTable.Columns.Except(currentTable.Columns, new ColumnComparer()).ToList();
-            List<Column> alteredColumns = addedColumns.Intersect(removedColumns, new ColumnNameComparer()).ToList();
-            removedColumns = removedColumns.Except(alteredColumns, new ColumnNameComparer()).ToList();
-            addedColumns = addedColumns.Except(alteredColumns, new ColumnNameComparer()).ToList();
-
-            List<Index> removedIndexes = currentTable.Indexes.Except(newTable.Indexes, new IndexComparer()).ToList();
-            List<Index> addedIndexes = newTable.Indexes.Except(currentTable.Indexes, new IndexComparer()).ToList();
-
-            List<ForeignKey> removedForeignKeys = currentTable.ForeignKeys.Except(newTable.ForeignKeys, new ForeignKeyComparer()).ToList();
-            List<ForeignKey> addedForeignKeys = newTable.ForeignKeys.Except(currentTable.ForeignKeys, new ForeignKeyComparer()).ToList();
-
-            // Remove index
-            foreach (Index index in removedIndexes) {
-                switch (index.IndexType) {
-                    case IndexType.Indexed:
-                        sb.Append($"DROP INDEX [{index.Name}] ON [{dbOwner}].[{newTable.Name}];\r\n");
-                        break;
-                    case IndexType.UniqueKey:
-                        sb.Append($"ALTER TABLE [{dbOwner}].[{newTable.Name}] DROP CONSTRAINT [{index.Name}];\r\n");
-                        break;
-                    case IndexType.PrimaryKey:
-                        sb.Append($"ALTER TABLE [{dbOwner}].[{newTable.Name}] DROP CONSTRAINT [{index.Name}];\r\n");
-                        break;
-                }
-            }
-
-            // Remove foreign key
-            foreach (ForeignKey fk in removedForeignKeys) {
-                sb.Append($"ALTER TABLE [{dbOwner}].[{newTable.Name}] DROP CONSTRAINT [{fk.Name}];\r\n");
-            }
-
-            // Remove columns
-            foreach (Column col in removedColumns) {
-                sb.Append($"ALTER TABLE [{dbOwner}].[{newTable.Name}] DROP COLUMN [{col.Name}];\r\n");
-            }
-            // Add columns
-            foreach (Column col in addedColumns) {
-                sb.Append($"ALTER TABLE [{dbOwner}].[{newTable.Name}] ADD [{col.Name}] {GetDataTypeString(col)}{GetIdentity(col)}{GetNullable(col)};\r\n");
-            }
-            // Altered columns
-            foreach (Column col in alteredColumns) {
-                sb.Append($"ALTER TABLE [{dbOwner}].[{newTable.Name}] ALTER [{col.Name}] {GetDataTypeString(col)}{GetIdentity(col)}{GetNullable(col)};\r\n");
-            }
-
-            // Add index
-            foreach (Index index in addedIndexes) {
-                switch (index.IndexType) {
-                    case IndexType.PrimaryKey:
-                    case IndexType.UniqueKey:
-                        sb.Append($"ALTER TABLE [{dbOwner}].[{newTable.Name}]\r\n");
-                        sb.Append($"  ADD");
-                        sb.Append(GetAddIndex(index, dbName, dbOwner, newTable));
-                        sb.RemoveLastComma();
-                        sb.Append($";\r\n");
-                        break;
-                    case IndexType.Indexed:
-                        sb.Append(GetAddIndex(index, dbName, dbOwner, newTable));
-                        break;
-                }
-            }
-
-            foreach (ForeignKey fk in addedForeignKeys) {
-                sb.Append(GetAddForeignKey(fk, dbName, dbOwner, newTable));
-            }
-
-            if (sb.Length != 0) {
-                using (SqlCommand cmd = new SqlCommand()) {
-                    cmd.Connection = Conn;
-                    cmd.CommandText = sb.ToString();
-                    cmd.ExecuteNonQuery();
-                }
-            }
-        }
-
-        private bool HasColumn(Table table, string name) {
-            return (from c in table.Columns where c.Name == name select c).FirstOrDefault() != null;
-        }
-
-        private bool AddTableColumns(string dbName, string dbOwner, Table newTable, Table currentTable,
+        private bool AddTableColumns(string dbName, string dbOwner, TableInfo tableInfo,
                 string key1Name, string key2Name, string identityName,
                 List<PropertyData> propData, Type tpContainer, string prefix, bool topMost, List<string> columns, List<string> errorList,
                 bool SubTable = false) {
 
+            Table newTable = tableInfo.NewTable;
+            Table currentTable = tableInfo.CurrentTable;
             bool hasSubTable = false;
+
             foreach (PropertyData prop in propData) {
 
                 PropertyInfo pi = prop.PropInfo;
@@ -471,8 +365,8 @@ namespace YetaWF.DataProvider {
                             newColumn.Nullable = nullable;
                             Data_NewValue newValAttr = (Data_NewValue)pi.GetCustomAttribute(typeof(Data_NewValue));
                             if (currentTable != null && !HasColumn(currentTable, colName)) {
-                                if (newValAttr == null && !nullable)
-                                    throw new InternalError("Non-nullable property {0} in table {1} doesn't have a Data_NewValue attribute, which is required when updating tables", prop.Name, newTable.Name);
+                                if (newValAttr == null)
+                                    throw new InternalError("Property {0} in table {1} doesn't have a Data_NewValue attribute, which is required when updating tables", prop.Name, newTable.Name);
                             }
                             newTable.Columns.Add(newColumn);
                         } else if (pi.PropertyType.IsClass && typeof(IEnumerable).IsAssignableFrom(pi.PropertyType)) {
@@ -484,24 +378,215 @@ namespace YetaWF.DataProvider {
                             // create a table that links the main table and this enumerated type using the key of the table
                             string subTableName = newTable.Name + "_" + pi.Name;
                             List<PropertyData> subPropData = ObjectSupport.GetPropertyData(subType);
-                            bool success = CreateTableFromModel(dbName, dbOwner, subTableName, SQLBase.SubTableKeyColumn, null,
+
+                            TableInfo subTableInfo = CreateSimpleTableFromModel(dbName, dbOwner, subTableName, SQLBase.SubTableKeyColumn, null,
                                 HasIdentity(identityName) ? identityName : SQLBase.IdentityColumn, subPropData, subType, errorList, columns,
                                 TopMost: false,
                                 ForeignKeyTable: newTable.Name,
                                 SubTable: true,
                                 SiteSpecific: false);
-                            if (!success)
-                                throw new InternalError("Creation of subtable failed");
+                            if (subTableInfo == null)
+                                throw new InternalError($"Creation of subtable {subTableName} failed");
+                            tableInfo.SubTables.Add(subTableInfo);
+
                             hasSubTable = true;
                         } else if (pi.PropertyType.IsClass) {
                             List<PropertyData> subPropData = ObjectSupport.GetPropertyData(pi.PropertyType);
-                            AddTableColumns(dbName, dbOwner, newTable, currentTable, null, null, identityName, subPropData, pi.PropertyType, prefix + prop.Name + "_", SubTable, columns, errorList);
+                            AddTableColumns(dbName, dbOwner, tableInfo, null, null, identityName, subPropData, pi.PropertyType, prefix + prop.Name + "_", SubTable, columns, errorList);
                         } else
                             throw new InternalError("Unknown property type {2} used in class {0}, property {1}", tpContainer.FullName, prop.Name, pi.PropertyType.FullName);
                     }
                 }
             }
             return hasSubTable;
+        }
+
+        private void MakeTables(string dbName, string dbOwner, TableInfo tableInfo) {
+            MakeTable(dbName, dbOwner, tableInfo);
+            MakeForeignKey(dbName, dbOwner, tableInfo);// we can't make foreign keys until all tables have been created/updated
+        }
+
+        private void MakeTable(string dbName, string dbOwner, TableInfo tableInfo) {
+            if (tableInfo.CurrentTable != null)
+                UpdateTable(dbName, dbOwner, tableInfo.CurrentTable, tableInfo.NewTable);
+            else
+                CreateTable(dbName, dbOwner, tableInfo.NewTable);
+            foreach (TableInfo subtableInfo in tableInfo.SubTables)
+                MakeTable(dbName, dbOwner, subtableInfo);
+        }
+
+        private void MakeForeignKey(string dbName, string dbOwner, TableInfo tableInfo) {
+            if (tableInfo.CurrentTable != null)
+                UpdateForeignKey(dbName, dbOwner, tableInfo.CurrentTable, tableInfo.NewTable);
+            else
+                CreateForeignKey(dbName, dbOwner, tableInfo.NewTable);
+            foreach (TableInfo subtableInfo in tableInfo.SubTables)
+                MakeForeignKey(dbName, dbOwner, subtableInfo);
+        }
+
+        private void CreateTable(string dbName, string dbOwner, Table newTable) {
+
+            StringBuilder sb = new StringBuilder();
+            StringBuilder sbIx = new StringBuilder();
+            sb.Append("SET ANSI_NULLS ON;\r\n");
+            sb.Append("SET ANSI_PADDING ON;\r\n");
+            sb.Append("SET QUOTED_IDENTIFIER ON;\r\n\r\n");
+
+            sb.Append($"CREATE TABLE[{dbOwner}].[{newTable.Name}](\r\n");
+            // Columns
+            foreach (Column col in newTable.Columns) {
+                sb.Append($"    [{col.Name}] {GetDataTypeString(col)}{GetIdentity(col)}{GetNullable(col)},\r\n");
+            }
+
+            // Indexes
+
+            foreach (Index index in newTable.Indexes) {
+                switch (index.IndexType) {
+                    case IndexType.PrimaryKey:
+                    case IndexType.UniqueKey:
+                        sb.Append(GetAddIndex(index, dbName, dbOwner, newTable));
+                        break;
+                    case IndexType.Indexed:
+                        // created separately, after table
+                        sbIx.Append(GetAddIndex(index, dbName, dbOwner, newTable));
+                        break;
+                }
+            }
+            sb.RemoveLastComma();
+
+            sb.Append("\r\n) ON[PRIMARY];\r\n\r\n");
+
+            sb.Append(sbIx.ToString());
+
+            sb.Append("SET ANSI_PADDING OFF;\r\n");
+
+            using (SqlCommand cmd = new SqlCommand()) {
+                cmd.Connection = Conn;
+                cmd.CommandText = sb.ToString();
+                cmd.ExecuteNonQuery();
+            }
+        }
+
+        private void CreateForeignKey(string dbName, string dbOwner, Table newTable) {
+
+            StringBuilder sb = new StringBuilder();
+            sb.Append("SET QUOTED_IDENTIFIER ON;\r\n\r\n");
+
+            foreach (ForeignKey fk in newTable.ForeignKeys) {
+                sb.Append(GetAddForeignKey(fk, dbName, dbOwner, newTable));
+            }
+
+            using (SqlCommand cmd = new SqlCommand()) {
+                cmd.Connection = Conn;
+                cmd.CommandText = sb.ToString();
+                cmd.ExecuteNonQuery();
+            }
+        }
+
+        private void UpdateTable(string dbName, string dbOwner, Table currentTable, Table newTable) {
+
+            StringBuilder sb = new StringBuilder();
+
+            List<Column> removedColumns = currentTable.Columns.Except(newTable.Columns, new ColumnComparer()).ToList();
+            List<Column> addedColumns = newTable.Columns.Except(currentTable.Columns, new ColumnComparer()).ToList();
+            List<Column> alteredColumns = addedColumns.Intersect(removedColumns, new ColumnNameComparer()).ToList();
+            removedColumns = removedColumns.Except(alteredColumns, new ColumnNameComparer()).ToList();
+            addedColumns = addedColumns.Except(alteredColumns, new ColumnNameComparer()).ToList();
+
+            List<Index> removedIndexes = currentTable.Indexes.Except(newTable.Indexes, new IndexComparer()).ToList();
+            List<Index> addedIndexes = newTable.Indexes.Except(currentTable.Indexes, new IndexComparer()).ToList();
+
+            List<ForeignKey> removedForeignKeys = currentTable.ForeignKeys.Except(newTable.ForeignKeys, new ForeignKeyComparer()).ToList();
+
+            // Remove index
+            foreach (Index index in removedIndexes) {
+                switch (index.IndexType) {
+                    case IndexType.Indexed:
+                        sb.Append($"DROP INDEX [{index.Name}] ON [{dbOwner}].[{newTable.Name}];\r\n");
+                        break;
+                    case IndexType.UniqueKey:
+                        sb.Append($"ALTER TABLE [{dbOwner}].[{newTable.Name}] DROP CONSTRAINT [{index.Name}];\r\n");
+                        break;
+                    case IndexType.PrimaryKey:
+                        sb.Append($"ALTER TABLE [{dbOwner}].[{newTable.Name}] DROP CONSTRAINT [{index.Name}];\r\n");
+                        break;
+                }
+            }
+
+            // Remove foreign key
+            foreach (ForeignKey fk in removedForeignKeys) {
+                sb.Append($"ALTER TABLE [{dbOwner}].[{newTable.Name}] DROP CONSTRAINT [{fk.Name}];\r\n");
+            }
+
+            // Remove columns
+            foreach (Column col in removedColumns) {
+                sb.Append($@"
+IF EXISTS (SELECT * FROM  [{dbOwner}].[sysobjects] WHERE id = OBJECT_ID(N'DF_{currentTable.Name}_{col.Name}') AND type = 'D')
+    BEGIN
+       ALTER TABLE  [{dbOwner}].[{newTable.Name}] DROP CONSTRAINT [DF_{currentTable.Name}_{col.Name}], COLUMN [{col.Name}];
+    END
+ELSE
+    BEGIN
+       ALTER TABLE  [{dbOwner}].[{newTable.Name}] DROP COLUMN [{col.Name}];
+    END
+");
+            }
+
+            // Add columns
+            foreach (Column col in addedColumns) {
+                sb.Append($"ALTER TABLE [{dbOwner}].[{newTable.Name}] ADD [{col.Name}] {GetDataTypeString(col)}{GetDataTypeDefault(newTable.Name, col)}{GetIdentity(col)}{GetNullable(col)};\r\n");
+            }
+            // Altered columns
+            foreach (Column col in alteredColumns) {
+                sb.Append($"ALTER TABLE [{dbOwner}].[{newTable.Name}] ALTER [{col.Name}] {GetDataTypeString(col)}{GetDataTypeDefault(newTable.Name, col)}{GetIdentity(col)}{GetNullable(col)};\r\n");
+            }
+
+            // Add index
+            foreach (Index index in addedIndexes) {
+                switch (index.IndexType) {
+                    case IndexType.PrimaryKey:
+                    case IndexType.UniqueKey:
+                        sb.Append($"ALTER TABLE [{dbOwner}].[{newTable.Name}]\r\n");
+                        sb.Append($"  ADD");
+                        sb.Append(GetAddIndex(index, dbName, dbOwner, newTable));
+                        sb.RemoveLastComma();
+                        sb.Append($";\r\n");
+                        break;
+                    case IndexType.Indexed:
+                        sb.Append(GetAddIndex(index, dbName, dbOwner, newTable));
+                        break;
+                }
+            }
+
+            if (sb.Length != 0) {
+                using (SqlCommand cmd = new SqlCommand()) {
+                    cmd.Connection = Conn;
+                    cmd.CommandText = sb.ToString();
+                    cmd.ExecuteNonQuery();
+                }
+            }
+        }
+
+        private void UpdateForeignKey(string dbName, string dbOwner, Table currentTable, Table newTable) {
+
+            StringBuilder sb = new StringBuilder();
+
+            List<ForeignKey> addedForeignKeys = newTable.ForeignKeys.Except(currentTable.ForeignKeys, new ForeignKeyComparer()).ToList();
+            foreach (ForeignKey fk in addedForeignKeys) {
+                sb.Append(GetAddForeignKey(fk, dbName, dbOwner, newTable));
+            }
+
+            if (sb.Length != 0) {
+                using (SqlCommand cmd = new SqlCommand()) {
+                    cmd.Connection = Conn;
+                    cmd.CommandText = sb.ToString();
+                    cmd.ExecuteNonQuery();
+                }
+            }
+        }
+
+        private bool HasColumn(Table table, string name) {
+            return (from c in table.Columns where c.Name == name select c).FirstOrDefault() != null;
         }
 
         protected bool TryGetDataType(Type tp) {
@@ -580,6 +665,33 @@ namespace YetaWF.DataProvider {
                         return $"[nvarchar]({col.Length})";
                 default:
                     throw new InternalError($"Column {col.Name} has unsupported type name {col.DataType.ToString()}");
+            }
+        }
+        private string GetDataTypeDefault(string tableName, Column col) {
+            if (col.Nullable)
+                return "";
+
+            switch (col.DataType) {
+                case SqlDbType.BigInt:
+                    return $" CONSTRAINT [DF_{tableName}_{col.Name}] DEFAULT 0";
+                case SqlDbType.Bit:
+                    return $" CONSTRAINT [DF_{tableName}_{col.Name}] DEFAULT 0";
+                case SqlDbType.DateTime2:
+                    return "";
+                case SqlDbType.Money:
+                    return $" CONSTRAINT [DF_{tableName}_{col.Name}] DEFAULT 0";
+                case SqlDbType.UniqueIdentifier:
+                    return "";
+                case SqlDbType.VarBinary:
+                    return "";
+                case SqlDbType.Int:
+                    return $" CONSTRAINT [DF_{tableName}_{col.Name}] DEFAULT 0";
+                case SqlDbType.Float:
+                    return $" CONSTRAINT [DF_{tableName}_{col.Name}] DEFAULT 0";
+                case SqlDbType.NVarChar:
+                    return "";
+                default:
+                    throw new InternalError($"Table {tableName}, column {col.Name} has an unsupported type name {col.DataType.ToString()}");
             }
         }
         private string GetNullable(Column col) {

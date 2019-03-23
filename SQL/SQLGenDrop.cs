@@ -59,13 +59,6 @@ namespace YetaWF.DataProvider {
                                 break;
                         }
                     }
-                    if (tableFailures == 0) {
-                        //$$$ foreach (Column column in table.Columns) {
-                        //    if (column.DefaultConstraint != null)
-                        //        column.DefaultConstraint.Drop();
-                        //}
-                        //table.Alter();
-                    }
                     failures += tableFailures;
                 }
                 if (failures == 0)
