@@ -508,7 +508,7 @@ namespace YetaWF.DataProvider.SQL {
         internal Dictionary<string, string> GetVisibleColumns(string databaseName, string dbOwner, string tableName, Type objType, List<JoinData> joins) {
             Dictionary<string, string> visibleColumns = new Dictionary<string, string>();
             tableName = tableName.Trim(new char[] { '[', ']' });
-            List<string> columns = SQLCache.GetColumns(Conn, ConnectionString, databaseName, tableName);
+            List<string> columns = SQLManager.GetColumns(Conn, databaseName, dbOwner, tableName);
             AddVisibleColumns(visibleColumns, databaseName, dbOwner, tableName, columns);
             if (CalculatedPropertyCallbackAsync != null) {
                 List<PropertyData> props = ObjectSupport.GetPropertyData(objType);
@@ -524,14 +524,14 @@ namespace YetaWF.DataProvider.SQL {
                     dbOwner = mainInfo.GetDbOwner();
                     tableName = mainInfo.GetTableName();
                     tableName = tableName.Split(new char[] { '.' }).Last().Trim(new char[] { '[', ']' });
-                    columns = SQLCache.GetColumns(Conn, ConnectionString, databaseName, tableName);
+                    columns = SQLManager.GetColumns(Conn, databaseName, dbOwner, tableName);
                     AddVisibleColumns(visibleColumns, databaseName, dbOwner, tableName, columns);
                     ISQLTableInfo joinInfo = (ISQLTableInfo)join.JoinDP.GetDataProvider();
                     databaseName = joinInfo.GetDatabaseName();
                     dbOwner = joinInfo.GetDbOwner();
                     tableName = joinInfo.GetTableName();
                     tableName = tableName.Split(new char[] { '.' }).Last().Trim(new char[] { '[', ']' });
-                    columns = SQLCache.GetColumns(join.JoinDP.GetDataProvider().Conn, join.JoinDP.GetDataProvider().ConnectionString, databaseName, tableName);
+                    columns = SQLManager.GetColumns(join.JoinDP.GetDataProvider().Conn, databaseName, dbOwner, tableName);
                     AddVisibleColumns(visibleColumns, databaseName, dbOwner, tableName, columns);
                 }
             }
