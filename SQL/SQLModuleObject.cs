@@ -1,6 +1,5 @@
 ﻿/* Copyright © 2019 Softel vdm, Inc. - https://yetawf.com/Documentation/YetaWF/Licensing */
 
-using Microsoft.SqlServer.Management.Smo;
 using System;
 using System.Collections.Generic;
 using System.Data.SqlClient;
@@ -407,10 +406,10 @@ WHERE {fullBaseTableName}.[DerivedDataTableName] = '{Dataset}' AND {fullBaseTabl
         /// </summary>
         /// <returns>true if the data provider is installed and available, false otherwise.</returns>
         public new Task<bool> IsInstalledAsync() {
-            if (!SQLCache.HasTable(Conn, ConnectionString, Database, BaseDataset))
+            if (!SQLManager.HasTable(Conn, Database, Dbo, BaseDataset))
                 return Task.FromResult(false);
             if (Dataset != BaseDataset) {
-                if (!SQLCache.HasTable(Conn, ConnectionString, Database, Dataset))
+                if (!SQLManager.HasTable(Conn, Database, Dbo, Dataset))
                     return Task.FromResult(false);
             }
             return Task.FromResult(true);
@@ -427,21 +426,20 @@ WHERE {fullBaseTableName}.[DerivedDataTableName] = '{Dataset}' AND {fullBaseTabl
         public new Task<bool> InstallModelAsync(List<string> errorList) {
             if (Dataset == BaseDataset) throw new InternalError("Base dataset is not supported");
             bool success = false;
-            Database db = SQLCache.GetDatabase(Conn, ConnectionString);
-            success = CreateTableWithBaseType(db, errorList);
-            SQLCache.ClearCache();
+            success = CreateTableWithBaseType(Conn, Database, errorList);
+            SQLManager.ClearCache();
             return Task.FromResult(success);
         }
-        private bool CreateTableWithBaseType(Database db, List<string> errorList) {
+        private bool CreateTableWithBaseType(SqlConnection conn, string dbName, List<string> errorList) {
             Type baseType = typeof(ModuleDefinition);
             List<string> columns = new List<string>();
-            SQLCreate sqlCreate = new SQLCreate(Languages, IdentitySeed, Logging);
-            if (!sqlCreate.CreateTable(db, Dbo, BaseDataset, Key1Name, null, IdentityName, GetBasePropertyData(), baseType, errorList, columns,
+            SQLGen sqlCreate = new SQLGen(conn, Languages, IdentitySeed, Logging);
+            if (!sqlCreate.CreateTableFromModel(dbName, Dbo, BaseDataset, Key1Name, null, IdentityName, GetBasePropertyData(), baseType, errorList, columns,
                     TopMost: true,
                     SiteSpecific: SiteIdentity > 0,
                     DerivedDataTableName: "DerivedDataTableName", DerivedDataTypeName: "DerivedDataType", DerivedAssemblyName: "DerivedAssemblyName"))
                 return false;
-            return sqlCreate.CreateTable(db, Dbo, Dataset, Key1Name, null, SQLBase.IdentityColumn, GetPropertyData(), typeof(OBJTYPE), errorList, columns,
+            return sqlCreate.CreateTableFromModel(dbName, Dbo, Dataset, Key1Name, null, SQLBase.IdentityColumn, GetPropertyData(), typeof(OBJTYPE), errorList, columns,
                 TopMost: true,
                 SiteSpecific: SiteIdentity > 0,
                 ForeignKeyTable: BaseDataset);
@@ -458,19 +456,18 @@ WHERE {fullBaseTableName}.[DerivedDataTableName] = '{Dataset}' AND {fullBaseTabl
         public new async Task<bool> UninstallModelAsync(List<string> errorList) {
             if (Dataset == BaseDataset) throw new InternalError("Base dataset is not supported");
             try {
-                Database db = SQLCache.GetDatabase(Conn, ConnectionString);
-                await DropTableWithBaseType(db, errorList);
+                await DropTableWithBaseType(Database, errorList);
                 return true;
             } catch (Exception exc) {
                 errorList.Add(string.Format("{0}: {1}", typeof(OBJTYPE).FullName, ErrorHandling.FormatExceptionMessage(exc)));
                 return false;
             } finally {
-                SQLCache.ClearCache();
+                SQLManager.ClearCache();
             }
         }
-        private async Task<bool> DropTableWithBaseType(Database db, List<string> errorList) {
+        private async Task<bool> DropTableWithBaseType(string dbName, List<string> errorList) {
             try {
-                if (db.Tables.Contains(Dataset)) {
+                if (SQLManager.HasTable(Conn, dbName, Dbo, Dataset)) {
                     // Remove all records from the table (this removes the records in BaseTableName also)
                     SQLHelper sqlHelper = new SQLHelper(Conn, null, Languages);
                     SQLBuilder sb = new SQLBuilder();
@@ -480,9 +477,9 @@ DELETE {BaseDataset} FROM {BaseDataset}
                     ");
                     await sqlHelper.ExecuteNonQueryAsync(sb.ToString());
                     // then drop the table
-                    db.Tables[Dataset].Drop();
+                    SQLManager.DropTable(Conn, dbName, Dbo, Dataset);
                 }
-                if (db.Tables.Contains(BaseDataset)) {
+                if (SQLManager.HasTable(Conn, dbName, Dbo, BaseDataset)) {
                     SQLHelper sqlHelper = new SQLHelper(Conn, null, Languages);
                     SQLBuilder sb = new SQLBuilder();
                     sb.Add($@"
@@ -491,7 +488,7 @@ SELECT COUNT(*) FROM  {BaseDataset}
                     object val = await sqlHelper.ExecuteScalarAsync(sb.ToString());
                     int count = Convert.ToInt32(val);
                     if (count == 0)
-                        db.Tables[BaseDataset].Drop();
+                        SQLManager.DropTable(Conn, dbName, Dbo, Dataset);
                 }
             } catch (Exception exc) {
                 if (Logging) YetaWF.Core.Log.Logging.AddErrorLog("Couldn't drop table", exc);
