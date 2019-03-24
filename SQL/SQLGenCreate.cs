@@ -20,6 +20,13 @@ namespace YetaWF.DataProvider {
 
     internal partial class SQLGen {
 
+        // This isn't used any longer.
+        // It was used to drop all constraints, foreign keys, but that turned out to be a problem.
+        // We don't really need it right now. Dropping all indexes/foreign keys was used
+        // when columns had to be converted from varchar to nvarchar. If such an issue comes up again,
+        // we have to handle it in UpdateTable.
+        public bool MajorDataChange = false;
+
         public SqlConnection Conn { get; private set; }
         public int IdentitySeed { get; private set; }
         public bool Logging { get; private set; }
@@ -49,9 +56,6 @@ namespace YetaWF.DataProvider {
                 string ForeignKeyTable = null,
                 string DerivedDataTableName = null, string DerivedDataTypeName = null, string DerivedAssemblyName = null,
                 bool SubTable = false) {
-
-            // drop indexes, foreign keys if we're rebuilding
-            RemoveIndexesIfNeeded(dbName, dbOwner);
 
             TableInfo tableInfo = CreateSimpleTableFromModel(dbName, dbOwner, tableName, key1Name, key2Name, identityName, propData, tpProps,
                 errorList, columns,
@@ -402,8 +406,11 @@ namespace YetaWF.DataProvider {
         }
 
         private void MakeTables(string dbName, string dbOwner, TableInfo tableInfo) {
+            if (tableInfo.CurrentTable != null) {
+                RemoveIndexesAndForeignKeys(dbName, dbOwner, tableInfo);
+            }
             MakeTable(dbName, dbOwner, tableInfo);
-            MakeForeignKey(dbName, dbOwner, tableInfo);// we can't make foreign keys until all tables have been created/updated
+            MakeForeignKeys(dbName, dbOwner, tableInfo);// we can't make foreign keys until all tables have been created/updated
         }
 
         private void MakeTable(string dbName, string dbOwner, TableInfo tableInfo) {
@@ -415,13 +422,13 @@ namespace YetaWF.DataProvider {
                 MakeTable(dbName, dbOwner, subtableInfo);
         }
 
-        private void MakeForeignKey(string dbName, string dbOwner, TableInfo tableInfo) {
+        private void MakeForeignKeys(string dbName, string dbOwner, TableInfo tableInfo) {
             if (tableInfo.CurrentTable != null)
-                UpdateForeignKey(dbName, dbOwner, tableInfo.CurrentTable, tableInfo.NewTable);
+                UpdateForeignKeys(dbName, dbOwner, tableInfo.CurrentTable, tableInfo.NewTable);
             else
                 CreateForeignKey(dbName, dbOwner, tableInfo.NewTable);
             foreach (TableInfo subtableInfo in tableInfo.SubTables)
-                MakeForeignKey(dbName, dbOwner, subtableInfo);
+                MakeForeignKeys(dbName, dbOwner, subtableInfo);
         }
 
         private void CreateTable(string dbName, string dbOwner, Table newTable) {
@@ -483,20 +490,27 @@ namespace YetaWF.DataProvider {
             }
         }
 
-        private void UpdateTable(string dbName, string dbOwner, Table currentTable, Table newTable) {
+        private void RemoveIndexesAndForeignKeys(string dbName, string dbOwner, TableInfo tableInfo) {
+
+            foreach (TableInfo t in tableInfo.SubTables) {
+                RemoveIndexesAndForeignKeys(dbName, dbOwner, t);
+            }
+
+            Table currentTable = tableInfo.CurrentTable;
+            Table newTable = tableInfo.NewTable;
+
+            List<Index> removedIndexes;
+            List<ForeignKey> removedForeignKeys;
+
+            if (!MajorDataChange) {
+                removedIndexes = currentTable.Indexes.Except(newTable.Indexes, new IndexComparer()).ToList();
+                removedForeignKeys = currentTable.ForeignKeys.Except(newTable.ForeignKeys, new ForeignKeyComparer()).ToList();
+            } else {
+                removedIndexes = currentTable.Indexes;
+                removedForeignKeys = currentTable.ForeignKeys;
+            }
 
             StringBuilder sb = new StringBuilder();
-
-            List<Column> removedColumns = currentTable.Columns.Except(newTable.Columns, new ColumnComparer()).ToList();
-            List<Column> addedColumns = newTable.Columns.Except(currentTable.Columns, new ColumnComparer()).ToList();
-            List<Column> alteredColumns = addedColumns.Intersect(removedColumns, new ColumnNameComparer()).ToList();
-            removedColumns = removedColumns.Except(alteredColumns, new ColumnNameComparer()).ToList();
-            addedColumns = addedColumns.Except(alteredColumns, new ColumnNameComparer()).ToList();
-
-            List<Index> removedIndexes = currentTable.Indexes.Except(newTable.Indexes, new IndexComparer()).ToList();
-            List<Index> addedIndexes = newTable.Indexes.Except(currentTable.Indexes, new IndexComparer()).ToList();
-
-            List<ForeignKey> removedForeignKeys = currentTable.ForeignKeys.Except(newTable.ForeignKeys, new ForeignKeyComparer()).ToList();
 
             // Remove index
             foreach (Index index in removedIndexes) {
@@ -516,6 +530,32 @@ namespace YetaWF.DataProvider {
             // Remove foreign key
             foreach (ForeignKey fk in removedForeignKeys) {
                 sb.Append($"ALTER TABLE [{dbOwner}].[{newTable.Name}] DROP CONSTRAINT [{fk.Name}];\r\n");
+            }
+
+            if (sb.Length != 0) {
+                using (SqlCommand cmd = new SqlCommand()) {
+                    cmd.Connection = Conn;
+                    cmd.CommandText = sb.ToString();
+                    cmd.ExecuteNonQuery();
+                }
+            }
+        }
+
+        private void UpdateTable(string dbName, string dbOwner, Table currentTable, Table newTable) {
+
+            StringBuilder sb = new StringBuilder();
+
+            List<Column> removedColumns = currentTable.Columns.Except(newTable.Columns, new ColumnComparer()).ToList();
+            List<Column> addedColumns = newTable.Columns.Except(currentTable.Columns, new ColumnComparer()).ToList();
+            List<Column> alteredColumns = addedColumns.Intersect(removedColumns, new ColumnNameComparer()).ToList();
+            removedColumns = removedColumns.Except(alteredColumns, new ColumnNameComparer()).ToList();
+            addedColumns = addedColumns.Except(alteredColumns, new ColumnNameComparer()).ToList();
+
+            List<Index> addedIndexes;
+            if (!MajorDataChange) {
+                addedIndexes = newTable.Indexes.Except(currentTable.Indexes, new IndexComparer()).ToList();
+            } else {
+                addedIndexes = newTable.Indexes;
             }
 
             // Remove columns
@@ -567,11 +607,16 @@ ELSE
             }
         }
 
-        private void UpdateForeignKey(string dbName, string dbOwner, Table currentTable, Table newTable) {
+        private void UpdateForeignKeys(string dbName, string dbOwner, Table currentTable, Table newTable) {
 
             StringBuilder sb = new StringBuilder();
 
-            List<ForeignKey> addedForeignKeys = newTable.ForeignKeys.Except(currentTable.ForeignKeys, new ForeignKeyComparer()).ToList();
+            List<ForeignKey> addedForeignKeys;
+            if (!MajorDataChange)
+                addedForeignKeys = newTable.ForeignKeys.Except(currentTable.ForeignKeys, new ForeignKeyComparer()).ToList();
+            else
+                addedForeignKeys = newTable.ForeignKeys;
+
             foreach (ForeignKey fk in addedForeignKeys) {
                 sb.Append(GetAddForeignKey(fk, dbName, dbOwner, newTable));
             }
