@@ -1,6 +1,5 @@
 ﻿/* Copyright © 2019 Softel vdm, Inc. - https://yetawf.com/Documentation/YetaWF/Licensing */
 
-using Microsoft.SqlServer.Management.Smo;
 using System;
 using System.Collections;
 using System.Collections.Generic;
@@ -722,7 +721,7 @@ FROM {fullTableName} WITH(NOLOCK)
         /// </summary>
         /// <returns>true if the data provider is installed and available, false otherwise.</returns>
         public Task<bool> IsInstalledAsync() {
-            return Task.FromResult(SQLCache.HasTable(Conn, ConnectionString, Database, Dataset));
+            return Task.FromResult(SQLManager.HasTable(Conn, Database, Dbo, Dataset));
         }
 
         /// <summary>
@@ -735,14 +734,13 @@ FROM {fullTableName} WITH(NOLOCK)
         /// While a package is installed, all data models are installed by calling the InstallModelAsync method.</remarks>
         public Task<bool> InstallModelAsync(List<string> errorList) {
             bool success = false;
-            Database db = SQLCache.GetDatabase(Conn, ConnectionString);
             List<string> columns = new List<string>();
-            SQLCreate sqlCreate = new SQLCreate(Languages, IdentitySeed, Logging);
+            SQLGen sqlCreate = new SQLGen(Conn, Languages, IdentitySeed, Logging);
             //TODO: could asyncify but probably not worth it as this is used during install/startup only
-            success = sqlCreate.CreateTable(db, Dbo, Dataset, Key1Name, HasKey2 ? Key2Name : null, IdentityName, GetPropertyData(), typeof(OBJTYPE), errorList, columns,
+            success = sqlCreate.CreateTableFromModel(Database, Dbo, Dataset, Key1Name, HasKey2 ? Key2Name : null, IdentityName, GetPropertyData(), typeof(OBJTYPE), errorList, columns,
                 SiteSpecific: SiteIdentity > 0,
                 TopMost: true);
-            SQLCache.ClearCache();
+            SQLManager.ClearCache();
             return Task.FromResult(success);
         }
 
@@ -756,21 +754,20 @@ FROM {fullTableName} WITH(NOLOCK)
         /// While a package is uninstalled, all data models are uninstalled by calling the UninstallModelAsync method.</remarks>
         public Task<bool> UninstallModelAsync(List<string> errorList) {
             try {
-                Database db = SQLCache.GetDatabase(Conn, ConnectionString);
-                SQLCreate sqlCreate = new SQLCreate(Languages, IdentitySeed, Logging);
+                SQLGen sqlCreate = new SQLGen(Conn, Languages, IdentitySeed, Logging);
                 List<PropertyData> propData = GetPropertyData();
                 List<SubTableInfo> subTables = GetSubTables(Dataset, propData);
                 foreach (SubTableInfo subTable in subTables) {
                     //TODO: could asyncify but probably not worth it as this is used during install/startup only
-                    sqlCreate.DropTable(db, Dbo, subTable.Name, errorList);
+                    sqlCreate.DropTable(Database, Dbo, subTable.Name, errorList);
                 }
-                sqlCreate.DropTable(db, Dbo, Dataset, errorList);
+                sqlCreate.DropTable(Database, Dbo, Dataset, errorList);
                 return Task.FromResult(true);
             } catch (Exception exc) {
                 errorList.Add(string.Format("{0}: {1}", typeof(OBJTYPE).FullName, ErrorHandling.FormatExceptionMessage(exc)));
                 return Task.FromResult(false);
             } finally {
-                SQLCache.ClearCache();
+                SQLManager.ClearCache();
             }
         }
 
