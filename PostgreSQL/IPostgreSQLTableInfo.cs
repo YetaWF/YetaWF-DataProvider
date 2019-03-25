@@ -27,7 +27,7 @@ namespace YetaWF.DataProvider.PostgreSQL {
         /// Returns the database owner used by the data provider.
         /// </summary>
         /// <returns>Returns the database owner used by the data provider.</returns>
-        string GetDbOwner();
+        string GetSchema();
         /// <summary>
         /// Returns the table name used by the data provider.
         /// </summary>

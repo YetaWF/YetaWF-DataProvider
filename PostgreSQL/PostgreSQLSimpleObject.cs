@@ -742,7 +742,7 @@ FROM {fullTableName}
         /// </summary>
         /// <returns>true if the data provider is installed and available, false otherwise.</returns>
         public Task<bool> IsInstalledAsync() {
-            return Task.FromResult(PostgreSQLCache.HasTable(Conn, ConnectionString, Database, Dataset));
+            return Task.FromResult(PostgreSQLManager.HasTable(Conn, Database, Schema, Dataset));
         }
 
         /// <summary>
@@ -755,13 +755,12 @@ FROM {fullTableName}
         /// While a package is installed, all data models are installed by calling the InstallModelAsync method.</remarks>
         public Task<bool> InstallModelAsync(List<string> errorList) {
             bool success = false;
-            PostgreSQLCache.DBEntry db = PostgreSQLCache.GetDatabase(Conn, ConnectionString);
             List<string> columns = new List<string>();
-            PostgreSQLCreate sqlCreate = new PostgreSQLCreate(Languages, IdentitySeed, Logging);
-            success = sqlCreate.CreateTable(db, Schema, Dataset, Key1Name, HasKey2 ? Key2Name : null, IdentityName, GetPropertyData(), typeof(OBJTYPE), errorList, columns,
+            PostgreSQLGen sqlCreate = new PostgreSQLGen(Conn, Languages, IdentitySeed, Logging);
+            success = sqlCreate.CreateTableFromModel(Database, Schema, Dataset, Key1Name, HasKey2 ? Key2Name : null, IdentityName, GetPropertyData(), typeof(OBJTYPE), errorList, columns,
                 SiteSpecific: SiteIdentity > 0,
                 TopMost: true);
-            PostgreSQLCache.ClearCache();
+            PostgreSQLManager.ClearCache();
             return Task.FromResult(success);
         }
 
@@ -775,21 +774,19 @@ FROM {fullTableName}
         /// While a package is uninstalled, all data models are uninstalled by calling the UninstallModelAsync method.</remarks>
         public Task<bool> UninstallModelAsync(List<string> errorList) {
             try {
-                //$$Database db = SQLCache.GetDatabase(Conn, ConnectionString);
-                //SQLCreate sqlCreate = new SQLCreate(Languages, IdentitySeed, Logging);
-                //List<PropertyData> propData = GetPropertyData();
-                //List<SubTableInfo> subTables = GetSubTables(Dataset, propData);
-                //foreach (SubTableInfo subTable in subTables) {
-                //    //TODO: could asyncify but probably not worth it as this is used during install/startup only
-                //    sqlCreate.DropTable(db, Dbo, subTable.Name, errorList);
-                //}
-                //sqlCreate.DropTable(db, Dbo, Dataset, errorList);
+                PostgreSQLGen sqlCreate = new PostgreSQLGen(Conn, Languages, IdentitySeed, Logging);
+                List<PropertyData> propData = GetPropertyData();
+                List<SubTableInfo> subTables = GetSubTables(Dataset, propData);
+                foreach (SubTableInfo subTable in subTables) {
+                    sqlCreate.DropTable(Database, Schema, subTable.Name, errorList);
+                }
+                sqlCreate.DropTable(Database, Schema, Dataset, errorList);
                 return Task.FromResult(true);
             } catch (Exception exc) {
                 errorList.Add(string.Format("{0}: {1}", typeof(OBJTYPE).FullName, ErrorHandling.FormatExceptionMessage(exc)));
                 return Task.FromResult(false);
             } finally {
-                //$$SQLCache.ClearCache();
+                PostgreSQLManager.ClearCache();
             }
         }
 

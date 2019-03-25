@@ -509,7 +509,7 @@ namespace YetaWF.DataProvider.PostgreSQL {
         internal Dictionary<string, string> GetVisibleColumns(string databaseName, string schema, string tableName, Type objType, List<JoinData> joins) {
             Dictionary<string, string> visibleColumns = new Dictionary<string, string>();
             tableName = tableName.Trim(new char[] { '[', ']' });
-            List<string> columns = PostgreSQLCache.GetColumns(Conn, ConnectionString, databaseName, schema, tableName);
+            List<string> columns = PostgreSQLManager.GetColumns(Conn, databaseName, schema, tableName);
             AddVisibleColumns(visibleColumns, databaseName, schema, tableName, columns);
             if (CalculatedPropertyCallbackAsync != null) {
                 List<PropertyData> props = ObjectSupport.GetPropertyData(objType);
@@ -522,17 +522,17 @@ namespace YetaWF.DataProvider.PostgreSQL {
                 foreach (JoinData join in joins) {
                     IPostgresSQLTableInfo mainInfo = (IPostgresSQLTableInfo)join.MainDP.GetDataProvider();
                     databaseName = mainInfo.GetDatabaseName();
-                    schema = mainInfo.GetDbOwner();
+                    schema = mainInfo.GetSchema();
                     tableName = mainInfo.GetTableName();
                     tableName = tableName.Split(new char[] { '.' }).Last().Trim(new char[] { '[', ']' });
-                    columns = PostgreSQLCache.GetColumns(Conn, ConnectionString, databaseName, schema, tableName);
+                    columns = PostgreSQLManager.GetColumns(Conn, databaseName, schema, tableName);
                     AddVisibleColumns(visibleColumns, databaseName, schema, tableName, columns);
                     IPostgresSQLTableInfo joinInfo = (IPostgresSQLTableInfo)join.JoinDP.GetDataProvider();
                     databaseName = joinInfo.GetDatabaseName();
-                    schema = joinInfo.GetDbOwner();
+                    schema = joinInfo.GetSchema();
                     tableName = joinInfo.GetTableName();
                     tableName = tableName.Split(new char[] { '.' }).Last().Trim(new char[] { '[', ']' });
-                    columns = PostgreSQLCache.GetColumns(join.JoinDP.GetDataProvider().Conn, join.JoinDP.GetDataProvider().ConnectionString, databaseName, schema, tableName);
+                    columns = PostgreSQLManager.GetColumns(join.JoinDP.GetDataProvider().Conn, databaseName, schema, tableName);
                     AddVisibleColumns(visibleColumns, databaseName, schema, tableName, columns);
                 }
             }
@@ -849,7 +849,7 @@ namespace YetaWF.DataProvider.PostgreSQL {
         /// Returns the database owner used by the data provider.
         /// </summary>
         /// <returns>Returns the database owner used by the data provider.</returns>
-        public string GetDbOwner() {
+        public string GetSchema() {
             return Schema;
         }
         /// <summary>
