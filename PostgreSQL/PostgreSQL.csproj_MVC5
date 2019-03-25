@@ -100,13 +100,16 @@
   <ItemGroup>
     <Compile Include="IPostgreSQLTableInfo.cs" />
     <Compile Include="PostgreSQLBuilder.cs" />
-    <Compile Include="PostgreSQLCache.cs" />
-    <Compile Include="PostgreSQLCreateTable.cs" />
+    <Compile Include="PostgreSQLGenCreate.cs" />
+    <Compile Include="PostgreSQLGenDrop.cs" />
+    <Compile Include="PostgreSQLGenMake.cs" />
     <Compile Include="PostgreSQLHelper.cs" />
     <Compile Include="PostgreSQLSimpleIdentityObject.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="PostgreSQLBase.cs" />
     <Compile Include="PostgreSQLSimpleObject.cs" />
+    <Compile Include="PostgreSQLManager.cs" />
+    <Compile Include="StringBuilderExtender.cs" />
   </ItemGroup>
   <ItemGroup>
     <None Include="app.config" />
