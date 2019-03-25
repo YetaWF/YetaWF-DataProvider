@@ -115,10 +115,11 @@ namespace YetaWF.DataProvider.PostgreSQL {
             string subTablesSelects = SubTablesSelectsUsingJoin(sqlHelper, Dataset, key, propData, typeof(OBJTYPE));
 
             string script = $@"
-SELECT TOP 1 *
+SELECT *
     {calcProps}
 FROM {fullTableName} {joins}
-WHERE {sqlHelper.Expr(Key1Name, "=", key)} {andKey2} {AndSiteIdentity}  --- result set
+WHERE {sqlHelper.Expr(Key1Name, "=", key)} {andKey2} {AndSiteIdentity}
+FETCH FIRST 1 ROWS ONLY       --- result set
 ;
 
 {subTablesSelects}

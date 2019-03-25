@@ -438,7 +438,7 @@ namespace YetaWF.DataProvider.PostgreSQL {
             sb.Append("SET ANSI_PADDING ON;\r\n");
             sb.Append("SET QUOTED_IDENTIFIER ON;\r\n\r\n");
 
-            sb.Append($"CREATE TABLE[{schema}].[{newTable.Name}](\r\n");
+            sb.Append($"CREATE TABLE [{schema}].[{newTable.Name}](\r\n");
             // Columns
             foreach (Column col in newTable.Columns) {
                 sb.Append($"    [{col.Name}] {GetDataTypeString(col)}{GetIdentity(col)}{GetNullable(col)},\r\n");

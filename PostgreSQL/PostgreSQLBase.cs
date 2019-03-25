@@ -35,7 +35,7 @@ namespace YetaWF.DataProvider.PostgreSQL {
         public const string ExternalName = "PostgreSQL";
         /// <summary>
         /// Defines the key used in appsettings.json to define a PostgreSQL connection string
-        /// ("PostgreSQLConnect": "Data Source=...datasource...;Initial Catalog=...catalog...;User ID=..userid..;Password=..password..").
+        /// ("PostgreSQLConnect": "Host=..host..;Port=..port..;Database=..database..;User ID=..userid..;Password=..password..").
         /// </summary>
         public const string PostgreSQLConnectString = "PostgreSQLConnect";
 
@@ -191,7 +191,7 @@ namespace YetaWF.DataProvider.PostgreSQL {
                 if (Languages.Count == 0) throw new InternalError("We need Languages");
             }
             if (SiteIdentity > 0)
-                AndSiteIdentity = $"AND [{SiteColumn}] = {SiteIdentity}";
+                AndSiteIdentity = $"AND \"{SiteColumn}\" = {SiteIdentity}";
 
             Conn = new NpgsqlConnection(ConnectionString);
             Conn.Open();

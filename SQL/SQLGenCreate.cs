@@ -439,7 +439,7 @@ namespace YetaWF.DataProvider {
             sb.Append("SET ANSI_PADDING ON;\r\n");
             sb.Append("SET QUOTED_IDENTIFIER ON;\r\n\r\n");
 
-            sb.Append($"CREATE TABLE[{dbOwner}].[{newTable.Name}](\r\n");
+            sb.Append($"CREATE TABLE [{dbOwner}].[{newTable.Name}](\r\n");
             // Columns
             foreach (Column col in newTable.Columns) {
                 sb.Append($"    [{col.Name}] {GetDataTypeString(col)}{GetIdentity(col)}{GetNullable(col)},\r\n");
@@ -563,11 +563,11 @@ namespace YetaWF.DataProvider {
                 sb.Append($@"
 IF EXISTS (SELECT * FROM  [{dbOwner}].[sysobjects] WHERE id = OBJECT_ID(N'DF_{currentTable.Name}_{col.Name}') AND type = 'D')
     BEGIN
-       ALTER TABLE  [{dbOwner}].[{newTable.Name}] DROP CONSTRAINT [DF_{currentTable.Name}_{col.Name}], COLUMN [{col.Name}];
+       ALTER TABLE [{dbOwner}].[{newTable.Name}] DROP CONSTRAINT [DF_{currentTable.Name}_{col.Name}], COLUMN [{col.Name}];
     END
 ELSE
     BEGIN
-       ALTER TABLE  [{dbOwner}].[{newTable.Name}] DROP COLUMN [{col.Name}];
+       ALTER TABLE [{dbOwner}].[{newTable.Name}] DROP COLUMN [{col.Name}];
     END
 ");
             }

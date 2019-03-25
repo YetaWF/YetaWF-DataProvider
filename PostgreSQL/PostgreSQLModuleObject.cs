@@ -1,8 +1,9 @@
 ﻿/* Copyright © 2019 Softel vdm, Inc. - https://yetawf.com/Documentation/YetaWF/Licensing */
 
+using Npgsql;
 using System;
 using System.Collections.Generic;
-using System.Data.SqlClient;
+using System.Data.Common;
 using System.Linq;
 using System.Reflection;
 using System.Threading.Tasks;
@@ -20,7 +21,7 @@ namespace YetaWF.DataProvider.PostgreSQL {
     /// This class implements the base functionality to access the repository containing YetaWF modules.
     /// It is only used by the YetaWF.DataProvider.ModuleDefinition package and is not intended for application use.
     /// </summary>
-    public class SQLModuleObject<KEY, OBJTYPE> : SQLSimpleObject<KEY, OBJTYPE>, IDataProvider<KEY, OBJTYPE> {
+    public class PostgreSQLModuleObject<KEY, OBJTYPE> : PostgreSQLSimpleObject<KEY, OBJTYPE>, IDataProvider<KEY, OBJTYPE> {
 
         /// <summary>
         /// Constructor.
@@ -29,7 +30,7 @@ namespace YetaWF.DataProvider.PostgreSQL {
         /// <remarks>
         /// Data providers are instantiated when the YetaWF.Core.DataProvider.DataProviderImpl.MakeDataProvider method is called, usually by an application data provider.
         /// </remarks>
-        public SQLModuleObject(Dictionary<string, object> options) : base(options) {
+        public PostgreSQLModuleObject(Dictionary<string, object> options) : base(options) {
             if (typeof(KEY) != typeof(Guid)) throw new InternalError("Only Guid is supported as Key");
             BaseDataset = ModuleDefinition.BaseFolderName;
             if (typeof(OBJTYPE) != typeof(ModuleDefinition))
@@ -50,9 +51,9 @@ namespace YetaWF.DataProvider.PostgreSQL {
         /// <returns>Returns the record that satisfies the specified primary key. If no record exists null is returned.</returns>
         public new async Task<OBJTYPE> GetAsync(KEY key) {
 
-            SQLHelper sqlHelper = new SQLHelper(Conn, null, Languages);
+            PostgreSQLHelper sqlHelper = new PostgreSQLHelper(Conn, null, Languages);
 
-            string fullBaseTableName = SQLBuilder.GetTable(Database, Dbo, BaseDataset);
+            string fullBaseTableName = PostgreSQLBuilder.GetTable(Database, Schema, BaseDataset);
 
             if (Dataset == BaseDataset) {
                 // we're reading the base and have to find the derived table
@@ -81,7 +82,7 @@ END
 
 {sqlHelper.DebugInfo}";
 
-                using (SqlDataReader reader = await sqlHelper.ExecuteReaderAsync(script)) {
+                using (DbDataReader reader = await sqlHelper.ExecuteReaderAsync(script)) {
                     if (!(YetaWFManager.IsSync() ? reader.Read() : await reader.ReadAsync())) return default(OBJTYPE);
                     string derivedTableName = (string)reader[0];
                     string derivedDataType = (string)reader[1];
@@ -97,7 +98,7 @@ END
 
             } else {
                 // we're reading the derived table
-                string fullTableName = SQLBuilder.GetTable(Database, Dbo, Dataset);
+                string fullTableName = PostgreSQLBuilder.GetTable(Database, Schema, Dataset);
                 string scriptMain = $@"
 SELECT TOP 1 * FROM {fullBaseTableName} AS A WITH(NOLOCK)
 LEFT JOIN {fullTableName} AS B ON
@@ -106,7 +107,7 @@ WHERE {sqlHelper.Expr($"A.[{Key1Name}]", " =", key)} AND A.[{SiteColumn}] = {Sit
 
 {sqlHelper.DebugInfo}";
 
-                using (SqlDataReader reader = await sqlHelper.ExecuteReaderAsync(scriptMain)) {
+                using (DbDataReader reader = await sqlHelper.ExecuteReaderAsync(scriptMain)) {
                     if (!(YetaWFManager.IsSync() ? reader.Read() : await reader.ReadAsync())) return default(OBJTYPE);
                     OBJTYPE obj = sqlHelper.CreateObject<OBJTYPE>(reader);
                     return obj;
@@ -125,13 +126,13 @@ WHERE {sqlHelper.Expr($"A.[{Key1Name}]", " =", key)} AND A.[{SiteColumn}] = {Sit
         public new async Task<bool> AddAsync(OBJTYPE obj) {
             if (Dataset == BaseDataset) throw new InternalError("Only derived types are supported");
 
-            SQLHelper sqlHelper = new SQLHelper(Conn, null, Languages);
+            PostgreSQLHelper sqlHelper = new PostgreSQLHelper(Conn, null, Languages);
 
-            string fullBaseTableName = SQLBuilder.GetTable(Database, Dbo, BaseDataset);
+            string fullBaseTableName = PostgreSQLBuilder.GetTable(Database, Schema, BaseDataset);
             List<PropertyData> propBaseData = GetBasePropertyData();
             string baseColumns = GetColumnList(propBaseData, typeof(ModuleDefinition), "", true, SiteSpecific: SiteIdentity > 0, WithDerivedInfo: true);
             string baseValues = GetValueList(sqlHelper, Dataset, obj, propBaseData, typeof(ModuleDefinition), SiteSpecific: SiteIdentity > 0, DerivedType: typeof(OBJTYPE), DerivedTableName: Dataset);
-            string fullTableName = SQLBuilder.GetTable(Database, Dbo, Dataset);
+            string fullTableName = PostgreSQLBuilder.GetTable(Database, Schema, Dataset);
             List<PropertyData> propData = GetPropertyData();
             string columns = GetColumnList(propData, obj.GetType(), "", true, SiteSpecific: SiteIdentity > 0);
             string values = GetValueList(sqlHelper, Dataset, obj, propData, typeof(OBJTYPE), SiteSpecific: SiteIdentity > 0);
@@ -149,8 +150,8 @@ VALUES ({values})
             try {
                 await sqlHelper.ExecuteNonQueryAsync(scriptMain);
             } catch (Exception exc) {
-                SqlException sqlExc = exc as SqlException;
-                if (sqlExc != null && sqlExc.Number == 2627) // already exists
+                NpgsqlException sqlExc = exc as NpgsqlException;
+                if (sqlExc != null && sqlExc.ErrorCode == 2627) // already exists //$$$
                     return false;
                 throw new InternalError("Add failed for type {0} - {1}", typeof(OBJTYPE).FullName, ErrorHandling.FormatExceptionMessage(exc));
             }
@@ -176,10 +177,10 @@ VALUES ({values})
 
             if (!origKey.Equals(newKey)) throw new InternalError("Can't change key");
 
-            SQLHelper sqlHelper = new SQLHelper(Conn, null, Languages);
+            PostgreSQLHelper sqlHelper = new PostgreSQLHelper(Conn, null, Languages);
 
-            string fullBaseTableName = SQLBuilder.GetTable(Database, Dbo, BaseDataset);
-            string fullTableName = SQLBuilder.GetTable(Database, Dbo, Dataset);
+            string fullBaseTableName = PostgreSQLBuilder.GetTable(Database, Schema, BaseDataset);
+            string fullTableName = PostgreSQLBuilder.GetTable(Database, Schema, Dataset);
 
             List<PropertyData> propBaseData = GetBasePropertyData();
             string setBaseColumns = SetColumns(sqlHelper, Dataset, propBaseData, obj, typeof(ModuleDefinition));
@@ -208,8 +209,8 @@ WHERE {sqlHelper.Expr(Key1Name, "=", origKey)} {AndSiteIdentity}
                     throw new InternalError($"Update failed - {changed} records updated");
             } catch (Exception exc) {
                 if (!newKey.Equals(origKey)) {
-                    SqlException sqlExc = exc as SqlException;
-                    if (sqlExc != null && sqlExc.Number == 2627) {
+                    NpgsqlException sqlExc = exc as NpgsqlException;
+                    if (sqlExc != null && sqlExc.ErrorCode == 2627) { //$$$
                         // duplicate key violation, meaning the new key already exists
                         return UpdateStatusEnum.NewKeyExists;
                     }
@@ -227,9 +228,9 @@ WHERE {sqlHelper.Expr(Key1Name, "=", origKey)} {AndSiteIdentity}
         public new async Task<bool> RemoveAsync(KEY key) {
             if (Dataset != BaseDataset) throw new InternalError("Only base types are supported");
 
-            SQLHelper sqlHelper = new SQLHelper(Conn, null, Languages);
+            PostgreSQLHelper sqlHelper = new PostgreSQLHelper(Conn, null, Languages);
 
-            string fullBaseTableName = SQLBuilder.GetTable(Database, Dbo, BaseDataset);
+            string fullBaseTableName = PostgreSQLBuilder.GetTable(Database, Schema, BaseDataset);
 
             List<PropertyData> propData = GetPropertyData();
 
@@ -297,17 +298,17 @@ DROP TABLE #BASETABLE
                 return await base.GetRecordsAsync(skip, take, sorts, filters, Joins: Joins);
             } else {
                 // an explicit type is requested
-                SQLHelper sqlHelper = new SQLHelper(Conn, null, Languages);
+                PostgreSQLHelper sqlHelper = new PostgreSQLHelper(Conn, null, Languages);
 
                 DataProviderGetRecords<OBJTYPE> recs = new DataProviderGetRecords<OBJTYPE>();
 
-                string fullBaseTableName = SQLBuilder.GetTable(Database, Dbo, BaseDataset);
-                string fullTableName = SQLBuilder.GetTable(Database, Dbo, Dataset);
+                string fullBaseTableName = PostgreSQLBuilder.GetTable(Database, Schema, BaseDataset);
+                string fullTableName = PostgreSQLBuilder.GetTable(Database, Schema, Dataset);
 
                 // get total # of records (only if a subset is requested)
                 string selectCount = null;
                 if (skip != 0 || take != 0) {
-                    SQLBuilder sb = new SQLBuilder();
+                    PostgreSQLBuilder sb = new PostgreSQLBuilder();
                     sb.Add($@"
 
 SELECT COUNT(*)
@@ -341,7 +342,7 @@ WHERE {fullBaseTableName}.[DerivedDataTableName] = '{Dataset}' AND {fullBaseTabl
 {sqlHelper.DebugInfo}
 ";
 
-                using (SqlDataReader reader = await sqlHelper.ExecuteReaderAsync(script)) {
+                using (DbDataReader reader = await sqlHelper.ExecuteReaderAsync(script)) {
                     if (skip != 0 || take != 0) {
                         if (!(YetaWFManager.IsSync() ? reader.Read() : await reader.ReadAsync())) throw new InternalError("Expected # of records");
                         recs.Total = reader.GetInt32(0);
@@ -429,16 +430,16 @@ WHERE {fullBaseTableName}.[DerivedDataTableName] = '{Dataset}' AND {fullBaseTabl
             PostgreSQLManager.ClearCache();
             return Task.FromResult(success);
         }
-        private bool CreateTableWithBaseType(PostgreSqlConnection conn, string dbName, List<string> errorList) {
+        private bool CreateTableWithBaseType(NpgsqlConnection conn, string dbName, List<string> errorList) {
             Type baseType = typeof(ModuleDefinition);
             List<string> columns = new List<string>();
-            PostgreSQLGen sqlCreate = new SQLGen(conn, Languages, IdentitySeed, Logging);
+            PostgreSQLGen sqlCreate = new PostgreSQLGen(conn, Languages, IdentitySeed, Logging);
             if (!sqlCreate.CreateTableFromModel(dbName, Schema, BaseDataset, Key1Name, null, IdentityName, GetBasePropertyData(), baseType, errorList, columns,
                     TopMost: true,
                     SiteSpecific: SiteIdentity > 0,
                     DerivedDataTableName: "DerivedDataTableName", DerivedDataTypeName: "DerivedDataType", DerivedAssemblyName: "DerivedAssemblyName"))
                 return false;
-            return sqlCreate.CreateTableFromModel(dbName, Schema, Dataset, Key1Name, null, SQLBase.IdentityColumn, GetPropertyData(), typeof(OBJTYPE), errorList, columns,
+            return sqlCreate.CreateTableFromModel(dbName, Schema, Dataset, Key1Name, null, PostgreSQLBase.IdentityColumn, GetPropertyData(), typeof(OBJTYPE), errorList, columns,
                 TopMost: true,
                 SiteSpecific: SiteIdentity > 0,
                 ForeignKeyTable: BaseDataset);
@@ -466,10 +467,10 @@ WHERE {fullBaseTableName}.[DerivedDataTableName] = '{Dataset}' AND {fullBaseTabl
         }
         private async Task<bool> DropTableWithBaseType(string dbName, List<string> errorList) {
             try {
-                if (SQLManager.HasTable(Conn, dbName, Schema, Dataset)) {
+                if (PostgreSQLManager.HasTable(Conn, dbName, Schema, Dataset)) {
                     // Remove all records from the table (this removes the records in BaseTableName also)
-                    SQLHelper sqlHelper = new SQLHelper(Conn, null, Languages);
-                    SQLBuilder sb = new SQLBuilder();
+                    PostgreSQLHelper sqlHelper = new PostgreSQLHelper(Conn, null, Languages);
+                    PostgreSQLBuilder sb = new PostgreSQLBuilder();
                     sb.Add($@"
 DELETE {BaseDataset} FROM {BaseDataset}
     INNER JOIN {Dataset} ON {BaseDataset}.[{Key1Name}] = {Dataset}.[{Key1Name}]
@@ -479,8 +480,8 @@ DELETE {BaseDataset} FROM {BaseDataset}
                     PostgreSQLManager.DropTable(Conn, dbName, Schema, Dataset);
                 }
                 if (PostgreSQLManager.HasTable(Conn, dbName, Schema, BaseDataset)) {
-                    SQLHelper sqlHelper = new SQLHelper(Conn, null, Languages);
-                    SQLBuilder sb = new SQLBuilder();
+                    PostgreSQLHelper sqlHelper = new PostgreSQLHelper(Conn, null, Languages);
+                    PostgreSQLBuilder sb = new PostgreSQLBuilder();
                     sb.Add($@"
 SELECT COUNT(*) FROM  {BaseDataset}
 ");
@@ -505,8 +506,8 @@ SELECT COUNT(*) FROM  {BaseDataset}
         public new async Task RemoveSiteDataAsync() { // remove site-specific data
             if (Dataset == BaseDataset) throw new InternalError("Base dataset is not supported");
             if (SiteIdentity > 0) {
-                SQLHelper sqlHelper = new SQLHelper(Conn, null, Languages);
-                SQLBuilder sb = new SQLBuilder();
+                PostgreSQLHelper sqlHelper = new PostgreSQLHelper(Conn, null, Languages);
+                PostgreSQLBuilder sb = new PostgreSQLBuilder();
                 sb.Add($@"
 DELETE FROM {Dataset} WHERE [{SiteColumn}] = {SiteIdentity}
 DELETE FROM {BaseDataset} WHERE [DerivedDataTableName] = '{Dataset}' AND [{SiteColumn}] = {SiteIdentity}
