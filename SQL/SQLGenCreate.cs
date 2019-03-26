@@ -477,16 +477,19 @@ namespace YetaWF.DataProvider {
         private void CreateForeignKey(string dbName, string dbOwner, Table newTable) {
 
             StringBuilder sb = new StringBuilder();
-            sb.Append("SET QUOTED_IDENTIFIER ON;\r\n\r\n");
 
-            foreach (ForeignKey fk in newTable.ForeignKeys) {
-                sb.Append(GetAddForeignKey(fk, dbName, dbOwner, newTable));
-            }
+            if (newTable.ForeignKeys.Count > 0) {
+                sb.Append("SET QUOTED_IDENTIFIER ON;\r\n\r\n");
 
-            using (SqlCommand cmd = new SqlCommand()) {
-                cmd.Connection = Conn;
-                cmd.CommandText = sb.ToString();
-                cmd.ExecuteNonQuery();
+                foreach (ForeignKey fk in newTable.ForeignKeys) {
+                    sb.Append(GetAddForeignKey(fk, dbName, dbOwner, newTable));
+                }
+
+                using (SqlCommand cmd = new SqlCommand()) {
+                    cmd.Connection = Conn;
+                    cmd.CommandText = sb.ToString();
+                    cmd.ExecuteNonQuery();
+                }
             }
         }
 
@@ -713,7 +716,7 @@ ELSE
             }
         }
         private string GetDataTypeDefault(string tableName, Column col) {
-            if (col.Nullable)
+            if (col.Nullable || col.Identity)
                 return "";
 
             switch (col.DataType) {
@@ -794,7 +797,7 @@ ELSE
             sb.RemoveLastComma();
             sb.Append($"\r\n  )\r\n");
 
-            sb.Append($"  REFERENCES[{dbOwner}].[{fk.ReferencedTable}] (\r\n");
+            sb.Append($"  REFERENCES [{dbOwner}].[{fk.ReferencedTable}] (\r\n");
             foreach (ForeignKeyColumn fkCol in fk.ForeignKeyColumns) {
                 sb.Append($"    [{fkCol.ReferencedColumn}],\r\n");
             }

@@ -17,7 +17,7 @@ namespace YetaWF.DataProvider.SQL {
     /// Some of this could be made async, but often this is called in a context that is not async.
     /// As this is all cached and most of it is only used during model install/uninstall, using non-async is just easier.
     ///
-    /// The SQL queries used for model install/uninstall (like GetColumnInfo) is not very efficient. Simplicity over perfection.
+    /// The SQL queries used for model install/uninstall (like GetColumnInfo) are not very efficient. Simplicity over perfection.
     /// </remarks>
     internal static class SQLManager {
 
