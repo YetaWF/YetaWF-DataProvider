@@ -47,7 +47,8 @@ namespace YetaWF.DataProvider.SQL {
         }
 
         internal static Database GetDatabaseCond(SqlConnection conn, string dbName) {
-            Database db = (from d in Databases.Values where conn.DataSource == conn.DataSource && dbName == d.Name select d).FirstOrDefault();
+            dbName = dbName.ToLower();
+            Database db = (from d in Databases.Values where d.DataSource.ToLower() == conn.DataSource.ToLower() && dbName == d.Name.ToLower() select d).FirstOrDefault();
             if (db == null) {
                 using (SqlCommand cmd = new SqlCommand()) {
                     cmd.Connection = conn;
@@ -65,7 +66,7 @@ namespace YetaWF.DataProvider.SQL {
                             }
                         }
                     }
-                    db = (from d in Databases.Values where conn.DataSource == conn.DataSource && dbName == d.Name select d).FirstOrDefault();
+                    db = (from d in Databases.Values where d.DataSource.ToLower() == conn.DataSource.ToLower() && dbName == d.Name.ToLower() select d).FirstOrDefault();
                     return db;
                 }
             }
@@ -79,7 +80,8 @@ namespace YetaWF.DataProvider.SQL {
             List<Table> tables = GetTables(conn, databaseName, dbo);
             if (tables == null)
                 return null;
-            return (from t in tables where t.Name == tableName select t).FirstOrDefault();
+            tableName = tableName.ToLower();
+            return (from t in tables where t.Name.ToLower() == tableName select t).FirstOrDefault();
         }
         internal static List<Table> GetTables(SqlConnection conn, string databaseName, string dbo) {
             Database db = GetDatabaseCond(conn, databaseName);
