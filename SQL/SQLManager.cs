@@ -21,6 +21,11 @@ namespace YetaWF.DataProvider.SQL {
     /// </remarks>
     internal static class SQLManager {
 
+        /// <summary>
+        /// When using a "Database First" approach, any index or foreign key whose name starts with this prefix will be ignored and remain untouched/unaltered by model updates.
+        /// </summary>
+        public const string DBFIRST_PREFIX = "PREDEF_";
+
         public class Database {
             public string DataSource { get; set; }
             public string Name { get; set; }
@@ -186,19 +191,22 @@ namespace YetaWF.DataProvider.SQL {
     WHERE is_hypothetical = 0 AND i.index_id<> 0 AND i.object_id = OBJECT_ID('{tableName}');";
                 using (SqlDataReader rdr = cmd.ExecuteReader()) {
                     while (rdr.Read()) {
-                        SQLGen.Index newIndex = new SQLGen.Index {
-                            Name = rdr.GetString(0),
-                        };
-                        bool isPrimary = rdr.GetBoolean(1);
-                        bool isUnique = rdr.GetBoolean(2);
+                        string ixName = rdr.GetString(0);
+                        if (!ixName.StartsWith(DBFIRST_PREFIX)) {
+                            SQLGen.Index newIndex = new SQLGen.Index {
+                                Name = ixName,
+                            };
+                            bool isPrimary = rdr.GetBoolean(1);
+                            bool isUnique = rdr.GetBoolean(2);
 
-                        if (isPrimary)
-                            newIndex.IndexType = SQLGen.IndexType.PrimaryKey;
-                        else if (isUnique)
-                            newIndex.IndexType = SQLGen.IndexType.UniqueKey;
-                        else
-                            newIndex.IndexType = SQLGen.IndexType.Indexed;
-                        list.Add(newIndex);
+                            if (isPrimary)
+                                newIndex.IndexType = SQLGen.IndexType.PrimaryKey;
+                            else if (isUnique)
+                                newIndex.IndexType = SQLGen.IndexType.UniqueKey;
+                            else
+                                newIndex.IndexType = SQLGen.IndexType.Indexed;
+                            list.Add(newIndex);
+                        }
                     }
                 }
                 return list;
@@ -213,9 +221,12 @@ namespace YetaWF.DataProvider.SQL {
                 cmd.CommandText = $"SELECT CONSTRAINT_NAME FROM INFORMATION_SCHEMA.TABLE_CONSTRAINTS WHERE CONSTRAINT_TYPE = 'FOREIGN KEY' AND TABLE_NAME = N'{tableName}'";
                 using (SqlDataReader rdr = cmd.ExecuteReader()) {
                     while (rdr.Read()) {
-                        list.Add(new SQLGen.ForeignKey {
-                            Name = rdr.GetString(0),
-                        });
+                        string fkName = rdr.GetString(0);
+                        if (!fkName.StartsWith(DBFIRST_PREFIX)) {
+                            list.Add(new SQLGen.ForeignKey {
+                                Name = fkName,
+                            });
+                        }
                     }
                 }
             }

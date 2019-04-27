@@ -145,31 +145,41 @@ namespace YetaWF.DataProvider {
                         from p in propData
                         where p.HasAttribute(Data_IndexAttribute.AttributeName)
                         select p).ToList();
-                    if (propIndexes != null) {
-                        foreach (var propIndex in propIndexes) {
-                            if (!HasIdentity(identityName) || propIndex.Name != identityName) { // identity columns are indexed later
-                                if (propIndex.PropInfo.PropertyType == typeof(MultiString)) {
-                                    if (Languages.Count == 0) throw new InternalError("We need Languages for MultiString support");
-                                    MultiString ms = new MultiString();
-                                    foreach (var lang in Languages) {
-                                        string col = SQLBase.ColumnFromPropertyWithLanguage(lang.Id, propIndex.Name);
-                                        Index newIndex = new Index {
-                                            Name = "K_" + tableName + "_" + col,
-                                        };
-                                        newIndex.IndexedColumns.Add(col);
-                                        newIndex.IndexType = IndexType.Indexed;
-                                        newTable.Indexes.Add(newIndex);
-                                    }
-                                } else {
+                    foreach (PropertyData propIndex in propIndexes) {
+                        if (!HasIdentity(identityName) || propIndex.Name != identityName) { // identity columns are indexed later
+                            if (propIndex.PropInfo.PropertyType == typeof(MultiString)) {
+                                if (Languages.Count == 0) throw new InternalError("We need Languages for MultiString support");
+                                MultiString ms = new MultiString();
+                                foreach (var lang in Languages) {
+                                    string col = SQLBase.ColumnFromPropertyWithLanguage(lang.Id, propIndex.Name);
                                     Index newIndex = new Index {
-                                        Name = "K_" + tableName + "_" + propIndex.Name,
+                                        Name = "K_" + tableName + "_" + col,
                                     };
-                                    newIndex.IndexedColumns.Add(propIndex.Name);
+                                    newIndex.IndexedColumns.Add(col);
                                     newIndex.IndexType = IndexType.Indexed;
                                     newTable.Indexes.Add(newIndex);
                                 }
+                            } else {
+                                Index newIndex = new Index {
+                                    Name = "K_" + tableName + "_" + propIndex.Name,
+                                };
+                                newIndex.IndexedColumns.Add(propIndex.Name);
+                                newIndex.IndexType = IndexType.Indexed;
+                                newTable.Indexes.Add(newIndex);
                             }
                         }
+                    }
+                    List<PropertyData> propUniques = (
+                        from p in propData
+                        where p.HasAttribute(Data_UniqueAttribute.AttributeName)
+                        select p).ToList();
+                    foreach (PropertyData propUnique in propUniques) {
+                        Index newIndex = new Index {
+                            Name = "U_" + tableName + "_" + propUnique.Name,
+                        };
+                        newIndex.IndexedColumns.Add(propUnique.Name);
+                        newIndex.IndexType = IndexType.UniqueKey;
+                        newTable.Indexes.Add(newIndex);
                     }
                 }
 
