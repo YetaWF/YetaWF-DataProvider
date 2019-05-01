@@ -812,9 +812,25 @@ namespace YetaWF.DataProvider.SQL {
         /// <remarks>This is used by application data providers to build and execute complex queries that are not possible with the standard data providers.
         /// Use of this method limits the application data provider to SQL repositories.</remarks>
         /// <returns>Returns a collection  of objects (one for each row retrieved) of type {i}TYPE{/i}.</returns>
-        public async Task<List<TYPE>> Direct_QueryListAsync<TYPE>(string sql) {
+        public Task<List<TYPE>> Direct_QueryListAsync<TYPE>(string sql) {
+            return Direct_QueryListAsync<TYPE>(sql, new object[] { });
+        }
+        /// <summary>
+        /// Executes the provided SQL statement(s) and returns a collection of objects (one for each row retrieved) of type {i}TYPE{/i}.
+        /// </summary>
+        /// <param name="sql">The SQL statement(s).</param>
+        /// <param name="args">Optional arguments that are passed when executing the SQL statements.</param>
+        /// <remarks>This is used by application data providers to build and execute complex queries that are not possible with the standard data providers.
+        /// Use of this method limits the application data provider to SQL repositories.</remarks>
+        /// <returns>Returns a collection  of objects (one for each row retrieved) of type {i}TYPE{/i}.</returns>
+        public async Task<List<TYPE>> Direct_QueryListAsync<TYPE>(string sql, params object[] args) {
             SQLHelper sqlHelper = new SQLHelper(Conn, null, Languages);
             string tableName = GetTableName();
+            int count = 0;
+            foreach (object arg in args) {
+                ++count;
+                sqlHelper.AddParam($"p{count}", arg);
+            }
             sql = sql.Replace("{TableName}", SQLBuilder.WrapBrackets(tableName));
             if (SiteIdentity > 0)
                 sql = sql.Replace($"{{{SiteColumn}}}", $"[{SiteColumn}] = {SiteIdentity}");
