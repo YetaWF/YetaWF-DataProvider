@@ -423,22 +423,24 @@ namespace YetaWF.DataProvider.SQL {
             return filters;
         }
         private string NormalizeFilter(Type type, DataProviderFilterInfo filter) {
-            PropertyInfo prop = ObjectSupport.TryGetProperty(type, filter.Field);
-            if (prop == null) return filter.Field; // could be a composite field, like Event.ImplementingAssembly
-            if (prop.PropertyType == typeof(MultiString)) {
+            PropertyData propData = ObjectSupport.TryGetPropertyData(type, filter.Field);
+            if (propData == null) return filter.Field; // could be a composite field, like Event.ImplementingAssembly
+            if (propData.PropInfo.PropertyType == typeof(MultiString)) {
                 MultiString ms = new MultiString(filter.ValueAsString);
                 filter.Value = ms.ToString();
                 return ColumnFromPropertyWithLanguage(MultiString.ActiveLanguage, filter.Field);
             }
-            return filter.Field;
+            return propData.ColumnName;
         }
         internal List<DataProviderSortInfo> NormalizeSort(Type type, List<DataProviderSortInfo> sorts) {
             if (sorts == null) return null;
             sorts = (from s in sorts select new DataProviderSortInfo(s)).ToList();// copy list
             foreach (DataProviderSortInfo sort in sorts) {
-                PropertyInfo prop = ObjectSupport.GetProperty(type, sort.Field);
-                if (prop.PropertyType == typeof(MultiString))
+                PropertyData propData = ObjectSupport.TryGetPropertyData(type, sort.Field);
+                if (propData.PropInfo.PropertyType == typeof(MultiString))
                     sort.Field = ColumnFromPropertyWithLanguage(MultiString.ActiveLanguage, sort.Field);
+                else
+                    sort.Field = propData.ColumnName;
             }
             return sorts;
         }
@@ -514,7 +516,7 @@ namespace YetaWF.DataProvider.SQL {
                 List<PropertyData> props = ObjectSupport.GetPropertyData(objType);
                 props = (from p in props where p.CalculatedProperty select p).ToList();
                 foreach (PropertyData prop in props)
-                    visibleColumns.Add(prop.Name, prop.Name);
+                    visibleColumns.Add(prop.ColumnName, prop.ColumnName);
             }
             if (joins != null) {
                 // no support for calculated properties in joined tables
@@ -564,29 +566,30 @@ namespace YetaWF.DataProvider.SQL {
             foreach (PropertyData prop in propData) {
                 PropertyInfo pi = prop.PropInfo;
                 if (pi.CanRead && pi.CanWrite && !prop.HasAttribute("DontSave") && !prop.CalculatedProperty && !prop.HasAttribute(Data_DontSave.AttributeName)) {
+                    string colName = prop.ColumnName;
                     if (prop.HasAttribute(Data_Identity.AttributeName)) {
                         ; // nothing
                     } else if (prop.HasAttribute(Data_BinaryAttribute.AttributeName)) {
-                        sb.Add($"[{prefix}{prop.Name}],");
+                        sb.Add($"[{prefix}{colName}],");
                     } else if (pi.PropertyType == typeof(MultiString)) {
                         if (Languages.Count == 0) throw new InternalError("We need Languages for MultiString support");
                         foreach (var lang in Languages)
-                            sb.Add($"[{prefix}{ColumnFromPropertyWithLanguage(lang.Id, prop.Name)}],");
+                            sb.Add($"[{prefix}{ColumnFromPropertyWithLanguage(lang.Id, colName)}],");
                     } else if (pi.PropertyType == typeof(Image)) {
-                        sb.Add($"[{prefix}{prop.Name}],");
+                        sb.Add($"[{prefix}{colName}],");
                     } else if (TryGetDataType(pi.PropertyType)) {
-                        sb.Add($"[{prefix}{prop.Name}],");
+                        sb.Add($"[{prefix}{colName}],");
                     } else if (pi.PropertyType.IsClass /* && propmmd.Model != null*/ && typeof(IEnumerable).IsAssignableFrom(pi.PropertyType)) {
                         // This is a enumerated type, so we have to create separate values using this table's identity column as a link
                         ; // these values are added as a subtable
                     } else if (pi.PropertyType.IsClass /*&& propmmd.Model != null*/) {
                         List<PropertyData> subPropData = ObjectSupport.GetPropertyData(pi.PropertyType);
-                        string columns = GetColumnList(subPropData, pi.PropertyType, prefix + prop.Name + "_", false, SiteSpecific: false);
+                        string columns = GetColumnList(subPropData, pi.PropertyType, prefix + colName + "_", false, SiteSpecific: false);
                         if (columns.Length > 0) {
                             sb.Add($"{columns},");
                         }
                     } else
-                        throw new InternalError("Unknown property type {2} used in class {0}, property {1}", tpContainer.FullName, prop.Name, pi.PropertyType.FullName);
+                        throw new InternalError("Unknown property type {2} used in class {0}, property {1}", tpContainer.FullName, colName, pi.PropertyType.FullName);
                 }
             }
             if (SiteSpecific) {
@@ -612,6 +615,7 @@ namespace YetaWF.DataProvider.SQL {
             foreach (PropertyData prop in propData) {
                 PropertyInfo pi = prop.PropInfo;
                 if (pi.CanRead && pi.CanWrite && !prop.HasAttribute("DontSave") && !prop.CalculatedProperty && !prop.HasAttribute(Data_DontSave.AttributeName)) {
+                    string colName = prop.ColumnName;
                     if (prop.HasAttribute(Data_Identity.AttributeName)) {
                         ; // nothing
                     } else if (prop.HasAttribute(Data_BinaryAttribute.AttributeName)) {
@@ -691,24 +695,25 @@ namespace YetaWF.DataProvider.SQL {
             foreach (PropertyData prop in propData) {
                 PropertyInfo pi = prop.PropInfo;
                 if (pi.CanRead && pi.CanWrite && !prop.HasAttribute("DontSave") && !prop.CalculatedProperty && !prop.HasAttribute(Data_DontSave.AttributeName)) {
+                    string colName = prop.ColumnName;
                     if (prop.HasAttribute(Data_Identity.AttributeName)) {
                         ; // nothing
                     } else if (prop.HasAttribute(Data_BinaryAttribute.AttributeName)) {
                         object val = pi.GetValue(container);
                         if (pi.PropertyType == typeof(byte[])) {
-                            sb.Add(sqlHelper.Expr(prefix + prop.Name, "=", val, true));
+                            sb.Add(sqlHelper.Expr(prefix + colName, "=", val, true));
                         } else if (val == null) {
-                            sb.Add(sqlHelper.Expr(prefix + prop.Name, "=", null, true));
+                            sb.Add(sqlHelper.Expr(prefix + colName, "=", null, true));
                         } else {
                             byte[] data = new GeneralFormatter().Serialize(val);
-                            sb.Add(sqlHelper.Expr(prefix + prop.Name, "=", data, true));
+                            sb.Add(sqlHelper.Expr(prefix + colName, "=", data, true));
                         }
                         sb.Add(",");
                     } else if (pi.PropertyType == typeof(MultiString)) {
                         if (Languages.Count == 0) throw new InternalError("We need Languages for MultiString support");
                         MultiString ms = (MultiString)pi.GetValue(container);
                         foreach (var lang in Languages) {
-                            sb.Add(sqlHelper.Expr(prefix + ColumnFromPropertyWithLanguage(lang.Id, prop.Name), "=", ms[lang.Id], true));
+                            sb.Add(sqlHelper.Expr(prefix + ColumnFromPropertyWithLanguage(lang.Id, colName), "=", ms[lang.Id], true));
                             sb.Add(",");
                         }
                     } else if (pi.PropertyType == typeof(Image)) {
@@ -716,26 +721,26 @@ namespace YetaWF.DataProvider.SQL {
                         BinaryFormatter binaryFmt = new BinaryFormatter { AssemblyFormat = 0/*System.Runtime.Serialization.Formatters.FormatterAssemblyStyle.Simple*/ };
                         using (MemoryStream ms = new MemoryStream()) {
                             binaryFmt.Serialize(ms, val);
-                            sb.Add(sqlHelper.Expr(prefix + prop.Name, "=", ms.ToArray(), true));
+                            sb.Add(sqlHelper.Expr(prefix + colName, "=", ms.ToArray(), true));
                             sb.Add(",");
                         }
                     } else if (pi.PropertyType == typeof(TimeSpan)) {
                         TimeSpan val = (TimeSpan)pi.GetValue(container);
                         long ticks = val.Ticks;
-                        sb.Add(sqlHelper.Expr(prefix + prop.Name, "=", ticks, true));
+                        sb.Add(sqlHelper.Expr(prefix + colName, "=", ticks, true));
                         sb.Add(",");
                     } else if (TryGetDataType(pi.PropertyType)) {
-                        sb.Add(sqlHelper.Expr(prefix + prop.Name, "=", pi.GetValue(container), true));
+                        sb.Add(sqlHelper.Expr(prefix + colName, "=", pi.GetValue(container), true));
                         sb.Add(",");
                     } else if (pi.PropertyType.IsClass && typeof(IEnumerable).IsAssignableFrom(pi.PropertyType)) {
                         // This is a enumerated type, saved in a separate table
                     } else if (pi.PropertyType.IsClass) {
                         object objVal = pi.GetValue(container);
                         List<PropertyData> subPropData = ObjectSupport.GetPropertyData(pi.PropertyType);
-                        sb.Add(SetColumns(sqlHelper, tableName, subPropData, objVal, pi.PropertyType, prefix + prop.Name + "_", false));
+                        sb.Add(SetColumns(sqlHelper, tableName, subPropData, objVal, pi.PropertyType, prefix + colName + "_", false));
                         sb.Add(",");
                     } else
-                        throw new InternalError("Unknown property type {2} used in class {0}, property {1}", tpContainer.FullName, prop.Name, pi.PropertyType.FullName);
+                        throw new InternalError("Unknown property type {2} used in class {0}, property {1}", tpContainer.FullName, colName, pi.PropertyType.FullName);
                 }
             }
             if (SiteSpecific) {

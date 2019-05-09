@@ -252,6 +252,8 @@ namespace YetaWF.DataProvider.SQL {
                 return SqlDbType.Float;
             else if (typeName == "nvarchar")
                 return SqlDbType.NVarChar;
+            else if (typeName == "date")
+                return SqlDbType.DateTime2;
             throw new InternalError($"Unsupported type name {typeName}");
         }
 

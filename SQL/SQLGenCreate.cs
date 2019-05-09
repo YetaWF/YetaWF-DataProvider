@@ -308,7 +308,7 @@ namespace YetaWF.DataProvider {
                 PropertyInfo pi = prop.PropInfo;
                 if (pi.CanRead && pi.CanWrite && !prop.HasAttribute("DontSave") && !prop.CalculatedProperty && !prop.HasAttribute(Data_DontSave.AttributeName)) {
 
-                    string colName = prefix + prop.Name;
+                    string colName = prefix + prop.ColumnName;
                     if (colName == key1Name || colName == key2Name || !columns.Contains(colName)) {
 
                         columns.Add(colName);
