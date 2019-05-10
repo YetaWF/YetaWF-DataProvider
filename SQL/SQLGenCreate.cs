@@ -588,7 +588,7 @@ ELSE
             }
             // Altered columns
             foreach (Column col in alteredColumns) {
-                sb.Append($"ALTER TABLE [{dbOwner}].[{newTable.Name}] ALTER [{col.Name}] {GetDataTypeString(col)}{GetDataTypeDefault(newTable.Name, col)}{GetIdentity(col)}{GetNullable(col)};\r\n");
+                sb.Append($"ALTER TABLE [{dbOwner}].[{newTable.Name}] ALTER COLUMN [{col.Name}] {GetDataTypeString(col)}{GetDataTypeDefault(newTable.Name, col)}{GetIdentity(col)}{GetNullable(col)};\r\n");
             }
 
             // Add index
