@@ -63,7 +63,7 @@ namespace YetaWF.DataProvider.SQL {
         /// <summary>
         /// Appends a fully formatted ORDER BY clause based on the provided sort criteria and paging info.
         /// </summary>
-        /// <param name="visibleColumns">The collection of columns visible in the table.</param>
+        /// <param name="visibleColumns">The collection of columns visible in the table. May be null.</param>
         /// <param name="sorts">A collection describing the sort order.</param>
         /// <param name="Offset">The number of records to skip.</param>
         /// <param name="Next">The number of records to retrieve.</param>
@@ -72,15 +72,31 @@ namespace YetaWF.DataProvider.SQL {
         /// OFFSET <paramref name="Offset"/> ROWS FETCH NEXT <paramref name="Next"/> ROWS ONLY is appended to the generated ORDER BY clause.
         /// </remarks>
         public void AddOrderBy(Dictionary<string, string> visibleColumns, List<DataProviderSortInfo> sorts, int Offset = 0, int Next = 0) {
-            Add("ORDER BY ");
+            Add(GetOrderBy(visibleColumns, sorts, Offset:Offset, Next: Next));
+        }
+        /// <summary>
+        /// Returns a fully formatted ORDER BY clause based on the provided sort criteria and paging info.
+        /// </summary>
+        /// <param name="visibleColumns">The collection of columns visible in the table. May be null.</param>
+        /// <param name="sorts">A collection describing the sort order.</param>
+        /// <param name="Offset">The number of records to skip.</param>
+        /// <param name="Next">The number of records to retrieve.</param>
+        /// <remarks>
+        /// If <paramref name="Offset"/> and <paramref name="Next"/> are specified (not 0),
+        /// OFFSET <paramref name="Offset"/> ROWS FETCH NEXT <paramref name="Next"/> ROWS ONLY is appended to the generated ORDER BY clause.
+        /// </remarks>
+        public string GetOrderBy(Dictionary<string, string> visibleColumns, List<DataProviderSortInfo> sorts, int Offset = 0, int Next = 0) {
+            StringBuilder sb = new StringBuilder();
+            sb.Append("ORDER BY ");
             bool first = true;
             foreach (DataProviderSortInfo sortInfo in sorts) {
-                if (!first) Add(", ");
-                Add(BuildFullColumnName(sortInfo.Field, visibleColumns) + " " + (sortInfo.Order == DataProviderSortInfo.SortDirection.Ascending ? "ASC" : "DESC"));
+                if (!first) sb.Append(", ");
+                sb.Append(BuildFullColumnName(sortInfo.Field, visibleColumns) + " " + (sortInfo.Order == DataProviderSortInfo.SortDirection.Ascending ? "ASC" : "DESC"));
                 first = false;
             }
             if (Offset > 0 || Next > 0)
-                Add($" OFFSET {Offset} ROWS FETCH NEXT {Next} ROWS ONLY");
+                sb.Append($" OFFSET {Offset} ROWS FETCH NEXT {Next} ROWS ONLY");
+            return sb.ToString();
         }
 
         /// <summary>

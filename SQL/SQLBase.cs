@@ -847,6 +847,54 @@ namespace YetaWF.DataProvider.SQL {
             return list;
         }
 
+        /// <summary>
+        /// Executes the provided SQL statement(s) and returns a paged collection of objects (one for each row retrieved) of type {i}TYPE{/i}.
+        /// </summary>
+        /// <param name="sql">The SQL statement(s).</param>
+        /// <param name="args">Optional arguments that are passed when executing the SQL statements.</param>
+        /// <remarks>This is used by application data providers to build and execute complex queries that are not possible with the standard data providers.
+        /// Use of this method limits the application data provider to SQL repositories.</remarks>
+        /// <returns>Returns a collection  of objects (one for each row retrieved) of type {i}TYPE{/i}.</returns>
+        /// <remarks>
+        /// $WhereFilter$ and $OrderBy$ embedded in the SQL statements are replace with a complete WHERE clause for filtering and the column names for sorting, respectively.
+        ///
+        /// The SQL statements must create two result sets. The first, a scalar value with the total number of records (not paged) and the second result set is a collection of objects of type {i}TYPE{/i}.
+        /// </remarks>
+        public async Task<DataProviderGetRecords<TYPE>> Direct_QueryPagedListAsync<TYPE>(string sql, int skip, int take, List<DataProviderSortInfo> sort, List<DataProviderFilterInfo> filters, params object[] args) {
+            SQLHelper sqlHelper = new SQLHelper(Conn, null, Languages);
+            SQLBuilder sb = new SQLBuilder();
+
+            string tableName = GetTableName();
+            int count = 0;
+            foreach (object arg in args) {
+                ++count;
+                sqlHelper.AddParam($"p{count}", arg);
+            }
+            sql = sql.Replace("{TableName}", SQLBuilder.WrapBrackets(tableName));
+            if (SiteIdentity > 0)
+                sql = sql.Replace($"{{{SiteColumn}}}", $"[{SiteColumn}] = {SiteIdentity}");
+
+            sql = sql.Replace("$OrderBy$", sb.GetOrderBy(null, sort, Offset: skip, Next: take));
+            string filter = MakeFilter(sqlHelper, filters, null);
+            sql = sql.Replace("$WhereFilter$", filter);
+
+            DataProviderGetRecords<TYPE> recs = new DataProviderGetRecords<TYPE>();
+
+            using (SqlDataReader reader = await sqlHelper.ExecuteReaderAsync(sql)) {
+
+                if (!(YetaWFManager.IsSync() ? reader.Read() : await reader.ReadAsync())) throw new InternalError("Expected # of records");
+                recs.Total = reader.GetInt32(0);
+                if (!(YetaWFManager.IsSync() ? reader.NextResult() : await reader.NextResultAsync())) throw new InternalError("Expected next result set (main table)");
+
+                while ((YetaWFManager.IsSync() ? reader.Read() : await reader.ReadAsync())) {
+                    TYPE o = sqlHelper.CreateObject<TYPE>(reader);
+                    recs.Data.Add(o);
+                    // no subtables
+                }
+            }
+            return recs;
+        }
+
         // ISQLTableInfo
         // ISQLTableInfo
         // ISQLTableInfo
