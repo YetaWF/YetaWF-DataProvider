@@ -877,6 +877,7 @@ namespace YetaWF.DataProvider.SQL {
             sql = sql.Replace("$OrderBy$", sb.GetOrderBy(null, sort, Offset: skip, Next: take));
             string filter = MakeFilter(sqlHelper, filters, null);
             sql = sql.Replace("$WhereFilter$", filter);
+            sql += "\n\n" + sqlHelper.DebugInfo;
 
             DataProviderGetRecords<TYPE> recs = new DataProviderGetRecords<TYPE>();
 

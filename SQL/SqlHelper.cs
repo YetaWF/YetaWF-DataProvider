@@ -30,7 +30,7 @@ namespace YetaWF.DataProvider.SQL {
             Languages = languages;
         }
 
-        public object DebugInfo {
+        public string DebugInfo {
             get {
 #if DEBUG
                 SQLBuilder sb = new SQLBuilder();
