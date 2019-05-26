@@ -851,6 +851,10 @@ namespace YetaWF.DataProvider.SQL {
         /// Executes the provided SQL statement(s) and returns a paged collection of objects (one for each row retrieved) of type {i}TYPE{/i}.
         /// </summary>
         /// <param name="sql">The SQL statement(s).</param>
+        /// <param name="skip">The number of records to skip (paging support).</param>
+        /// <param name="take">The number of records to retrieve (paging support). If more records are available they are dropped.</param>
+        /// <param name="sort">A collection describing the sort order.</param>
+        /// <param name="filters">A collection describing the filtering criteria.</param>
         /// <param name="args">Optional arguments that are passed when executing the SQL statements.</param>
         /// <remarks>This is used by application data providers to build and execute complex queries that are not possible with the standard data providers.
         /// Use of this method limits the application data provider to SQL repositories.</remarks>
