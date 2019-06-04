@@ -6,8 +6,6 @@
 packages.config
 app.config
 
-**/obj/
-**/bin/**/*.xml
-**/bin/**/*.config
-**/bin/**/*.manifest
+obj/
+bin/
 
