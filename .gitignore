@@ -6,6 +6,11 @@
 packages.config
 app.config
 
+<<<<<<< HEAD
 bin/
 obj/
+=======
+obj/
+bin/
+>>>>>>> master
 
