@@ -878,7 +878,10 @@ namespace YetaWF.DataProvider.SQL {
             if (SiteIdentity > 0)
                 sql = sql.Replace($"{{{SiteColumn}}}", $"[{SiteColumn}] = {SiteIdentity}");
 
+            sort = NormalizeSort(typeof(TYPE), sort);
             sql = sql.Replace("$OrderBy$", sb.GetOrderBy(null, sort, Offset: skip, Next: take));
+
+            filters = NormalizeFilter(typeof(TYPE), filters);
             string filter = MakeFilter(sqlHelper, filters, null);
             sql = sql.Replace("$WhereFilter$", filter);
             sql += "\n\n" + sqlHelper.DebugInfo;
