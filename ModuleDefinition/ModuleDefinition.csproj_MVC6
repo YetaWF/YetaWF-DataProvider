@@ -17,6 +17,10 @@
     <RootNamespace>YetaWF.DataProvider.ModuleDefinition</RootNamespace>
   </PropertyGroup>
 
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|AnyCPU'">
+    <DocumentationFile>YetaWF.DataProvider.ModuleDefinition.xml</DocumentationFile>
+  </PropertyGroup>
+
   <ItemGroup>
     <ProjectReference Include="..\..\CoreComponents\Core\Core.csproj" />
     <ProjectReference Include="..\File\File.csproj" />

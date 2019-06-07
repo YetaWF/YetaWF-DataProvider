@@ -17,6 +17,10 @@
     <RootNamespace>YetaWF.DataProvider.Localization</RootNamespace>
   </PropertyGroup>
 
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|AnyCPU'">
+    <DocumentationFile>YetaWF.DataProvider.Localization.xml</DocumentationFile>
+  </PropertyGroup>
+
   <ItemGroup>
     <ProjectReference Include="..\..\CoreComponents\Core\Core.csproj" />
   </ItemGroup>

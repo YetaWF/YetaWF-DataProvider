@@ -17,6 +17,10 @@
     <RootNamespace>YetaWF.DataProvider.SQL</RootNamespace>
   </PropertyGroup>
 
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|AnyCPU'">
+    <DocumentationFile>YetaWF.DataProvider.SQL.xml</DocumentationFile>
+  </PropertyGroup>
+
   <ItemGroup>
     <ProjectReference Include="..\..\CoreComponents\Core\Core.csproj" />
   </ItemGroup>
