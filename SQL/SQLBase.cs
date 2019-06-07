@@ -903,6 +903,31 @@ namespace YetaWF.DataProvider.SQL {
             return recs;
         }
 
+        /// <summary>
+        /// Executes the provided SQL stored procedure returns a collection of objects (one for each row retrieved) of type {i}TYPE{/i}.
+        /// </summary>
+        /// <param name="sqlProc">The name of the stored procedure.</param>
+        /// <remarks>This is used by application data providers to build and execute complex queries that are not possible with the standard data providers.
+        /// Use of this method limits the application data provider to SQL repositories.</remarks>
+        /// <returns>Returns a collection of objects (one for each row retrieved) of type {i}TYPE{/i}.</returns>
+        public async Task<DataProviderGetRecords<TYPE>> Direct_StoredProcAsync<TYPE>(string sqlProc) {
+            SQLHelper sqlHelper = new SQLHelper(Conn, null, Languages);
+            SQLBuilder sb = new SQLBuilder();
+
+            DataProviderGetRecords<TYPE> recs = new DataProviderGetRecords<TYPE>();
+
+            using (SqlDataReader reader = await sqlHelper.ExecuteReaderAsync(sqlProc)) {
+
+                while ((YetaWFManager.IsSync() ? reader.Read() : await reader.ReadAsync())) {
+                    TYPE o = sqlHelper.CreateObject<TYPE>(reader);
+                    recs.Data.Add(o);
+                    // no subtables
+                }
+                recs.Total = recs.Data.Count;
+            }
+            return recs;
+        }
+
         // ISQLTableInfo
         // ISQLTableInfo
         // ISQLTableInfo

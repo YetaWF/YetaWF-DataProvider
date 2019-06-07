@@ -224,6 +224,9 @@ namespace YetaWF.DataProvider.SQL {
         public Task<int> ExecuteNonQueryAsync(string text) {
             return ExecuteNonQueryAsync(SqlConnection, SqlTransaction, CommandType.Text, text, Params);
         }
+        public Task<SqlDataReader> ExecuteReaderStoredProcAsync(string sproc) {
+            return ExecuteReaderAsync(SqlConnection, SqlTransaction, CommandType.StoredProcedure, sproc, Params);
+        }
 
         private static Task<SqlDataReader> ExecuteReaderAsync(SqlConnection connection, SqlTransaction transaction, CommandType commandType, string commandText, List<SqlParameter> sqlParms) {
             using (SqlCommand cmd = new SqlCommand()) {
