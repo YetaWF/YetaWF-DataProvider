@@ -62,10 +62,14 @@ namespace YetaWF.DataProvider.SQL {
                             cmd.CommandTimeout = 300;
                             cmd.CommandType = System.Data.CommandType.Text;
 
-                            if (YetaWFManager.IsSync())
-                                cmd.ExecuteNonQuery();
-                            else
-                                await cmd.ExecuteNonQueryAsync();
+                            try {
+                                if (YetaWFManager.IsSync())
+                                    cmd.ExecuteNonQuery();
+                                else
+                                    await cmd.ExecuteNonQueryAsync();
+                            } catch (Exception exc) {
+                                throw new InternalError($"{Path.GetFileName(file)} in package {package.Name}: {ErrorHandling.FormatExceptionMessage(exc)}");
+                            }
                         }
                     }
                 }
