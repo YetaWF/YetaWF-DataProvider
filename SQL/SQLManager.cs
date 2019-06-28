@@ -30,12 +30,13 @@ namespace YetaWF.DataProvider.SQL {
             public string DataSource { get; set; }
             public string Name { get; set; }
             public Database() {
-                CachedTables = new Dictionary<string, Table>();
+                CachedTables = new List<Table>();
             }
-            public Dictionary<string, Table> CachedTables { get; set; }
+            public List<Table> CachedTables { get; set; }
         }
         public class Table {
             public string Name { get; set; }
+            public string Dbo { get; set; }
             public Table() {
                 CachedColumns = new List<string>();
             }
@@ -86,7 +87,8 @@ namespace YetaWF.DataProvider.SQL {
             if (tables == null)
                 return null;
             tableName = tableName.ToLower();
-            return (from t in tables where t.Name.ToLower() == tableName select t).FirstOrDefault();
+            dbo = dbo.ToLower();
+            return (from t in tables where t.Name.ToLower() == tableName && t.Dbo.ToLower() == dbo select t).FirstOrDefault();
         }
         internal static List<Table> GetTables(SqlConnection conn, string databaseName, string dbo) {
             Database db = GetDatabaseCond(conn, databaseName);
@@ -94,13 +96,15 @@ namespace YetaWF.DataProvider.SQL {
                 return null;
             if (db.CachedTables.Count == 0) {
                 using (SqlCommand cmd = new SqlCommand()) {
-                    Dictionary<string, Table> tables = new Dictionary<string, Table>();
+                    List<Table> tables = new List<Table>();
                     cmd.Connection = conn;
-                    cmd.CommandText = $"SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA = '{dbo}'";
+                    cmd.CommandText = $"SELECT TABLE_NAME, TABLE_SCHEMA FROM INFORMATION_SCHEMA.TABLES";
                     using (SqlDataReader rdr = cmd.ExecuteReader()) {
                         while (rdr.Read()) {
                             string name = rdr.GetString(0);
-                            tables.Add(name, new Table {
+                            string schema = rdr.GetString(1);
+                            tables.Add(new Table {
+                                Dbo = schema,
                                 Name = name,
                             });
                         }
@@ -108,7 +112,8 @@ namespace YetaWF.DataProvider.SQL {
                     db.CachedTables = tables;
                 }
             }
-            return db.CachedTables.Values.ToList();
+            dbo = dbo.ToLower();
+            return (from t in db.CachedTables where t.Dbo.ToLower() == dbo select t).ToList();
         }
 
         internal static List<string> GetColumns(SqlConnection conn, string databaseName, string dbo, string tableName) {
