@@ -138,11 +138,11 @@ namespace YetaWF.DataProvider.SQL {
         // TABLE, COLUMN FORMATTING
 
         /// <summary>
-        /// Returns a formatted table name, with brackets.
+        /// Returns a formatted table name or a formatted database name, database owner and table name, with brackets.
         /// </summary>
         /// <param name="tableName">The table name.</param>
-        /// <returns>Returns a table name, with brackets.</returns>
-        /// <remarks>If the <paramref name="tableName"/> provided is already bracketed, no further brackets are added.</remarks>
+        /// <returns>Returns a formatted table or a formatted name database name, database owner and table name, with brackets.</returns>
+        /// <remarks>The result is bracketed. This method considers whether any of the parameters is already bracketed in which case no further brackets are added.</remarks>
         public static string BuildFullTableName(string tableName) {
             return WrapBrackets(tableName);
         }
@@ -157,34 +157,35 @@ namespace YetaWF.DataProvider.SQL {
             return BuildFullTableName(tableName) + "." + WrapBrackets(column);
         }
         /// <summary>
-        /// Returns a formatted database name, database owner and table name, with brackets.
+        /// Returns a formatted table name or a formatted database name, database owner and table name, with brackets.
         /// </summary>
         /// <param name="database">The database name.</param>
         /// <param name="dbo">The database owner.</param>
         /// <param name="tableName">The table name.</param>
-        /// <returns>Returns a formatted database name, database owner and table name, with brackets.</returns>
+        /// <returns>Returns a formatted table or a formatted name database name, database owner and table name, with brackets.</returns>
         /// <remarks>The result is bracketed. This method considers whether any of the parameters is already bracketed in which case no further brackets are added.</remarks>
         public static string BuildFullTableName(string database, string dbo, string tableName) {
             return $"{WrapBrackets(database)}.{WrapBrackets(dbo)}.{WrapBrackets(tableName)}";
         }
         /// <summary>
-        /// Returns a formatted database name, database owner, table name and column name, with brackets.
+        /// Returns a formatted column name or a formatted database name, database owner, table name and column name, with brackets.
         /// </summary>
         /// <param name="database">The database name.</param>
         /// <param name="dbOwner">The database owner.</param>
         /// <param name="tableName">The table name.</param>
         /// <param name="column">The column name.</param>
-        /// <returns>Returns a formatted database name, database owner, table name and column name, with brackets.</returns>
+        /// <returns>Returns a formatted column name or a formatted database name, database owner, table name and column name, with brackets.</returns>
         /// <remarks>The result is bracketed. This method considers whether any of the parameters is already bracketed in which case no further brackets are added.</remarks>
         public static string BuildFullColumnName(string database, string dbOwner, string tableName, string column) {
             return WrapBrackets(database) + "." + WrapBrackets(dbOwner) + "." + BuildFullColumnName(tableName, column);
         }
         /// <summary>
-        /// Returns a formatted column name, with brackets.
+        /// Returns a formatted column name or a formatted database name, database owner, table name and column name, with brackets.
         /// </summary>
         /// <param name="column">The column name.</param>
         /// <param name="visibleColumns">The collection of columns visible in the table.</param>
-        /// <returns></returns>
+        /// <returns>Returns a formatted column name or a formatted database name, database owner, table name and column name, with brackets.</returns>
+        /// <remarks>The result is bracketed. This method considers whether any of the parameters is already bracketed in which case no further brackets are added.</remarks>
         public static string BuildFullColumnName(string column, Dictionary<string, string> visibleColumns) {
             if (visibleColumns != null) {
                 string longColumn;

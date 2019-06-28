@@ -780,7 +780,7 @@ namespace YetaWF.DataProvider.SQL {
         /// <remarks>This is used by application data providers to build and execute complex queries that are not possible with the standard data providers.
         /// Use of this method limits the application data provider to SQL repositories.
         ///
-        /// When using arguments, they are referenced in the SQL statement(s) <paramref name="sql"/> using @p1, @p2, etc. where @p1 is replaced by the first optional argument, etc.
+        /// When using arguments, they are referenced in the SQL statement(s) <paramref name="sql"/> using @p1, @p2, etc. where @p1 is replaced by the first optional argument.
         /// SQL injection attacks are not possible when using parameters.
         /// </remarks>
         public Task Direct_QueryAsync(string sql) {
