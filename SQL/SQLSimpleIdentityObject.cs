@@ -126,7 +126,15 @@ SELECT @@ROWCOUNT --- result set
 
             string script = (string.IsNullOrWhiteSpace(subTablesDeletes)) ? scriptMain : scriptWithSub;
 
-            object val = await sqlHelper.ExecuteScalarAsync(script);
+            object val;
+            try {
+                val = await sqlHelper.ExecuteScalarAsync(script);
+            } catch (Exception exc) {
+                SqlException sqlExc = exc as SqlException;
+                if (sqlExc != null && sqlExc.Number == 547) // ref integrity
+                    return false;
+                throw new InternalError("Delete failed for type {0} - {1}", typeof(OBJTYPE).FullName, ErrorHandling.FormatExceptionMessage(exc));
+            }
             int deleted = Convert.ToInt32(val);
             if (deleted > 1)
                 throw new InternalError($"More than 1 record deleted by {nameof(RemoveByIdentityAsync)} method");
