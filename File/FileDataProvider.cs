@@ -269,7 +269,7 @@ namespace YetaWF.DataProvider {
 
             FileData<OBJTYPE> fd = new FileData<OBJTYPE> {
                 BaseFolder = BaseFolder,
-                FileName = key.ToString(),
+                FileName = key.ToString().ToLower(),
                 Cacheable = Cacheable
             };
             return fd;
@@ -345,7 +345,7 @@ namespace YetaWF.DataProvider {
         }
         private async Task<UpdateStatusEnum> UpdateFileAsync(KEYTYPE origKey, KEYTYPE newKey, OBJTYPE obj) {
             FileData<OBJTYPE> fd = GetFileDataObject(origKey);
-            return await fd.UpdateFileAsync(newKey.ToString(), obj);
+            return await fd.UpdateFileAsync(newKey.ToString().ToLower(), obj);
         }
         /// <summary>
         /// Removes an existing record with the specified primary key.
