@@ -158,7 +158,28 @@ namespace YetaWF.DataProvider {
 
             this.IdentitySeed = IdentitySeed == 0 ? FileIdentityCount.IDENTITY_SEED : IdentitySeed;
 
-            BaseFolder = GetBaseFolder();
+            string baseFolder = WebConfigHelper.GetValue<string>(Dataset, "FileBaseFolder", null);
+            if (!string.IsNullOrWhiteSpace(baseFolder)) {
+#if DEBUG
+                if (SiteIdentity == 0 && baseFolder.Contains("{SiteIdentity}"))
+                    throw new InternalError($"Can't use site identity in base folder {baseFolder} for {Dataset} - No site identity available");
+#endif
+                string rootFolder;
+#if MVC6
+                rootFolder = YetaWFManager.RootFolderWebProject;
+#else
+                rootFolder = YetaWFManager.RootFolder;
+#endif
+                baseFolder = baseFolder.Replace("{RootFolder}", rootFolder);
+                baseFolder = baseFolder.Replace("{DataFolder}", YetaWFManager.DataFolder);
+                baseFolder = baseFolder.Replace("{SiteIdentity}", SiteIdentity.ToString());
+                baseFolder = baseFolder.Replace("{Dataset}", Dataset);
+                baseFolder = Utility.FileToPhysical(baseFolder);
+                if (baseFolder.Contains("{") || baseFolder.Contains("}"))
+                    throw new InternalError($"Can't resolve base folder, invalid variable present in {baseFolder} for {Dataset}");
+                BaseFolder = baseFolder;
+            } else
+                BaseFolder = GetBaseFolder();
 
             DisposableTracker.AddObject(this);
         }
