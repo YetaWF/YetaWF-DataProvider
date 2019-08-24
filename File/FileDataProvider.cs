@@ -460,11 +460,6 @@ namespace YetaWF.DataProvider {
                         throw new InternalError($"Object in file {file} is invalid");
                 }
                 objects.Add(obj);
-
-                if (skip == 0 && sort == null && filters == null) {
-                    if (objects.Count == take)
-                        break;
-                }
             }
             foreach (OBJTYPE obj in objects)
                 await UpdateCalculatedPropertiesAsync(obj);
