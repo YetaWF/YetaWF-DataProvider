@@ -158,7 +158,28 @@ namespace YetaWF.DataProvider {
 
             this.IdentitySeed = IdentitySeed == 0 ? FileIdentityCount.IDENTITY_SEED : IdentitySeed;
 
-            BaseFolder = GetBaseFolder();
+            string baseFolder = WebConfigHelper.GetValue<string>(Dataset, "FileBaseFolder", null);
+            if (!string.IsNullOrWhiteSpace(baseFolder)) {
+#if DEBUG
+                if (SiteIdentity == 0 && baseFolder.Contains("{SiteIdentity}"))
+                    throw new InternalError($"Can't use site identity in base folder {baseFolder} for {Dataset} - No site identity available");
+#endif
+                string rootFolder;
+#if MVC6
+                rootFolder = YetaWFManager.RootFolderWebProject;
+#else
+                rootFolder = YetaWFManager.RootFolder;
+#endif
+                baseFolder = baseFolder.Replace("{RootFolder}", rootFolder);
+                baseFolder = baseFolder.Replace("{DataFolder}", YetaWFManager.DataFolder);
+                baseFolder = baseFolder.Replace("{SiteIdentity}", SiteIdentity.ToString());
+                baseFolder = baseFolder.Replace("{Dataset}", Dataset);
+                baseFolder = Utility.FileToPhysical(baseFolder);
+                if (baseFolder.Contains("{") || baseFolder.Contains("}"))
+                    throw new InternalError($"Can't resolve base folder, invalid variable present in {baseFolder} for {Dataset}");
+                BaseFolder = baseFolder;
+            } else
+                BaseFolder = GetBaseFolder();
 
             DisposableTracker.AddObject(this);
         }
@@ -269,7 +290,7 @@ namespace YetaWF.DataProvider {
 
             FileData<OBJTYPE> fd = new FileData<OBJTYPE> {
                 BaseFolder = BaseFolder,
-                FileName = key.ToString(),
+                FileName = key.ToString().ToLower(),
                 Cacheable = Cacheable
             };
             return fd;
@@ -345,7 +366,7 @@ namespace YetaWF.DataProvider {
         }
         private async Task<UpdateStatusEnum> UpdateFileAsync(KEYTYPE origKey, KEYTYPE newKey, OBJTYPE obj) {
             FileData<OBJTYPE> fd = GetFileDataObject(origKey);
-            return await fd.UpdateFileAsync(newKey.ToString(), obj);
+            return await fd.UpdateFileAsync(newKey.ToString().ToLower(), obj);
         }
         /// <summary>
         /// Removes an existing record with the specified primary key.
@@ -439,11 +460,6 @@ namespace YetaWF.DataProvider {
                         throw new InternalError($"Object in file {file} is invalid");
                 }
                 objects.Add(obj);
-
-                if (skip == 0 && sort == null && filters == null) {
-                    if (objects.Count == take)
-                        break;
-                }
             }
             foreach (OBJTYPE obj in objects)
                 await UpdateCalculatedPropertiesAsync(obj);
