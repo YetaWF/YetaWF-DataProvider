@@ -48,7 +48,7 @@ namespace YetaWF.DataProvider.SQL {
             using (SqlConnection conn = new SqlConnection(connString)) {
                 conn.Open();
                 foreach (string file in files) {
-                    string text = File.ReadAllText(file);
+                    string text = await FileSystem.FileSystemProvider.ReadAllTextAsync(file);
 
                     // use appsettings variables
                     Variables vars = new Variables(null, WebConfigHelper.Variables);
