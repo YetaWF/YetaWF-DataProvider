@@ -413,7 +413,7 @@ namespace YetaWF.DataProvider.SQL {
             filters = (from f in filters select new DataProviderFilterInfo(f)).ToList();// copy list
             foreach (DataProviderFilterInfo f in filters)
                 if (f.Field != null) f.Field = f.Field.Replace(".", "_");
-            Grid.NormalizeFilters(type, filters);
+            DataProviderFilterInfo.NormalizeFilters(type, filters);
             foreach (DataProviderFilterInfo filter in filters) {
                 if (filter.Filters != null)
                     filter.Filters = NormalizeFilter(type, filter.Filters);
