@@ -11,7 +11,6 @@ using System.Reflection;
 using System.Runtime.Serialization.Formatters.Binary;
 using System.Threading.Tasks;
 using System.Transactions;
-using YetaWF.Core.Components;
 using YetaWF.Core.DataProvider;
 using YetaWF.Core.DataProvider.Attributes;
 using YetaWF.Core.Language;
@@ -29,11 +28,11 @@ namespace YetaWF.DataProvider.SQL {
 
         /// <summary>
         /// Defines the name of the SQL low-level data provider.
-        /// This name is used in appsettings.json ("IOMode": "SQL").
+        /// This name is used in AppSettings.json ("IOMode": "SQL").
         /// </summary>
         public const string ExternalName = "SQL";
         /// <summary>
-        /// Defines the key used in appsettings.json to define a SQL connection string
+        /// Defines the key used in AppSettings.json to define a SQL connection string
         /// ("SQLConnect": "Data Source=...datasource...;Initial Catalog=...catalog...;User ID=..userid..;Password=..password..").
         /// </summary>
         public const string SQLConnectString = "SQLConnect";
@@ -66,8 +65,8 @@ namespace YetaWF.DataProvider.SQL {
         public Package Package { get; private set; }
 
         /// <summary>
-        /// The section in appsettings.json, where SQL connection string, database owner, etc. are located.
-        /// WebConfigArea is normally not specified and all connection information is derived from the appsettings.json section that corresponds to the table name used by the data provider.
+        /// The section in AppSettings.json, where SQL connection string, database owner, etc. are located.
+        /// WebConfigArea is normally not specified and all connection information is derived from the AppSettings.json section that corresponds to the table name used by the data provider.
         /// This can be overridden by passing an optional WebConfigArea parameter to the YetaWF.Core.DataProvider.DataProviderImpl.MakeDataProvider method when the data provider is created.
         /// </summary>
         /// <remarks>This is not used by application data providers. Only the YetaWF.DataProvider.ModuleDefinitionDataProvider uses this feature.</remarks>
@@ -126,14 +125,14 @@ namespace YetaWF.DataProvider.SQL {
         /// <summary>
         /// Defines the SQL connection string used by this data provider.
         /// </summary>
-        /// <remarks>The SQL connection string is defined in appsettings.json but may be modified by the data provider.
+        /// <remarks>The SQL connection string is defined in AppSettings.json but may be modified by the data provider.
         /// The ConnectionString property contains the actual connection string used to connect to the SQL database.
         /// </remarks>
         public string ConnectionString { get; private set; }
         /// <summary>
         /// Defines the database owner used by this data provider.
         /// </summary>
-        /// <remarks>The database owner is defined in appsettings.json ("SQLDbo": "dbo").
+        /// <remarks>The database owner is defined in AppSettings.json ("SQLDbo": "dbo").
         /// </remarks>
         public string Dbo { get; private set; }
         /// <summary>
@@ -154,26 +153,26 @@ namespace YetaWF.DataProvider.SQL {
         /// </remarks>
         protected SQLBase(Dictionary<string, object> options) {
             Options = options;
-            if (!Options.ContainsKey("Package") || !(Options["Package"] is Package))
+            if (!Options.ContainsKey(nameof(Package)) || !(Options[nameof(Package)] is Package))
                 throw new InternalError($"No Package for data provider {GetType().FullName}");
-            Package = (Package)Options["Package"];
-            if (!Options.ContainsKey("Dataset") || string.IsNullOrWhiteSpace((string)Options["Dataset"]))
+            Package = (Package)Options[nameof(Package)];
+            if (!Options.ContainsKey(nameof(Dataset)) || string.IsNullOrWhiteSpace((string)Options[nameof(Dataset)]))
                 throw new InternalError($"No Dataset for data provider {GetType().FullName}");
-            Dataset = (string)Options["Dataset"];
-            if (Options.ContainsKey("SiteIdentity") && Options["SiteIdentity"] is int)
-                SiteIdentity = Convert.ToInt32(Options["SiteIdentity"]);
-            if (Options.ContainsKey("IdentitySeed") && Options["IdentitySeed"] is int)
-                IdentitySeed = Convert.ToInt32(Options["IdentitySeed"]);
+            Dataset = (string)Options[nameof(Dataset)];
+            if (Options.ContainsKey(nameof(SiteIdentity)) && Options[nameof(SiteIdentity)] is int)
+                SiteIdentity = Convert.ToInt32(Options[nameof(SiteIdentity)]);
+            if (Options.ContainsKey(nameof(IdentitySeed)) && Options[nameof(IdentitySeed)] is int)
+                IdentitySeed = Convert.ToInt32(Options[nameof(IdentitySeed)]);
             else
                 IdentitySeed = DataProviderImpl.IDENTITY_SEED;
-            if (Options.ContainsKey("Cacheable") && Options["Cacheable"] is bool)
-                Cacheable = Convert.ToBoolean(Options["Cacheable"]);
-            if (Options.ContainsKey("Logging") && Options["Logging"] is bool)
-                Logging = Convert.ToBoolean(Options["Logging"]);
+            if (Options.ContainsKey(nameof(Cacheable)) && Options[nameof(Cacheable)] is bool)
+                Cacheable = Convert.ToBoolean(Options[nameof(Cacheable)]);
+            if (Options.ContainsKey(nameof(Logging)) && Options[nameof(Logging)] is bool)
+                Logging = Convert.ToBoolean(Options[nameof(Logging)]);
             else
                 Logging = true;
-            if (Options.ContainsKey("NoLanguages") && Options["NoLanguages"] is bool)
-                NoLanguages = Convert.ToBoolean(Options["NoLanguages"]);
+            if (Options.ContainsKey(nameof(NoLanguages)) && Options[nameof(NoLanguages)] is bool)
+                NoLanguages = Convert.ToBoolean(Options[nameof(NoLanguages)]);
 
             if (Options.ContainsKey("WebConfigArea"))
                 WebConfigArea = (string)Options["WebConfigArea"];
