@@ -56,6 +56,7 @@ namespace YetaWF.DataProvider.SQL {
         /// <param name="identity">The identity value.</param>
         /// <returns>Returns the record that satisfies the specified identity value. If no record exists null is returned.</returns>
         public async Task<OBJTYPE> GetByIdentityAsync(int identity) {
+            await EnsureOpenAsync();
 
             SQLHelper sqlHelper = new SQLHelper(Conn, null, Languages);
 
@@ -94,6 +95,7 @@ DECLARE @ident int = {identity};
         /// <param name="identity">The identity value of the record to remove.</param>
         /// <returns>Returns true if the record was removed, or false if the record was not found. Other errors cause an exception.</returns>
         public async Task<bool> RemoveByIdentityAsync(int identity) {
+            await EnsureOpenAsync();
 
             SQLHelper sqlHelper = new SQLHelper(Conn, null, Languages);
 
@@ -149,6 +151,7 @@ SELECT @@ROWCOUNT --- result set
         /// <param name="obj">The object being updated.</param>
         /// <returns>Returns a status indicator.</returns>
         public async Task<UpdateStatusEnum> UpdateByIdentityAsync(int identity, OBJTYPE obj) {
+            await EnsureOpenAsync();
 
             SQLHelper sqlHelper = new SQLHelper(Conn, null, Languages);
 

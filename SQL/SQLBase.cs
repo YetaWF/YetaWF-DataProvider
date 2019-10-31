@@ -192,8 +192,6 @@ namespace YetaWF.DataProvider.SQL {
                 AndSiteIdentity = $"AND [{SiteColumn}] = {SiteIdentity}";
 
             Conn = new SqlConnection(ConnectionString);
-            Conn.Open();
-            Database = Conn.Database;
 
             DisposableTracker.AddObject(this);
         }
@@ -213,6 +211,22 @@ namespace YetaWF.DataProvider.SQL {
                     Conn.Dispose();
                     Conn = null;
                 }
+            }
+        }
+
+        /// <summary>
+        /// Called to make sure that the database connection has been opened.
+        /// Any public API must call this as a data provider no longer opens the connection immediately.
+        /// </summary>
+        /// <remarks>Originally the connection was opened in the constructor (yeah, bad idea I had many years ago, before async).
+        /// To avoid having to change the public APIs for data providers, this call in APIs offered by data providers opens the connection. All data provider APIs are async so no changes needed.</remarks>
+        public async Task EnsureOpenAsync() {
+            if (Conn.State == System.Data.ConnectionState.Closed) {
+                if (YetaWFManager.IsSync())
+                    Conn.Open();
+                else
+                    await Conn.OpenAsync();
+                Database = Conn.Database;
             }
         }
 
@@ -449,13 +463,13 @@ namespace YetaWF.DataProvider.SQL {
         internal static string GetLanguageSuffix() {
             return ColumnFromPropertyWithLanguage(MultiString.ActiveLanguage, "");
         }
-        internal string MakeJoins(SQLHelper helper, List<JoinData> joins) {
+        internal async Task<string> MakeJoinsAsync(SQLHelper helper, List<JoinData> joins) {
             SQLBuilder sb = new SQLBuilder();
             if (joins != null) {
                 foreach (JoinData join in joins) {
-                    ISQLTableInfo joinInfo = (ISQLTableInfo)join.JoinDP.GetDataProvider();
+                    ISQLTableInfo joinInfo = await join.JoinDP.GetDataProvider().GetISQLTableInfoAsync();
                     string joinTable = joinInfo.GetTableName();
-                    ISQLTableInfo mainInfo = (ISQLTableInfo)join.MainDP.GetDataProvider();
+                    ISQLTableInfo mainInfo = await join.MainDP.GetDataProvider().GetISQLTableInfoAsync();
                     string mainTable = mainInfo.GetTableName();
                     if (join.JoinType == JoinData.JoinTypeEnum.Left)
                         sb.Add($"LEFT JOIN {joinTable}");
@@ -506,7 +520,7 @@ namespace YetaWF.DataProvider.SQL {
 
         // Flatten the current table(with joins) and create a lookup table for all fields.
         // If a joined table has a field with the same name as the lookup table, it is not accessible.
-        internal Dictionary<string, string> GetVisibleColumns(string databaseName, string dbOwner, string tableName, Type objType, List<JoinData> joins) {
+        internal async Task<Dictionary<string, string>> GetVisibleColumnsAsync(string databaseName, string dbOwner, string tableName, Type objType, List<JoinData> joins) {
             Dictionary<string, string> visibleColumns = new Dictionary<string, string>();
             tableName = tableName.Trim(new char[] { '[', ']' });
             List<string> columns = SQLManager.GetColumns(Conn, databaseName, dbOwner, tableName);
@@ -520,14 +534,14 @@ namespace YetaWF.DataProvider.SQL {
             if (joins != null) {
                 // no support for calculated properties in joined tables
                 foreach (JoinData join in joins) {
-                    ISQLTableInfo mainInfo = (ISQLTableInfo)join.MainDP.GetDataProvider();
+                    ISQLTableInfo mainInfo = await join.MainDP.GetDataProvider().GetISQLTableInfoAsync();
                     databaseName = mainInfo.GetDatabaseName();
                     dbOwner = mainInfo.GetDbOwner();
                     tableName = mainInfo.GetTableName();
                     tableName = tableName.Split(new char[] { '.' }).Last().Trim(new char[] { '[', ']' });
                     columns = SQLManager.GetColumns(Conn, databaseName, dbOwner, tableName);
                     AddVisibleColumns(visibleColumns, databaseName, dbOwner, tableName, columns);
-                    ISQLTableInfo joinInfo = (ISQLTableInfo)join.JoinDP.GetDataProvider();
+                    ISQLTableInfo joinInfo = await join.JoinDP.GetDataProvider().GetISQLTableInfoAsync();
                     databaseName = joinInfo.GetDatabaseName();
                     dbOwner = joinInfo.GetDbOwner();
                     tableName = joinInfo.GetTableName();
@@ -762,6 +776,7 @@ namespace YetaWF.DataProvider.SQL {
         /// <remarks>This is used by application data providers to build and execute complex queries that are not possible with the standard data providers.
         /// Use of this method limits the application data provider to SQL repositories.</remarks>
         public async Task<int> Direct_ScalarIntAsync(string sql) {
+            await EnsureOpenAsync();
             SQLHelper sqlHelper = new SQLHelper(Conn, null, Languages);
             string tableName = GetTableName();
             sql = sql.Replace("{TableName}", SQLBuilder.WrapBrackets(tableName));
@@ -782,8 +797,9 @@ namespace YetaWF.DataProvider.SQL {
         /// When using arguments, they are referenced in the SQL statement(s) <paramref name="sql"/> using @p1, @p2, etc. where @p1 is replaced by the first optional argument.
         /// SQL injection attacks are not possible when using parameters.
         /// </remarks>
-        public Task Direct_QueryAsync(string sql) {
-            return Direct_QueryAsync(sql, new object[] { });
+        public async Task Direct_QueryAsync(string sql) {
+            await EnsureOpenAsync();
+            await Direct_QueryAsync(sql, new object[] { });
         }
         /// <summary>
         /// Executes the provided SQL statement(s).
@@ -797,6 +813,7 @@ namespace YetaWF.DataProvider.SQL {
         /// SQL injection attacks are not possible when using parameters.
         /// </remarks>
         public async Task Direct_QueryAsync(string sql, params object[] args) {
+            await EnsureOpenAsync();
             SQLHelper sqlHelper = new SQLHelper(Conn, null, Languages);
             string tableName = GetTableName();
             int count = 0;
@@ -816,8 +833,9 @@ namespace YetaWF.DataProvider.SQL {
         /// <remarks>This is used by application data providers to build and execute complex queries that are not possible with the standard data providers.
         /// Use of this method limits the application data provider to SQL repositories.</remarks>
         /// <returns>Returns a collection  of objects (one for each row retrieved) of type {i}TYPE{/i}.</returns>
-        public Task<List<TYPE>> Direct_QueryListAsync<TYPE>(string sql) {
-            return Direct_QueryListAsync<TYPE>(sql, new object[] { });
+        public async Task<List<TYPE>> Direct_QueryListAsync<TYPE>(string sql) {
+            await EnsureOpenAsync();
+            return await Direct_QueryListAsync<TYPE>(sql, new object[] { });
         }
         /// <summary>
         /// Executes the provided SQL statement(s) and returns a collection of objects (one for each row retrieved) of type {i}TYPE{/i}.
@@ -828,6 +846,7 @@ namespace YetaWF.DataProvider.SQL {
         /// Use of this method limits the application data provider to SQL repositories.</remarks>
         /// <returns>Returns a collection  of objects (one for each row retrieved) of type {i}TYPE{/i}.</returns>
         public async Task<List<TYPE>> Direct_QueryListAsync<TYPE>(string sql, params object[] args) {
+            await EnsureOpenAsync();
             SQLHelper sqlHelper = new SQLHelper(Conn, null, Languages);
             string tableName = GetTableName();
             int count = 0;
@@ -864,6 +883,7 @@ namespace YetaWF.DataProvider.SQL {
         /// The SQL statements must create two result sets. The first, a scalar value with the total number of records (not paged) and the second result set is a collection of objects of type {i}TYPE{/i}.
         /// </remarks>
         public async Task<DataProviderGetRecords<TYPE>> Direct_QueryPagedListAsync<TYPE>(string sql, int skip, int take, List<DataProviderSortInfo> sort, List<DataProviderFilterInfo> filters, params object[] args) {
+            await EnsureOpenAsync();
             SQLHelper sqlHelper = new SQLHelper(Conn, null, Languages);
             SQLBuilder sb = new SQLBuilder();
 
@@ -911,6 +931,7 @@ namespace YetaWF.DataProvider.SQL {
         /// Use of this method limits the application data provider to SQL repositories.</remarks>
         /// <returns>Returns a collection of objects (one for each row retrieved) of type {i}TYPE{/i}.</returns>
         public async Task<DataProviderGetRecords<TYPE>> Direct_StoredProcAsync<TYPE>(string sqlProc, object parms = null) {
+            await EnsureOpenAsync();
             SQLHelper sqlHelper = new SQLHelper(Conn, null, Languages);
             SQLBuilder sb = new SQLBuilder();
 
@@ -936,6 +957,15 @@ namespace YetaWF.DataProvider.SQL {
         // ISQLTableInfo
         // ISQLTableInfo
         // ISQLTableInfo
+
+        /// <summary>
+        /// Returns an ISQLTableInfo interface for the data provider.
+        /// </summary>
+        /// <returns>Returns an ISQLTableInfo interface for the data provider.</returns>
+        public async Task<ISQLTableInfo> GetISQLTableInfoAsync() {
+            await EnsureOpenAsync();
+            return (ISQLTableInfo)this;
+        }
 
         /// <summary>
         /// Returns the SQL connection string used by the data provider.
