@@ -1,9 +1,11 @@
 ﻿/* Copyright © 2019 Softel vdm, Inc. - https://yetawf.com/Documentation/YetaWF/Licensing */
 
+using Npgsql;
+using NpgsqlTypes;
 using System;
 using System.Collections.Generic;
 using System.Data;
-using System.Data.SqlClient;
+using System.Data.Common;
 using System.Drawing;
 using System.IO;
 using System.Reflection;
@@ -15,25 +17,25 @@ using YetaWF.Core.Models;
 using YetaWF.Core.Support;
 using YetaWF.Core.Support.Serializers;
 
-namespace YetaWF.DataProvider.SQL {
+namespace YetaWF.DataProvider.PostgreSQL {
 
-    internal class SQLHelper {
+    internal class PostgreSQLHelper {
 
-        public SqlConnection SqlConnection;
-        public SqlTransaction SqlTransaction;
+        public NpgsqlConnection NpqsqlConnection;
+        public NpgsqlTransaction NpgsqlTransaction;
         private List<LanguageData> Languages { get; set; }
-        private List<SqlParameter> Params = new List<SqlParameter>();
+        private List<NpgsqlParameter> Params = new List<NpgsqlParameter>();
 
-        public SQLHelper(SqlConnection conn, SqlTransaction trans, List<LanguageData> languages) {
-            SqlConnection = conn;
-            SqlTransaction = trans;
+        public PostgreSQLHelper(NpgsqlConnection conn, NpgsqlTransaction trans, List<LanguageData> languages) {
+            NpqsqlConnection = conn;
+            NpgsqlTransaction = trans;
             Languages = languages;
         }
 
         public string DebugInfo {
             get {
 #if DEBUG
-                SQLBuilder sb = new SQLBuilder();
+                PostgreSQLBuilder sb = new PostgreSQLBuilder();
                 sb.Add("-- Debug"); sb.Add(Environment.NewLine);
                 foreach (var p in Params) {
                     string val = p.Value?.ToString();
@@ -215,30 +217,30 @@ namespace YetaWF.DataProvider.SQL {
 
         // Execute...
 
-        public Task<SqlDataReader> ExecuteReaderAsync(string text) {
-            return ExecuteReaderAsync(SqlConnection, SqlTransaction, CommandType.Text, text, Params);
+        public Task<DbDataReader> ExecuteReaderAsync(string text) {
+            return ExecuteReaderAsync(NpqsqlConnection, NpgsqlTransaction, CommandType.Text, text, Params);
         }
         public Task<object> ExecuteScalarAsync(string text) {
-            return ExecuteScalarAsync(SqlConnection, SqlTransaction, CommandType.Text, text, Params);
+            return ExecuteScalarAsync(NpqsqlConnection, NpgsqlTransaction, CommandType.Text, text, Params);
         }
         public Task<int> ExecuteNonQueryAsync(string text) {
-            return ExecuteNonQueryAsync(SqlConnection, SqlTransaction, CommandType.Text, text, Params);
+            return ExecuteNonQueryAsync(NpqsqlConnection, NpgsqlTransaction, CommandType.Text, text, Params);
         }
-        public Task<SqlDataReader> ExecuteReaderStoredProcAsync(string sproc) {
-            return ExecuteReaderAsync(SqlConnection, SqlTransaction, CommandType.StoredProcedure, sproc, Params);
+        public Task<DbDataReader> ExecuteReaderStoredProcAsync(string sproc) {
+            return ExecuteReaderAsync(NpqsqlConnection, NpgsqlTransaction, CommandType.StoredProcedure, sproc, Params);
         }
 
-        private static Task<SqlDataReader> ExecuteReaderAsync(SqlConnection connection, SqlTransaction transaction, CommandType commandType, string commandText, List<SqlParameter> sqlParms) {
-            using (SqlCommand cmd = new SqlCommand()) {
+        private static async Task<DbDataReader> ExecuteReaderAsync(NpgsqlConnection connection, NpgsqlTransaction transaction, CommandType commandType, string commandText, List<NpgsqlParameter> sqlParms) {
+            using (NpgsqlCommand cmd = new NpgsqlCommand()) {
                 PrepareCommand(cmd, connection, transaction, commandType, commandText, sqlParms);
                 if (YetaWFManager.IsSync())
-                    return Task.FromResult(cmd.ExecuteReader());
+                    return cmd.ExecuteReader();
                 else
-                    return cmd.ExecuteReaderAsync();
+                    return await cmd.ExecuteReaderAsync();
             }
         }
-        private static Task<object> ExecuteScalarAsync(SqlConnection connection, SqlTransaction transaction, CommandType commandType, string commandText, List<SqlParameter> sqlParms) {
-            using (SqlCommand cmd = new SqlCommand()) {
+        private static Task<object> ExecuteScalarAsync(NpgsqlConnection connection, NpgsqlTransaction transaction, CommandType commandType, string commandText, List<NpgsqlParameter> sqlParms) {
+            using (NpgsqlCommand cmd = new NpgsqlCommand()) {
                 PrepareCommand(cmd, connection, transaction, commandType, commandText, sqlParms);
                 if (YetaWFManager.IsSync())
                     return Task.FromResult(cmd.ExecuteScalar());
@@ -246,8 +248,8 @@ namespace YetaWF.DataProvider.SQL {
                     return cmd.ExecuteScalarAsync();
             }
         }
-        private static Task<int> ExecuteNonQueryAsync(SqlConnection connection, SqlTransaction transaction, CommandType commandType, string commandText, List<SqlParameter> sqlParms) {
-            using (SqlCommand cmd = new SqlCommand()) {
+        private static Task<int> ExecuteNonQueryAsync(NpgsqlConnection connection, NpgsqlTransaction transaction, CommandType commandType, string commandText, List<NpgsqlParameter> sqlParms) {
+            using (NpgsqlCommand cmd = new NpgsqlCommand()) {
                 PrepareCommand(cmd, connection, transaction, commandType, commandText, sqlParms);
                 if (YetaWFManager.IsSync())
                     return Task.FromResult(cmd.ExecuteNonQuery());
@@ -257,7 +259,7 @@ namespace YetaWF.DataProvider.SQL {
         }
 
         [System.Diagnostics.CodeAnalysis.SuppressMessage("Microsoft.Security", "CA2100:Review SQL queries for security vulnerabilities")]
-        private static void PrepareCommand(SqlCommand command, SqlConnection connection, SqlTransaction transaction, CommandType commandType, string commandText, List<SqlParameter> sqlParms) {
+        private static void PrepareCommand(NpgsqlCommand command, NpgsqlConnection connection, NpgsqlTransaction transaction, CommandType commandType, string commandText, List<NpgsqlParameter> sqlParms) {
 
             command.Connection = connection;
             command.CommandText = commandText;
@@ -272,9 +274,9 @@ namespace YetaWF.DataProvider.SQL {
             if (sqlParms != null)
                 AttachParameters(command, sqlParms);
         }
-        private static void AttachParameters(SqlCommand command, List<SqlParameter> sqlParms) {
+        private static void AttachParameters(NpgsqlCommand command, List<NpgsqlParameter> sqlParms) {
             if (sqlParms != null) {
-                foreach (SqlParameter p in sqlParms) {
+                foreach (NpgsqlParameter p in sqlParms) {
                     if (p != null) {
                         if ((p.Direction == ParameterDirection.InputOutput || p.Direction == ParameterDirection.Input) && p.Value == null)
                             p.Value = DBNull.Value;
@@ -288,7 +290,7 @@ namespace YetaWF.DataProvider.SQL {
         // EXPR
         // EXPR
 
-        internal void AddWhereExpr(SQLBuilder sb, string tableName, List<DataProviderFilterInfo> filters, Dictionary<string, string> visibleColumns) {
+        internal void AddWhereExpr(PostgreSQLBuilder sb, string tableName, List<DataProviderFilterInfo> filters, Dictionary<string, string> visibleColumns) {
             List<DataProviderFilterInfo> list = new List<DataProviderFilterInfo>(filters);
             if (list.Count == 1 && list[0].Filters != null && list[0].Logic == "&&") {
                 // topmost entry is just one filter, remove it - it's redundant
@@ -296,7 +298,7 @@ namespace YetaWF.DataProvider.SQL {
             }
             AddFiltersExpr(sb, tableName, list, "and", visibleColumns);
         }
-        private void AddFiltersExpr(SQLBuilder sb, string tableName, List<DataProviderFilterInfo> filter, string logic, Dictionary<string, string> visibleColumns) {
+        private void AddFiltersExpr(PostgreSQLBuilder sb, string tableName, List<DataProviderFilterInfo> filter, string logic, Dictionary<string, string> visibleColumns) {
             bool firstDone = false;
             foreach (var f in filter) {
                 if (firstDone) {
@@ -345,26 +347,26 @@ namespace YetaWF.DataProvider.SQL {
                             isNull = false;
                             oper = ">="; break;
                         case "startswith":
-                            oper = "LIKE"; val = SQLBuilder.EscapeForLike((val ?? "").ToString(), false) + "%"; break;
+                            oper = "LIKE"; val = PostgreSQLBuilder.EscapeForLike((val ?? "").ToString(), false) + "%"; break;
                         case "notstartswith":
                             isNull = true;
-                            oper = "NOT LIKE"; val = SQLBuilder.EscapeForLike((val ?? "").ToString(), false) + "%"; break;
+                            oper = "NOT LIKE"; val = PostgreSQLBuilder.EscapeForLike((val ?? "").ToString(), false) + "%"; break;
                         case "endswith":
-                            oper = "LIKE"; val = "%" + SQLBuilder.EscapeForLike((val ?? "").ToString(), false); break;
+                            oper = "LIKE"; val = "%" + PostgreSQLBuilder.EscapeForLike((val ?? "").ToString(), false); break;
                         case "notendswith":
                             isNull = true;
-                            oper = "NOT LIKE"; val = "%" + SQLBuilder.EscapeForLike((val ?? "").ToString(), false); break;
+                            oper = "NOT LIKE"; val = "%" + PostgreSQLBuilder.EscapeForLike((val ?? "").ToString(), false); break;
                         case "contains":
-                            oper = "LIKE"; val = "%" + SQLBuilder.EscapeForLike((val ?? "").ToString(), false) + "%"; break;
+                            oper = "LIKE"; val = "%" + PostgreSQLBuilder.EscapeForLike((val ?? "").ToString(), false) + "%"; break;
                         case "notcontains":
                             isNull = true;
-                            oper = "NOT LIKE"; val = "%" + SQLBuilder.EscapeForLike((val ?? "").ToString(), false) + "%"; break;
+                            oper = "NOT LIKE"; val = "%" + PostgreSQLBuilder.EscapeForLike((val ?? "").ToString(), false) + "%"; break;
                         default:
                             throw new InternalError("Invalid operator {0}", f.Operator);
                     }
                     if (isNull != null) {
                         sb.Add("(");
-                        string s = SQLBuilder.BuildFullColumnName(f.Field, visibleColumns);
+                        string s = PostgreSQLBuilder.BuildFullColumnName(f.Field, visibleColumns);
                         AddExpr(sb, s, oper, val);
                         if (isNull == true)
                             sb.Add($" OR {s} IS NULL");
@@ -372,28 +374,28 @@ namespace YetaWF.DataProvider.SQL {
                             sb.Add($" AND {s} IS NOT NULL");
                         sb.Add(")");
                     } else {
-                        AddExpr(sb, SQLBuilder.BuildFullColumnName(f.Field, visibleColumns), oper, val);
+                        AddExpr(sb, PostgreSQLBuilder.BuildFullColumnName(f.Field, visibleColumns), oper, val);
                     }
                 }
                 firstDone = true;
             }
         }
         public string Expr(string wherecolumn, string @operator, object value, bool isSet = false) {
-            SQLBuilder sb = new SQLBuilder();
+            PostgreSQLBuilder sb = new PostgreSQLBuilder();
             AddExpr(sb, wherecolumn, @operator, value, isSet);
             return sb.ToString();
         }
         /// <summary>
         /// Adds a parameter to a WHERE statement. Will generate ColumnName {Operator} 'Value' (quotes only added if it is a string)
         /// </summary>
-        /// <param name="sb">The SQLBuilder object that holds the current SQL statement.</param>
+        /// <param name="sb">The SQLBuilder object that holds the current PostgreSQL statement.</param>
         /// <param name="wherecolumn">The name of the column</param>
         /// <param name="operator">The operator, e.g. = &lt;= LIKE &lt;&gt; etc.</param>
         /// <param name="value">The value. If it is a string it is properly escaped etc.</param>
         /// <param name="isSet">Identifies this comparison as a set statement. Needed for setting null values.</param>
-        internal void AddExpr(SQLBuilder sb, string wherecolumn, string @operator, object value, bool isSet = false) {
-            if (!wherecolumn.Contains(".") && !wherecolumn.StartsWith("["))
-                wherecolumn = SQLBuilder.WrapBrackets(wherecolumn);
+        internal void AddExpr(PostgreSQLBuilder sb, string wherecolumn, string @operator, object value, bool isSet = false) {
+            if (!wherecolumn.Contains(".") && !wherecolumn.StartsWith("\""))
+                wherecolumn = PostgreSQLBuilder.WrapQuotes(wherecolumn);
 
             if (value == null) {
                 sb.Add(wherecolumn);
@@ -425,7 +427,7 @@ namespace YetaWF.DataProvider.SQL {
         /// <returns>The generated name for the parameter</returns>
         public string AddNullTempParam(ParameterDirection direction = ParameterDirection.Input) {
             var name = "_tempParam" + Params.Count;
-            SqlParameter parm = new SqlParameter(name, SqlDbType.Binary);
+            NpgsqlParameter parm = new NpgsqlParameter(name, NpgsqlDbType.Bytea);
             parm.Direction = direction;
             Params.Add(parm);
             return "@" + name;
@@ -439,7 +441,7 @@ namespace YetaWF.DataProvider.SQL {
         public void AddParam(string name, object value, ParameterDirection direction = ParameterDirection.Input)/*<<<*/ {
             if (name.StartsWith("@")) name = name.Substring(1);
 
-            SqlParameter parm;
+            NpgsqlParameter parm;
 
             // special handling
             if (value is System.Drawing.Image) {
@@ -449,16 +451,16 @@ namespace YetaWF.DataProvider.SQL {
                 img.Save(ms, System.Drawing.Imaging.ImageFormat.Jpeg);
                 ms.Close();
                 value = ms.ToArray();
-                parm = new SqlParameter(name, value);
+                parm = new NpgsqlParameter(name, value);
             } else if (value is System.String) {
                 string s = (string)value ?? "";
-                parm = new SqlParameter(name, SqlDbType.NVarChar, s.Length);
+                parm = new NpgsqlParameter(name, NpgsqlDbType.Varchar, s.Length);
                 parm.Value = s;
             } else if (value is DateTime) {
-                parm = new SqlParameter(name, SqlDbType.DateTime2);
+                parm = new NpgsqlParameter(name, NpgsqlDbType.Timestamp);
                 parm.Value = value;
             } else {
-                parm = new SqlParameter(name, value);
+                parm = new NpgsqlParameter(name, value);
             }
             parm.Direction = direction;//<<<
             Params.Add(parm);

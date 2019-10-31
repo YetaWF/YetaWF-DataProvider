@@ -5,20 +5,20 @@ using System.Text;
 using YetaWF.Core.DataProvider;
 using YetaWF.Core.Support;
 
-namespace YetaWF.DataProvider.SQL {
+namespace YetaWF.DataProvider.PostgreSQL {
 
     /// <summary>
-    /// Helper class used to create dynamic SQL strings.
-    /// Similar to the System.Text.StringBuilder class but specialized for SQL statements.
+    /// Helper class used to create dynamic PostgreSQL strings.
+    /// Similar to the System.Text.StringBuilder class but specialized for PostgreSQL statements.
     /// </summary>
-    public class SQLBuilder {
+    public class PostgreSQLBuilder {
 
         StringBuilder _sb;
 
         /// <summary>
         /// Constructor.
         /// </summary>
-        public SQLBuilder() {
+        public PostgreSQLBuilder() {
             _sb = new StringBuilder();
         }
 
@@ -46,9 +46,9 @@ namespace YetaWF.DataProvider.SQL {
         public static string GetTable(string database, string dbo, string tableName) { return BuildFullTableName(database, dbo, tableName); }
 
         /// <summary>
-        /// Returns the complete SQL string built using this instance.
+        /// Returns the complete PostgreSQL string built using this instance.
         /// </summary>
-        /// <returns>Returns the complete SQL string.</returns>
+        /// <returns>Returns the complete PostgreSQL string.</returns>
         public override string ToString() { return _sb.ToString(); }
 
         /// <summary>
@@ -126,8 +126,8 @@ namespace YetaWF.DataProvider.SQL {
         /// <summary>
         /// Escapes apostrophes in strings.
         /// </summary>
-        /// <param name="sql">A SQL statement fragment.</param>
-        /// <returns>Returns the clean SQL fragment, with escaped apostrophes.</returns>
+        /// <param name="sql">A PostgreSQL statement fragment.</param>
+        /// <returns>Returns the clean PostgreSQL fragment, with escaped apostrophes.</returns>
         public static string EscapeApostrophe(string sql) {
             sql = sql.Replace("'", "''");
             return sql;
@@ -138,13 +138,13 @@ namespace YetaWF.DataProvider.SQL {
         // TABLE, COLUMN FORMATTING
 
         /// <summary>
-        /// Returns a formatted table name or a formatted database name, database owner and table name, with brackets.
+        /// Returns a formatted table name, with brackets.
         /// </summary>
         /// <param name="tableName">The table name.</param>
-        /// <returns>Returns a formatted table or a formatted name database name, database owner and table name, with brackets.</returns>
-        /// <remarks>The result is bracketed. This method considers whether any of the parameters is already bracketed in which case no further brackets are added.</remarks>
+        /// <returns>Returns a table name, with brackets.</returns>
+        /// <remarks>If the <paramref name="tableName"/> provided is already bracketed, no further brackets are added.</remarks>
         public static string BuildFullTableName(string tableName) {
-            return WrapBrackets(tableName);
+            return WrapQuotes(tableName);
         }
         /// <summary>
         /// Returns a formatted table name and column name, with brackets.
@@ -154,33 +154,33 @@ namespace YetaWF.DataProvider.SQL {
         /// <returns>Returns a formatted table name and column name, with brackets.</returns>
         /// <remarks>The result is bracketed. This method considers whether either parameter is already bracketed in which case no further brackets are added.</remarks>
         public static string BuildFullColumnName(string tableName, string column) {
-            return BuildFullTableName(tableName) + "." + WrapBrackets(column);
+            return $"{BuildFullTableName(tableName)}.{WrapQuotes(column)}";
         }
         /// <summary>
-        /// Returns a formatted table name or a formatted database name, database owner and table name, with brackets.
+        /// Returns a formatted database name, database owner and table name, with brackets.
         /// </summary>
         /// <param name="database">The database name.</param>
-        /// <param name="dbo">The database owner.</param>
+        /// <param name="schema">The database schema.</param>
         /// <param name="tableName">The table name.</param>
-        /// <returns>Returns a formatted table or a formatted name database name, database owner and table name, with brackets.</returns>
+        /// <returns>Returns a formatted database name, database owner and table name, with brackets.</returns>
         /// <remarks>The result is bracketed. This method considers whether any of the parameters is already bracketed in which case no further brackets are added.</remarks>
-        public static string BuildFullTableName(string database, string dbo, string tableName) {
-            return $"{WrapBrackets(database)}.{WrapBrackets(dbo)}.{WrapBrackets(tableName)}";
+        public static string BuildFullTableName(string database, string schema, string tableName) {
+            return $"{schema}.{WrapQuotes(tableName)}";
         }
         /// <summary>
-        /// Returns a formatted column name or a formatted database name, database owner, table name and column name, with brackets.
+        /// Returns a formatted database name, database owner, table name and column name, with brackets.
         /// </summary>
         /// <param name="database">The database name.</param>
-        /// <param name="dbOwner">The database owner.</param>
+        /// <param name="schema">The database schema.</param>
         /// <param name="tableName">The table name.</param>
         /// <param name="column">The column name.</param>
-        /// <returns>Returns a formatted column name or a formatted database name, database owner, table name and column name, with brackets.</returns>
+        /// <returns>Returns a formatted database name, database owner, table name and column name, with brackets.</returns>
         /// <remarks>The result is bracketed. This method considers whether any of the parameters is already bracketed in which case no further brackets are added.</remarks>
-        public static string BuildFullColumnName(string database, string dbOwner, string tableName, string column) {
-            return WrapBrackets(database) + "." + WrapBrackets(dbOwner) + "." + BuildFullColumnName(tableName, column);
+        public static string BuildFullColumnName(string database, string schema, string tableName, string column) {
+            return $"{schema}.{BuildFullColumnName(tableName, column)}";
         }
         /// <summary>
-        /// Returns a formatted column name or a formatted database name, database owner, table name and column name, with brackets.
+        /// Returns a formatted column name, with brackets.
         /// </summary>
         /// <param name="column">The column name.</param>
         /// <param name="visibleColumns">The collection of columns visible in the table.</param>
@@ -193,19 +193,19 @@ namespace YetaWF.DataProvider.SQL {
                     throw new InternalError($"Column {column} not found in list of visible columns");
                 return longColumn;
             } else
-                return WrapBrackets(column.Replace('.', '_'));
+                return WrapQuotes(column.Replace('.', '_'));
         }
         /// <summary>
-        /// Returns a properly bracketed string.
+        /// Returns a properly quoted string.
         /// </summary>
-        /// <param name="token">The text to bracket.</param>
-        /// <returns>Returns a properly bracketed string.</returns>
-        /// <remarks>The result is bracketed. This method considers whether the parameter is already bracketed in which case no further brackets are added.</remarks>
-        public static string WrapBrackets(string token) {
-            if (token.StartsWith("["))
+        /// <param name="token">The text to quote.</param>
+        /// <returns>Returns a properly quoted string.</returns>
+        /// <remarks>The result is quoted. This method considers whether the parameter is already quoted in which case no further quotes are added.</remarks>
+        public static string WrapQuotes(string token) {
+            if (token.StartsWith("\""))
                 return token;
             else
-                return $"[{token}]";
+                return $"\"{token}\"";
         }
     }
 }
