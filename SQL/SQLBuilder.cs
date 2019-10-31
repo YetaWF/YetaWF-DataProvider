@@ -190,7 +190,7 @@ namespace YetaWF.DataProvider.SQL {
             if (visibleColumns != null) {
                 string longColumn;
                 if (!visibleColumns.TryGetValue(column, out longColumn))
-                    throw new InternalError("Column {0} not found in list of visible columns", column);
+                    throw new InternalError($"Column {column} not found in list of visible columns");
                 return longColumn;
             } else
                 return WrapBrackets(column.Replace('.', '_'));
