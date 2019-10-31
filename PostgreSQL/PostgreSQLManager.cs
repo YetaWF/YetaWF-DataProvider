@@ -165,6 +165,8 @@ namespace YetaWF.DataProvider.PostgreSQL {
                 return list;
             }
         }
+
+        [System.Diagnostics.CodeAnalysis.SuppressMessage("Security", "CA2100:Review SQL queries for security vulnerabilities", Justification = "No user input")]
         internal static List<PostgreSQLGen.Index> GetInfoIndexes(NpgsqlConnection conn, string name, string schema, string tableName) {
 
             List<PostgreSQLGen.Index> list = new List<PostgreSQLGen.Index>();

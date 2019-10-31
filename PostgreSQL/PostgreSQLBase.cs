@@ -193,7 +193,7 @@ namespace YetaWF.DataProvider.PostgreSQL {
                 AndSiteIdentity = $"AND \"{SiteColumn}\" = {SiteIdentity}";
 
             Conn = new NpgsqlConnection(ConnectionString);
-            Conn.Open();
+            Conn.OpenAsync().Wait();//$$$
             Database = Conn.Database;
 
             DisposableTracker.AddObject(this);
