@@ -49,6 +49,7 @@ namespace YetaWF.DataProvider.SQL {
         /// <param name="key">The primary key value.</param>
         /// <returns>Returns the record that satisfies the specified primary key. If no record exists null is returned.</returns>
         public new async Task<OBJTYPE> GetAsync(KEY key) {
+            await EnsureOpenAsync();
 
             SQLHelper sqlHelper = new SQLHelper(Conn, null, Languages);
 
@@ -123,6 +124,7 @@ WHERE {sqlHelper.Expr($"A.[{Key1Name}]", " =", key)} AND A.[{SiteColumn}] = {Sit
         /// For all other errors, an exception occurs.
         /// </returns>
         public new async Task<bool> AddAsync(OBJTYPE obj) {
+            await EnsureOpenAsync();
             if (Dataset == BaseDataset) throw new InternalError("Only derived types are supported");
 
             SQLHelper sqlHelper = new SQLHelper(Conn, null, Languages);
@@ -172,6 +174,7 @@ VALUES ({values})
         /// <param name="obj">The object being updated.</param>
         /// <returns>Returns a status indicator.</returns>
         public new async Task<UpdateStatusEnum> UpdateAsync(KEY origKey, KEY newKey, OBJTYPE obj) {
+            await EnsureOpenAsync();
             if (Dataset == BaseDataset) throw new InternalError("Only derived types are supported");
 
             if (!origKey.Equals(newKey)) throw new InternalError("Can't change key");
@@ -225,6 +228,7 @@ WHERE {sqlHelper.Expr(Key1Name, "=", origKey)} {AndSiteIdentity}
         /// <param name="key">The primary key value of the record to remove.</param>
         /// <returns>Returns true if the record was removed, or false if the record was not found. Other errors cause an exception.</returns>
         public new async Task<bool> RemoveAsync(KEY key) {
+            await EnsureOpenAsync();
             if (Dataset != BaseDataset) throw new InternalError("Only base types are supported");
 
             SQLHelper sqlHelper = new SQLHelper(Conn, null, Languages);
@@ -292,6 +296,7 @@ DROP TABLE #BASETABLE
         /// <param name="Joins">A collection describing the dataset joins.</param>
         /// <returns>Returns a YetaWF.Core.DataProvider.DataProviderGetRecords object describing the data returned.</returns>
         public new async Task<DataProviderGetRecords<OBJTYPE>> GetRecordsAsync(int skip, int take, List<DataProviderSortInfo> sorts, List<DataProviderFilterInfo> filters, List<JoinData> Joins = null) {
+            await EnsureOpenAsync();
             if (Dataset == BaseDataset) {
                 // we're reading the base table
                 return await base.GetRecordsAsync(skip, take, sorts, filters, Joins: Joins);
@@ -405,14 +410,15 @@ WHERE {fullBaseTableName}.[DerivedDataTableName] = '{Dataset}' AND {fullBaseTabl
         /// Returns whether the data provider is installed and available.
         /// </summary>
         /// <returns>true if the data provider is installed and available, false otherwise.</returns>
-        public new Task<bool> IsInstalledAsync() {
+        public new async Task<bool> IsInstalledAsync() {
+            await EnsureOpenAsync();
             if (!SQLManager.HasTable(Conn, Database, Dbo, BaseDataset))
-                return Task.FromResult(false);
+                return false;
             if (Dataset != BaseDataset) {
                 if (!SQLManager.HasTable(Conn, Database, Dbo, Dataset))
-                    return Task.FromResult(false);
+                    return false;
             }
-            return Task.FromResult(true);
+            return true;
         }
 
         /// <summary>
@@ -423,12 +429,13 @@ WHERE {fullBaseTableName}.[DerivedDataTableName] = '{Dataset}' AND {fullBaseTabl
         /// If the models could not be created, <paramref name="errorList"/> contains the reason for the failure.</returns>
         /// <remarks>
         /// While a package is installed, all data models are installed by calling the InstallModelAsync method.</remarks>
-        public new Task<bool> InstallModelAsync(List<string> errorList) {
+        public new async Task<bool> InstallModelAsync(List<string> errorList) {
+            await EnsureOpenAsync();
             if (Dataset == BaseDataset) throw new InternalError("Base dataset is not supported");
             bool success = false;
             success = CreateTableWithBaseType(Conn, Database, errorList);
             SQLManager.ClearCache();
-            return Task.FromResult(success);
+            return success;
         }
         private bool CreateTableWithBaseType(SqlConnection conn, string dbName, List<string> errorList) {
             Type baseType = typeof(ModuleDefinition);
@@ -454,6 +461,7 @@ WHERE {fullBaseTableName}.[DerivedDataTableName] = '{Dataset}' AND {fullBaseTabl
         /// <remarks>
         /// While a package is uninstalled, all data models are uninstalled by calling the UninstallModelAsync method.</remarks>
         public new async Task<bool> UninstallModelAsync(List<string> errorList) {
+            await EnsureOpenAsync();
             if (Dataset == BaseDataset) throw new InternalError("Base dataset is not supported");
             try {
                 await DropTableWithBaseType(Database, errorList);
@@ -504,6 +512,7 @@ SELECT COUNT(*) FROM  {BaseDataset}
         /// When a site is deleted, the RemoveSiteDataAsync method is called for all data providers.
         /// Data providers can then remove site-specific data as the site is removed.</remarks>
         public new async Task RemoveSiteDataAsync() { // remove site-specific data
+            await EnsureOpenAsync();
             if (Dataset == BaseDataset) throw new InternalError("Base dataset is not supported");
             if (SiteIdentity > 0) {
                 SQLHelper sqlHelper = new SQLHelper(Conn, null, Languages);
@@ -533,6 +542,7 @@ DELETE FROM {BaseDataset} WHERE [DerivedDataTableName] = '{Dataset}' AND [{SiteC
         /// YetaWF.Core.Serializers.SerializableList&lt;OBJTYPE&gt; as it is a collection of records to import. All records in the collection must be imported.
         /// </remarks>
         public new async Task ImportChunkAsync(int chunk, SerializableList<SerializableFile> fileList, object obj) {
+            await EnsureOpenAsync();
             if (Dataset == BaseDataset) throw new InternalError("Base dataset is not supported");
             if (SiteIdentity > 0 || YetaWFManager.Manager.ImportChunksNonSiteSpecifics) {
                 SerializableList<OBJTYPE> serList = (SerializableList<OBJTYPE>)obj;
@@ -566,6 +576,7 @@ DELETE FROM {BaseDataset} WHERE [DerivedDataTableName] = '{Dataset}' AND [{SiteC
         /// Only data records need to be added to the returned YetaWF.Core.DataProvider.DataProviderExportChunk object.
         /// </remarks>
         public new async Task<DataProviderExportChunk> ExportChunkAsync(int chunk, SerializableList<SerializableFile> fileList) {
+            await EnsureOpenAsync();
             if (Dataset == BaseDataset) throw new InternalError("Base dataset is not supported");
 
             List<DataProviderSortInfo> sorts = new List<DataProviderSortInfo> { new DataProviderSortInfo { Field = Key1Name, Order = DataProviderSortInfo.SortDirection.Ascending } };
@@ -601,7 +612,7 @@ DELETE FROM {BaseDataset} WHERE [DerivedDataTableName] = '{Dataset}' AND [{SiteC
         /// Using the <paramref name="language"/> parameter, a different folder should be used to store the translated data.
         /// </remarks>
         public new async Task LocalizeModelAsync(string language, Func<string, bool> isHtml, Func<List<string>, Task<List<string>>> translateStringsAsync, Func<string, Task<string>> translateComplexStringAsync) {
-
+            await EnsureOpenAsync();
             await LocalizeModelAsync(language, isHtml, translateStringsAsync, translateComplexStringAsync,
                 async (int offset, int skip) => {
                     return await GetRecordsAsync(offset, skip, null, null);
