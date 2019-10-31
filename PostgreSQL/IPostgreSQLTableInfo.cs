@@ -12,7 +12,7 @@ namespace YetaWF.DataProvider.PostgreSQL {
     /// This is typically used by application data providers to generate specialized queries that would not be possible with the
     /// built in data provider.
     /// </remarks>
-    public interface IPostgresSQLTableInfo {
+    public interface IPostgreSQLTableInfo {
         /// <summary>
         /// Returns the PostgreSQL connection string used by the data provider.
         /// </summary>

@@ -38,7 +38,7 @@ namespace YetaWF.DataProvider.PostgreSQL {
     /// This base class implements access to objects (records), with a primary and secondary key (composite) and without identity column.
     /// This base class is not intended for use by application data providers. These use one of the more specialized derived classes instead.
     /// </summary>
-    public class PostgreSQLSimpleObjectBase<KEYTYPE, KEYTYPE2, OBJTYPE> : PostgreSQLBase, IDataProvider<KEYTYPE, OBJTYPE>, IPostgresSQLTableInfo {
+    public class PostgreSQLSimpleObjectBase<KEYTYPE, KEYTYPE2, OBJTYPE> : PostgreSQLBase, IDataProvider<KEYTYPE, OBJTYPE>, IPostgreSQLTableInfo {
 
         internal PostgreSQLSimpleObjectBase(Dictionary<string, object> options, bool HasKey2 = false) : base(options) {
             this.HasKey2 = HasKey2;
@@ -104,6 +104,7 @@ namespace YetaWF.DataProvider.PostgreSQL {
         /// <param name="key2">The secondary key value.</param>
         /// <returns>Returns the record that satisfies the specified primary and secondary keys. If no record exists null is returned.</returns>
         public async Task<OBJTYPE> GetAsync(KEYTYPE key, KEYTYPE2 key2) {
+            await EnsureOpenAsync();
             PostgreSQLHelper sqlHelper = new PostgreSQLHelper(Conn, null, Languages);
 
             string joins = null;// RFFU
@@ -145,7 +146,7 @@ FETCH FIRST 1 ROWS ONLY       --- result set
         /// For all other errors, an exception occurs.
         /// </returns>
         public async Task<bool> AddAsync(OBJTYPE obj) {
-
+            await EnsureOpenAsync();
             PostgreSQLHelper sqlHelper = new PostgreSQLHelper(Conn, null, Languages);
 
             string fullTableName = PostgreSQLBuilder.GetTable(Database, Schema, Dataset);
@@ -242,7 +243,7 @@ VALUES ({values});
         /// <param name="obj">The object being updated.</param>
         /// <returns>Returns a status indicator.</returns>
         public async Task<UpdateStatusEnum> UpdateAsync(KEYTYPE origKey, KEYTYPE2 origKey2, KEYTYPE newKey, KEYTYPE2 newKey2, OBJTYPE obj) {
-
+            await EnsureOpenAsync();
             PostgreSQLHelper sqlHelper = new PostgreSQLHelper(Conn, null, Languages);
 
             string fullTableName = PostgreSQLBuilder.GetTable(Database, Schema, Dataset);
@@ -323,7 +324,7 @@ SELECT @@ROWCOUNT --- result set
         /// <param name="key2">The secondary key value of the record to remove.</param>
         /// <returns>Returns true if the record was removed, or false if the record was not found. Other errors cause an exception.</returns>
         public async Task<bool> RemoveAsync(KEYTYPE key, KEYTYPE2 key2) {
-
+            await EnsureOpenAsync();
             PostgreSQLHelper sqlHelper = new PostgreSQLHelper(Conn, null, Languages);
 
             string fullTableName = PostgreSQLBuilder.GetTable(Database, Schema, Dataset);
@@ -375,6 +376,7 @@ SELECT @@ROWCOUNT --- result set
         /// <remarks>
         /// </remarks>
         public async Task<OBJTYPE> GetOneRecordAsync(List<DataProviderFilterInfo> filters, List<JoinData> Joins = null) {
+            await EnsureOpenAsync();
             filters = NormalizeFilter(typeof(OBJTYPE), filters);
             DataProviderGetRecords<OBJTYPE> recs = await GetMainTableRecordsAsync(0, 1, null, filters, Joins: Joins);
             return recs.Data.FirstOrDefault();
@@ -390,6 +392,7 @@ SELECT @@ROWCOUNT --- result set
         /// <param name="Joins">A collection describing the dataset joins.</param>
         /// <returns>Returns a YetaWF.Core.DataProvider.DataProviderGetRecords object describing the data returned.</returns>
         public async Task<DataProviderGetRecords<OBJTYPE>> GetRecordsAsync(int skip, int take, List<DataProviderSortInfo> sorts, List<DataProviderFilterInfo> filters, List<JoinData> Joins = null) {
+            await EnsureOpenAsync();
             filters = NormalizeFilter(typeof(OBJTYPE), filters);
             sorts = NormalizeSort(typeof(OBJTYPE), sorts);
             return await GetMainTableRecordsAsync(skip, take, sorts, filters, Joins: Joins);
@@ -401,6 +404,7 @@ SELECT @@ROWCOUNT --- result set
         /// <param name="filters">A collection describing the filtering criteria.</param>
         /// <returns>Returns the number of records removed.</returns>
         public async Task<int> RemoveRecordsAsync(List<DataProviderFilterInfo> filters) {
+            await EnsureOpenAsync();
             filters = NormalizeFilter(typeof(OBJTYPE), filters);
 
             PostgreSQLHelper sqlHelper = new PostgreSQLHelper(Conn, null, Languages);
@@ -469,9 +473,9 @@ DROP TABLE #TEMPTABLE
 
             string fullTableName = PostgreSQLBuilder.GetTable(Database, Schema, Dataset);
             List<PropertyData> propData = GetPropertyData();
-            Dictionary<string, string> visibleColumns = GetVisibleColumns(Database, Schema, Dataset, typeof(OBJTYPE), Joins);
+            Dictionary<string, string> visibleColumns = await GetVisibleColumnsAsync(Database, Schema, Dataset, typeof(OBJTYPE), Joins);
             string columnList = MakeColumnList(sqlHelper, visibleColumns, Joins);
-            string joins = MakeJoins(sqlHelper, Joins);
+            string joins = await MakeJoinsAsync(sqlHelper, Joins);
             string filter = MakeFilter(sqlHelper, filters, visibleColumns);
             string calcProps = await CalculatedPropertiesAsync(typeof(OBJTYPE));
             // get total # of records (only if a subset is requested)
@@ -742,8 +746,9 @@ FROM {fullTableName}
         /// Returns whether the data provider is installed and available.
         /// </summary>
         /// <returns>true if the data provider is installed and available, false otherwise.</returns>
-        public Task<bool> IsInstalledAsync() {
-            return Task.FromResult(PostgreSQLManager.HasTable(Conn, Database, Schema, Dataset));
+        public async Task<bool> IsInstalledAsync() {
+            await EnsureOpenAsync();
+            return PostgreSQLManager.HasTable(Conn, Database, Schema, Dataset);
         }
 
         /// <summary>
@@ -754,7 +759,8 @@ FROM {fullTableName}
         /// If the models could not be created, <paramref name="errorList"/> contains the reason for the failure.</returns>
         /// <remarks>
         /// While a package is installed, all data models are installed by calling the InstallModelAsync method.</remarks>
-        public Task<bool> InstallModelAsync(List<string> errorList) {
+        public async Task<bool> InstallModelAsync(List<string> errorList) {
+            await EnsureOpenAsync();
             bool success = false;
             List<string> columns = new List<string>();
             PostgreSQLGen sqlCreate = new PostgreSQLGen(Conn, Languages, IdentitySeed, Logging);
@@ -762,7 +768,7 @@ FROM {fullTableName}
                 SiteSpecific: SiteIdentity > 0,
                 TopMost: true);
             PostgreSQLManager.ClearCache();
-            return Task.FromResult(success);
+            return success;
         }
 
         /// <summary>
@@ -773,7 +779,8 @@ FROM {fullTableName}
         /// If the models could not be removed, <paramref name="errorList"/> contains the reason for the failure.</returns>
         /// <remarks>
         /// While a package is uninstalled, all data models are uninstalled by calling the UninstallModelAsync method.</remarks>
-        public Task<bool> UninstallModelAsync(List<string> errorList) {
+        public async Task<bool> UninstallModelAsync(List<string> errorList) {
+            await EnsureOpenAsync();
             try {
                 PostgreSQLGen sqlCreate = new PostgreSQLGen(Conn, Languages, IdentitySeed, Logging);
                 List<PropertyData> propData = GetPropertyData();
@@ -782,10 +789,10 @@ FROM {fullTableName}
                     sqlCreate.DropTable(Database, Schema, subTable.Name, errorList);
                 }
                 sqlCreate.DropTable(Database, Schema, Dataset, errorList);
-                return Task.FromResult(true);
+                return true;
             } catch (Exception exc) {
                 errorList.Add(string.Format("{0}: {1}", typeof(OBJTYPE).FullName, ErrorHandling.FormatExceptionMessage(exc)));
-                return Task.FromResult(false);
+                return false;
             } finally {
                 PostgreSQLManager.ClearCache();
             }
@@ -806,6 +813,7 @@ FROM {fullTableName}
         /// When a site is deleted, the RemoveSiteDataAsync method is called for all data providers.
         /// Data providers can then remove site-specific data as the site is removed.</remarks>
         public async Task RemoveSiteDataAsync() { // remove site-specific data
+            await EnsureOpenAsync();
             if (SiteIdentity > 0) {
                 string fullTableName = PostgreSQLBuilder.GetTable(Database, Schema, Dataset);
                 PostgreSQLHelper sqlHelper = new PostgreSQLHelper(Conn, null, Languages);
@@ -836,6 +844,7 @@ DELETE FROM {fullTableName} WHERE [{SiteColumn}] = {SiteIdentity}
         /// YetaWF.Core.Serializers.SerializableList&lt;OBJTYPE&gt; as it is a collection of records to import. All records in the collection must be imported.
         /// </remarks>
         public async Task ImportChunkAsync(int chunk, SerializableList<SerializableFile> fileList, object obj) {
+            await EnsureOpenAsync();
             if (SiteIdentity > 0 || YetaWFManager.Manager.ImportChunksNonSiteSpecifics) {
                 SerializableList<OBJTYPE> serList = (SerializableList<OBJTYPE>)obj;
                 int total = serList.Count();
@@ -868,6 +877,7 @@ DELETE FROM {fullTableName} WHERE [{SiteColumn}] = {SiteIdentity}
         /// Only data records need to be added to the returned YetaWF.Core.DataProvider.DataProviderExportChunk object.
         /// </remarks>
         public async Task<DataProviderExportChunk> ExportChunkAsync(int chunk, SerializableList<SerializableFile> fileList) {
+            await EnsureOpenAsync();
             List<DataProviderSortInfo> sorts = new List<DataProviderSortInfo> { new DataProviderSortInfo { Field = Key1Name, Order = DataProviderSortInfo.SortDirection.Ascending } };
 
             DataProviderGetRecords<OBJTYPE> recs = await GetRecordsAsync(chunk * ChunkSize, ChunkSize, sorts, null);
@@ -902,7 +912,7 @@ DELETE FROM {fullTableName} WHERE [{SiteColumn}] = {SiteIdentity}
         /// Using the <paramref name="language"/> parameter, a different folder should be used to store the translated data.
         /// </remarks>
         public async Task LocalizeModelAsync(string language, Func<string, bool> isHtml, Func<List<string>, Task<List<string>>> translateStringsAsync, Func<string, Task<string>> translateComplexStringAsync) {
-
+            await EnsureOpenAsync();
             await LocalizeModelAsync(language, isHtml, translateStringsAsync, translateComplexStringAsync,
                 async (int offset, int skip) => {
                     return await GetRecordsAsync(offset, skip, null, null);

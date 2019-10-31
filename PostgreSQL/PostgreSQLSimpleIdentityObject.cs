@@ -58,6 +58,8 @@ namespace YetaWF.DataProvider.PostgreSQL {
         /// <returns>Returns the record that satisfies the specified identity value. If no record exists null is returned.</returns>
         public async Task<OBJTYPE> GetByIdentityAsync(int identity) {
 
+            await EnsureOpenAsync();
+
             PostgreSQLHelper sqlHelper = new PostgreSQLHelper(Conn, null, Languages);
 
             string joins = null;// RFFU
@@ -95,6 +97,8 @@ FETCH FIRST 1 ROWS ONLY
         /// <param name="identity">The identity value of the record to remove.</param>
         /// <returns>Returns true if the record was removed, or false if the record was not found. Other errors cause an exception.</returns>
         public async Task<bool> RemoveByIdentityAsync(int identity) {
+
+            await EnsureOpenAsync();
 
             PostgreSQLHelper sqlHelper = new PostgreSQLHelper(Conn, null, Languages);
 
@@ -142,6 +146,8 @@ SELECT @@ROWCOUNT --- result set
         /// <param name="obj">The object being updated.</param>
         /// <returns>Returns a status indicator.</returns>
         public async Task<UpdateStatusEnum> UpdateByIdentityAsync(int identity, OBJTYPE obj) {
+
+            await EnsureOpenAsync();
 
             PostgreSQLHelper sqlHelper = new PostgreSQLHelper(Conn, null, Languages);
 

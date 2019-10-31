@@ -314,8 +314,10 @@ namespace YetaWF.DataProvider.PostgreSQL {
                 } else {
                     string oper = "";
                     object val = f.Value;
+                    string cast = "";
                     if (val != null && val.GetType() == typeof(DateTime)) {
                         val = ((DateTime)val).ToString("yyyy-MM-dd HH:mm:ss");
+                        cast = "date";
                     }
                     switch (f.Operator.ToLower()) {
                         case "eq":
@@ -367,22 +369,22 @@ namespace YetaWF.DataProvider.PostgreSQL {
                     if (isNull != null) {
                         sb.Add("(");
                         string s = PostgreSQLBuilder.BuildFullColumnName(f.Field, visibleColumns);
-                        AddExpr(sb, s, oper, val);
+                        AddExpr(sb, s, oper, val, cast);
                         if (isNull == true)
                             sb.Add($" OR {s} IS NULL");
                         else
                             sb.Add($" AND {s} IS NOT NULL");
                         sb.Add(")");
                     } else {
-                        AddExpr(sb, PostgreSQLBuilder.BuildFullColumnName(f.Field, visibleColumns), oper, val);
+                        AddExpr(sb, PostgreSQLBuilder.BuildFullColumnName(f.Field, visibleColumns), oper, val, cast);
                     }
                 }
                 firstDone = true;
             }
         }
-        public string Expr(string wherecolumn, string @operator, object value, bool isSet = false) {
+        public string Expr(string wherecolumn, string @operator, object value, string cast = null, bool isSet = false) {
             PostgreSQLBuilder sb = new PostgreSQLBuilder();
-            AddExpr(sb, wherecolumn, @operator, value, isSet);
+            AddExpr(sb, wherecolumn, @operator, value, cast, isSet);
             return sb.ToString();
         }
         /// <summary>
@@ -393,7 +395,7 @@ namespace YetaWF.DataProvider.PostgreSQL {
         /// <param name="operator">The operator, e.g. = &lt;= LIKE &lt;&gt; etc.</param>
         /// <param name="value">The value. If it is a string it is properly escaped etc.</param>
         /// <param name="isSet">Identifies this comparison as a set statement. Needed for setting null values.</param>
-        internal void AddExpr(PostgreSQLBuilder sb, string wherecolumn, string @operator, object value, bool isSet = false) {
+        internal void AddExpr(PostgreSQLBuilder sb, string wherecolumn, string @operator, object value, string cast = null, bool isSet = false) {
             if (!wherecolumn.Contains(".") && !wherecolumn.StartsWith("\""))
                 wherecolumn = PostgreSQLBuilder.WrapQuotes(wherecolumn);
 
@@ -405,8 +407,12 @@ namespace YetaWF.DataProvider.PostgreSQL {
                     if (isSet) sb.Add("<> NULL"); else sb.Add("IS NOT NULL");
                 } else
                     throw new InternalError("Invalid operator {0}", @operator);
-            } else
-                sb.Add($"{wherecolumn} {@operator} {AddTempParam(value)}");
+            } else {
+                string c = "";
+                if (!string.IsNullOrWhiteSpace(cast))
+                    c = $"::{cast}";
+                sb.Add($"{wherecolumn} {@operator} {AddTempParam(value)}{c}");
+            }
         }
         /// <summary>
         /// Adds a parameter with the provided value and returns the created parameter name
