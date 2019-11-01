@@ -19,13 +19,6 @@ namespace YetaWF.DataProvider.PostgreSQL {
 
     internal partial class PostgreSQLGen {
 
-        // This isn't used any longer.
-        // It was used to drop all constraints, foreign keys, but that turned out to be a problem.
-        // We don't really need it right now. Dropping all indexes/foreign keys was used
-        // when columns had to be converted from varchar to nvarchar. If such an issue comes up again,
-        // we have to handle it in UpdateTable.
-        public bool MajorDataChange = false;
-
         public NpgsqlConnection Conn { get; private set; }
         public int IdentitySeed { get; private set; }
         public bool Logging { get; private set; }
@@ -442,18 +435,16 @@ namespace YetaWF.DataProvider.PostgreSQL {
                 MakeForeignKeys(dbName, schema, subtableInfo);
         }
 
+        [System.Diagnostics.CodeAnalysis.SuppressMessage("Security", "CA2100:Review SQL queries for security vulnerabilities", Justification = "None")]
         private void CreateTable(string dbName, string schema, Table newTable) {
 
             StringBuilder sb = new StringBuilder();
             StringBuilder sbIx = new StringBuilder();
-            sb.Append("SET ANSI_NULLS ON;\r\n");
-            sb.Append("SET ANSI_PADDING ON;\r\n");
-            sb.Append("SET QUOTED_IDENTIFIER ON;\r\n\r\n");
 
-            sb.Append($"CREATE TABLE [{schema}].[{newTable.Name}](\r\n");
+            sb.Append($"CREATE TABLE {schema}.{PostgreSQLBuilder.WrapQuotes(newTable.Name)} (\r\n");
             // Columns
             foreach (Column col in newTable.Columns) {
-                sb.Append($"    [{col.Name}] {GetDataTypeString(col)}{GetIdentity(col)}{GetNullable(col)},\r\n");
+                sb.Append($"    {PostgreSQLBuilder.WrapQuotes(col.Name)} {GetDataTypeString(col)}{GetIdentity(col)}{GetNullable(col)},\r\n");
             }
 
             // Indexes
@@ -472,12 +463,10 @@ namespace YetaWF.DataProvider.PostgreSQL {
             }
             sb.RemoveLastComma();
 
-            sb.Append("\r\n) ON[PRIMARY];\r\n\r\n");
+            sb.Append("\r\n) WITH ( OIDS = FALSE )\r\n\r\n");
 
             sb.Append(sbIx.ToString());
 
-            sb.Append("SET ANSI_PADDING OFF;\r\n");
-
             using (NpgsqlCommand cmd = new NpgsqlCommand()) {
                 cmd.Connection = Conn;
                 cmd.CommandText = sb.ToString();
@@ -485,22 +474,25 @@ namespace YetaWF.DataProvider.PostgreSQL {
             }
         }
 
+        [System.Diagnostics.CodeAnalysis.SuppressMessage("Security", "CA2100:Review SQL queries for security vulnerabilities", Justification = "None")]
         private void CreateForeignKey(string dbName, string schema, Table newTable) {
 
-            StringBuilder sb = new StringBuilder();
-            sb.Append("SET QUOTED_IDENTIFIER ON;\r\n\r\n");
+            if (newTable.ForeignKeys.Count > 0) {
+                StringBuilder sb = new StringBuilder();
 
-            foreach (ForeignKey fk in newTable.ForeignKeys) {
-                sb.Append(GetAddForeignKey(fk, dbName, schema, newTable));
-            }
+                foreach (ForeignKey fk in newTable.ForeignKeys) {
+                    sb.Append(GetAddForeignKey(fk, dbName, schema, newTable));
+                }
 
-            using (NpgsqlCommand cmd = new NpgsqlCommand()) {
-                cmd.Connection = Conn;
-                cmd.CommandText = sb.ToString();
-                cmd.ExecuteNonQuery();
+                using (NpgsqlCommand cmd = new NpgsqlCommand()) {
+                    cmd.Connection = Conn;
+                    cmd.CommandText = sb.ToString();
+                    cmd.ExecuteNonQuery();
+                }
             }
         }
 
+        [System.Diagnostics.CodeAnalysis.SuppressMessage("Security", "CA2100:Review SQL queries for security vulnerabilities", Justification = "None")]
         private void RemoveIndexesAndForeignKeys(string dbName, string schema, TableInfo tableInfo) {
 
             foreach (TableInfo t in tableInfo.SubTables) {
@@ -513,13 +505,8 @@ namespace YetaWF.DataProvider.PostgreSQL {
             List<Index> removedIndexes;
             List<ForeignKey> removedForeignKeys;
 
-            if (!MajorDataChange) {
-                removedIndexes = currentTable.Indexes.Except(newTable.Indexes, new IndexComparer()).ToList();
-                removedForeignKeys = currentTable.ForeignKeys.Except(newTable.ForeignKeys, new ForeignKeyComparer()).ToList();
-            } else {
-                removedIndexes = currentTable.Indexes;
-                removedForeignKeys = currentTable.ForeignKeys;
-            }
+            removedIndexes = currentTable.Indexes.Except(newTable.Indexes, new IndexComparer()).ToList();
+            removedForeignKeys = currentTable.ForeignKeys.Except(newTable.ForeignKeys, new ForeignKeyComparer()).ToList();
 
             StringBuilder sb = new StringBuilder();
 
@@ -527,20 +514,20 @@ namespace YetaWF.DataProvider.PostgreSQL {
             foreach (Index index in removedIndexes) {
                 switch (index.IndexType) {
                     case IndexType.Indexed:
-                        sb.Append($"DROP INDEX [{index.Name}] ON [{schema}].[{newTable.Name}];\r\n");
+                        sb.Append($"DROP INDEX {index.Name};\r\n");
                         break;
                     case IndexType.UniqueKey:
-                        sb.Append($"ALTER TABLE [{schema}].[{newTable.Name}] DROP CONSTRAINT [{index.Name}];\r\n");
+                        sb.Append($"ALTER TABLE {schema}.{PostgreSQLBuilder.WrapQuotes(newTable.Name)} DROP CONSTRAINT {PostgreSQLBuilder.WrapQuotes(index.Name)};\r\n");
                         break;
                     case IndexType.PrimaryKey:
-                        sb.Append($"ALTER TABLE [{schema}].[{newTable.Name}] DROP CONSTRAINT [{index.Name}];\r\n");
+                        sb.Append($"ALTER TABLE {schema}.{PostgreSQLBuilder.WrapQuotes(newTable.Name)} DROP CONSTRAINT {PostgreSQLBuilder.WrapQuotes(index.Name)};\r\n");
                         break;
                 }
             }
 
             // Remove foreign key
             foreach (ForeignKey fk in removedForeignKeys) {
-                sb.Append($"ALTER TABLE [{schema}].[{newTable.Name}] DROP CONSTRAINT [{fk.Name}];\r\n");
+                sb.Append($"ALTER TABLE {schema}.{PostgreSQLBuilder.WrapQuotes(newTable.Name)} DROP CONSTRAINT {PostgreSQLBuilder.WrapQuotes(fk.Name)};\r\n");
             }
 
             if (sb.Length != 0) {
@@ -552,6 +539,7 @@ namespace YetaWF.DataProvider.PostgreSQL {
             }
         }
 
+        [System.Diagnostics.CodeAnalysis.SuppressMessage("Security", "CA2100:Review SQL queries for security vulnerabilities", Justification = "None")]
         private void UpdateTable(string dbName, string schema, Table currentTable, Table newTable) {
 
             StringBuilder sb = new StringBuilder();
@@ -562,12 +550,7 @@ namespace YetaWF.DataProvider.PostgreSQL {
             removedColumns = removedColumns.Except(alteredColumns, new ColumnNameComparer()).ToList();
             addedColumns = addedColumns.Except(alteredColumns, new ColumnNameComparer()).ToList();
 
-            List<Index> addedIndexes;
-            if (!MajorDataChange) {
-                addedIndexes = newTable.Indexes.Except(currentTable.Indexes, new IndexComparer()).ToList();
-            } else {
-                addedIndexes = newTable.Indexes;
-            }
+            List<Index> addedIndexes = newTable.Indexes.Except(currentTable.Indexes, new IndexComparer()).ToList();
 
             // Remove columns
             foreach (Column col in removedColumns) {
@@ -618,15 +601,12 @@ ELSE
             }
         }
 
+        [System.Diagnostics.CodeAnalysis.SuppressMessage("Security", "CA2100:Review SQL queries for security vulnerabilities", Justification = "None")]
         private void UpdateForeignKeys(string dbName, string schema, Table currentTable, Table newTable) {
 
             StringBuilder sb = new StringBuilder();
 
-            List<ForeignKey> addedForeignKeys;
-            if (!MajorDataChange)
-                addedForeignKeys = newTable.ForeignKeys.Except(currentTable.ForeignKeys, new ForeignKeyComparer()).ToList();
-            else
-                addedForeignKeys = newTable.ForeignKeys;
+            List<ForeignKey> addedForeignKeys = newTable.ForeignKeys.Except(currentTable.ForeignKeys, new ForeignKeyComparer()).ToList();
 
             foreach (ForeignKey fk in addedForeignKeys) {
                 sb.Append(GetAddForeignKey(fk, dbName, schema, newTable));
@@ -699,26 +679,26 @@ ELSE
         private string GetDataTypeString(Column col) {
             switch (col.DataType) {
                 case SqlDbType.BigInt:
-                    return "[bigint]";
+                    return "bigint";
                 case SqlDbType.Bit:
-                    return "[boolean]";
+                    return "boolean";
                 case SqlDbType.DateTime2:
-                    return "[date](7)";
-                case SqlDbType.Money://$$$
-                    return "[money]";
+                    return "date";
+                case SqlDbType.Money:
+                    return "money";
                 case SqlDbType.UniqueIdentifier:
-                    return "[uuid]";
+                    return "uuid";
                 case SqlDbType.VarBinary:
-                    return "[bytea](max)";
+                    return "bytea(max)";
                 case SqlDbType.Int:
-                    return "int";
-                case SqlDbType.Float://$$$
-                    return "float";
+                    return "integer";
+                case SqlDbType.Float:
+                    return "double precision";
                 case SqlDbType.NVarChar:
                     if (col.Length == 0)
-                        return "[text]";
+                        return "text";
                     else
-                        return $"[character varying]({col.Length})";
+                        return $"character varying({col.Length})";
                 default:
                     throw new InternalError($"Column {col.Name} has unsupported type name {col.DataType.ToString()}");
             }
@@ -729,21 +709,21 @@ ELSE
 
             switch (col.DataType) {
                 case SqlDbType.BigInt:
-                    return $" CONSTRAINT [DF_{tableName}_{col.Name}] DEFAULT 0";
+                    return $" SET DEFAULT 0";
                 case SqlDbType.Bit:
-                    return $" CONSTRAINT [DF_{tableName}_{col.Name}] DEFAULT 0";
+                    return $" SET DEFAULT 0";
                 case SqlDbType.DateTime2:
                     return "";
                 case SqlDbType.Money:
-                    return $" CONSTRAINT [DF_{tableName}_{col.Name}] DEFAULT 0";
+                    return $" SET DEFAULT 0";
                 case SqlDbType.UniqueIdentifier:
                     return "";
                 case SqlDbType.VarBinary:
                     return "";
                 case SqlDbType.Int:
-                    return $" CONSTRAINT [DF_{tableName}_{col.Name}] DEFAULT 0";
+                    return $" SET DEFAULT 0";
                 case SqlDbType.Float:
-                    return $" CONSTRAINT [DF_{tableName}_{col.Name}] DEFAULT 0";
+                    return $" SET DEFAULT 0";
                 case SqlDbType.NVarChar:
                     return "";
                 default:
@@ -759,7 +739,7 @@ ELSE
         }
         private string GetIdentity(Column col) {
             if (col.Identity) {
-                return $" IDENTITY({col.IdentitySeed}, {col.IdentityIncrement}) NOT FOR REPLICATION";
+                return $" GENERATED ALWAYS AS IDENTITY(START WITH {col.IdentitySeed} INCREMENT BY {col.IdentityIncrement})";
             }
             return "";
         }
@@ -768,36 +748,36 @@ ELSE
             sb.Append($"");
             switch (index.IndexType) {
                 case IndexType.PrimaryKey:
-                    sb.Append($"  CONSTRAINT [{index.Name}] PRIMARY KEY CLUSTERED (\r\n");
+                    sb.Append($"  CONSTRAINT {PostgreSQLBuilder.WrapQuotes(index.Name)} PRIMARY KEY (");
                     foreach (string col in index.IndexedColumns) {
-                        sb.Append($"    [{col}] ASC,\r\n");
+                        sb.Append($"{PostgreSQLBuilder.WrapQuotes(col)},");
                     }
                     sb.RemoveLastComma();
-                    sb.Append($"\r\n  ) WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON) ON [PRIMARY],\r\n");
+                    sb.Append($"),\r\n");
                     break;
                 case IndexType.UniqueKey:
-                    sb.Append($"  CONSTRAINT [{index.Name}] UNIQUE NONCLUSTERED (\r\n");
+                    sb.Append($"  CONSTRAINT {PostgreSQLBuilder.WrapQuotes(index.Name)} UNIQUE (");
                     foreach (string col in index.IndexedColumns) {
-                        sb.Append($"    [{col}] ASC,\r\n");
+                        sb.Append($"{PostgreSQLBuilder.WrapQuotes(col)},");
                     }
                     sb.RemoveLastComma();
-                    sb.Append($"\r\n  ) WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON) ON [PRIMARY],\r\n");
+                    sb.Append($"),\r\n");
                     break;
                 case IndexType.Indexed:
-                    // created separately, after table
-                    sb.Append($"CREATE NONCLUSTERED INDEX [{index.Name}] ON [{schema}].[{newTable.Name}] (\r\n");
-                    foreach (string col in index.IndexedColumns) {
-                        sb.Append($"    [{col}] ASC,\r\n");
-                    }
-                    sb.RemoveLastComma();
-                    sb.Append($"\r\n  ) WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, SORT_IN_TEMPDB = OFF, DROP_EXISTING = OFF, ONLINE = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON) ON [PRIMARY];\r\n\r\n");
+                    //$$$// created separately, after table
+                    //sb.Append($"CREATE {PostgreSQLBuilder.WrapQuotes(index.Name)} ON [{schema}].[{newTable.Name}] (\r\n");
+                    //foreach (string col in index.IndexedColumns) {
+                    //    sb.Append($"{PostgreSQLBuilder.WrapQuotes(col)},");
+                    //}
+                    //sb.RemoveLastComma();
+                    //sb.Append($"),\r\n");
                     break;
             }
             return sb.ToString();
         }
         private string GetAddForeignKey(ForeignKey fk, string dbName, string schema, Table newTable) {
             StringBuilder sb = new StringBuilder();
-            sb.Append($"ALTER TABLE [{schema}].[{newTable.Name}]  WITH CHECK ADD  CONSTRAINT [{fk.Name}]\r\n");
+            sb.Append($"ALTER TABLE [{schema}].[{newTable.Name}] WITH CHECK ADD CONSTRAINT [{fk.Name}]\r\n");
             sb.Append($"  FOREIGN KEY(\r\n");
             foreach (ForeignKeyColumn fkCol in fk.ForeignKeyColumns) {
                 sb.Append($"    [{fkCol.Column}],\r\n");

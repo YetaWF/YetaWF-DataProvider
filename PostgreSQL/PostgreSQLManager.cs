@@ -86,6 +86,7 @@ namespace YetaWF.DataProvider.PostgreSQL {
             tableName = tableName.ToLower();
             return (from t in tables where t.Name.ToLower() == tableName select t).FirstOrDefault();
         }
+        [System.Diagnostics.CodeAnalysis.SuppressMessage("Security", "CA2100:Review SQL queries for security vulnerabilities", Justification = "None")]
         internal static List<Table> GetTables(NpgsqlConnection conn, string databaseName, string schema) {
             Database db = GetDatabaseCond(conn, databaseName);
             if (db == null)
@@ -115,6 +116,7 @@ namespace YetaWF.DataProvider.PostgreSQL {
                 throw new InternalError($"Request for SQL DB {databaseName} table {tableName} which doesn't exist", databaseName, tableName);
             return columns;
         }
+        [System.Diagnostics.CodeAnalysis.SuppressMessage("Security", "CA2100:Review SQL queries for security vulnerabilities", Justification = "None")]
         internal static List<string> GetColumnsCond(NpgsqlConnection conn, string databaseName, string schema, string tableName) {
             Table table = GetTable(conn, databaseName, schema, tableName);
             if (table == null)
@@ -136,6 +138,7 @@ namespace YetaWF.DataProvider.PostgreSQL {
             return table.CachedColumns;
         }
 
+        [System.Diagnostics.CodeAnalysis.SuppressMessage("Security", "CA2100:Review SQL queries for security vulnerabilities", Justification = "None")]
         internal static List<PostgreSQLGen.Column> GetInfoColumns(NpgsqlConnection conn, string name, string schema, string tableName) {
 
             List<PostgreSQLGen.Column> list = new List<PostgreSQLGen.Column>();
@@ -157,38 +160,39 @@ namespace YetaWF.DataProvider.PostgreSQL {
                 }
                 // Identity for all columns
                 foreach (PostgreSQLGen.Column column in list) {
-                    cmd.CommandText = $@"Select is_identity from sys.columns WHERE Object_Name([object_id]) = '{tableName}' AND [name] = '{column.Name}'";
+                    cmd.CommandText = $@"Select is_identity from information_schema.columns WHERE table_schema = '{schema}' AND table_name = '{tableName}' AND column_name = '{column.Name}'";
                     object o = cmd.ExecuteScalar();
                     if (o != null && !(o is System.DBNull))
-                        column.Identity = Convert.ToInt32(o) > 0 ? true : false;
+                        column.Identity = (string)(o) == "YES";
                 }
                 return list;
             }
         }
 
-        [System.Diagnostics.CodeAnalysis.SuppressMessage("Security", "CA2100:Review SQL queries for security vulnerabilities", Justification = "No user input")]
+        [System.Diagnostics.CodeAnalysis.SuppressMessage("Security", "CA2100:Review SQL queries for security vulnerabilities", Justification = "None")]
         internal static List<PostgreSQLGen.Index> GetInfoIndexes(NpgsqlConnection conn, string name, string schema, string tableName) {
 
             List<PostgreSQLGen.Index> list = new List<PostgreSQLGen.Index>();
             using (NpgsqlCommand cmd = new NpgsqlCommand()) {
                 cmd.Connection = conn;
                 cmd.CommandText = $@"
-    SELECT i.name AS index_name
-        -- ,i.type_desc
-        -- ,is_unique
-        -- ,ds.type_desc AS filegroup_or_partition_scheme
-        -- ,ds.name AS filegroup_or_partition_scheme_name
-        -- ,ignore_dup_key
-        ,is_primary_key
-        ,is_unique_constraint
-        -- ,fill_factor
-        -- ,is_padded
-        -- ,is_disabled
-        -- ,allow_row_locks
-        -- ,allow_page_locks
-    FROM sys.indexes AS i
-	INNER JOIN sys.data_spaces AS ds ON i.data_space_id = ds.data_space_id
-    WHERE is_hypothetical = 0 AND i.index_id<> 0 AND i.object_id = OBJECT_ID('{tableName}');";
+ SELECT
+    i.relname AS indexname,
+    x.indisprimary as indisprimary,
+    x.indisunique as indisunique,
+    -- *,
+	n.nspname AS schemaname,
+    c.relname AS tablename,
+    t.spcname AS tablespace,
+    pg_get_indexdef(i.oid) AS indexdef
+   FROM pg_index x
+     JOIN pg_class c ON c.oid = x.indrelid
+     JOIN pg_class i ON i.oid = x.indexrelid
+     LEFT JOIN pg_namespace n ON n.oid = c.relnamespace
+     LEFT JOIN pg_tablespace t ON t.oid = i.reltablespace
+  WHERE (c.relkind = ANY (ARRAY['r'::""char"", 'm'::""char""])) AND i.relkind = 'i'::""char"" AND
+     c.relname = '{tableName}'";
+
                 using (NpgsqlDataReader rdr = cmd.ExecuteReader()) {
                     while (rdr.Read()) {
                         string ixName = rdr.GetString(0);
@@ -213,6 +217,7 @@ namespace YetaWF.DataProvider.PostgreSQL {
             }
         }
 
+        [System.Diagnostics.CodeAnalysis.SuppressMessage("Security", "CA2100:Review SQL queries for security vulnerabilities", Justification = "None")]
         internal static List<PostgreSQLGen.ForeignKey> GetInfoForeignKeys(NpgsqlConnection conn, string name, string schema, string tableName) {
 
             List<PostgreSQLGen.ForeignKey> list = new List<PostgreSQLGen.ForeignKey>();
@@ -257,7 +262,7 @@ namespace YetaWF.DataProvider.PostgreSQL {
             throw new InternalError($"Unsupported type name {typeName}");
         }
 
-
+        [System.Diagnostics.CodeAnalysis.SuppressMessage("Security", "CA2100:Review SQL queries for security vulnerabilities", Justification = "None")]
         internal static void DropForeignKey(NpgsqlConnection conn, string databaseName, string dbo, string tableName, string foreignKey) {
             using (NpgsqlCommand cmd = new NpgsqlCommand()) {
                 cmd.Connection = conn;
@@ -265,6 +270,7 @@ namespace YetaWF.DataProvider.PostgreSQL {
                 cmd.ExecuteNonQuery();
             }
         }
+        [System.Diagnostics.CodeAnalysis.SuppressMessage("Security", "CA2100:Review SQL queries for security vulnerabilities", Justification = "None")]
         internal static void DropIndex(NpgsqlConnection conn, string databaseName, string dbo, string tableName, string index) {
             using (NpgsqlCommand cmd = new NpgsqlCommand()) {
                 cmd.Connection = conn;
@@ -272,6 +278,8 @@ namespace YetaWF.DataProvider.PostgreSQL {
                 cmd.ExecuteNonQuery();
             }
         }
+
+        [System.Diagnostics.CodeAnalysis.SuppressMessage("Security", "CA2100:Review SQL queries for security vulnerabilities", Justification = "None")]
         internal static void DropUniqueKeyIndex(NpgsqlConnection conn, string databaseName, string dbo, string tableName, string index) {
             using (NpgsqlCommand cmd = new NpgsqlCommand()) {
                 cmd.Connection = conn;
@@ -279,6 +287,7 @@ namespace YetaWF.DataProvider.PostgreSQL {
                 cmd.ExecuteNonQuery();
             }
         }
+        [System.Diagnostics.CodeAnalysis.SuppressMessage("Security", "CA2100:Review SQL queries for security vulnerabilities", Justification = "None")]
         internal static void DropPrimaryKeyIndex(NpgsqlConnection conn, string databaseName, string dbo, string tableName, string index) {
             using (NpgsqlCommand cmd = new NpgsqlCommand()) {
                 cmd.Connection = conn;
@@ -286,6 +295,7 @@ namespace YetaWF.DataProvider.PostgreSQL {
                 cmd.ExecuteNonQuery();
             }
         }
+        [System.Diagnostics.CodeAnalysis.SuppressMessage("Security", "CA2100:Review SQL queries for security vulnerabilities", Justification = "None")]
         internal static void DropTable(NpgsqlConnection conn, string databaseName, string dbo, string tableName) {
             using (NpgsqlCommand cmd = new NpgsqlCommand()) {
                 cmd.Connection = conn;
