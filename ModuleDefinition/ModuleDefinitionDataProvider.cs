@@ -121,9 +121,7 @@ namespace YetaWF.DataProvider {
         private async Task SaveModuleDefinitionAsync(ModuleDefinition mod, IModuleDefinitionIO dataProvider) {
             using (GenericModuleDefinitionDataProvider modDP = new GenericModuleDefinitionDataProvider()) {
                 using (ILockObject lockObject = await modDP.LockDesignedModulesAsync()) {
-                    using (dataProvider) {
-                        await dataProvider.SaveModuleDefinitionAsync(mod);
-                    }
+                    await dataProvider.SaveModuleDefinitionAsync(mod);
                     await SetCachedModuleAsync(mod);
                     await lockObject.UnlockAsync();
                 }
