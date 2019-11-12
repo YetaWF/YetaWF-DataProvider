@@ -302,14 +302,8 @@ namespace YetaWF.DataProvider {
         /// <returns>Returns the record with the specified primary key, or null if there is no record with the specified primary key.
         /// Other errors cause an exception.</returns>
         public async Task<OBJTYPE> GetAsync(KEYTYPE key) {
-            return await GetAsync(key, SpecificTypeOnly: false);
-        }
-        private async Task<OBJTYPE> GetSpecificTypeAsync(KEYTYPE key) {
-            return await GetAsync(key, SpecificTypeOnly: true);
-        }
-        private async Task<OBJTYPE> GetAsync(KEYTYPE key, bool SpecificTypeOnly) {
             FileData<OBJTYPE> fd = GetFileDataObject(key);
-            OBJTYPE o = await fd.LoadAsync(SpecificTypeOnly: SpecificTypeOnly);
+            OBJTYPE o = await fd.LoadAsync();
             if (o == null) return default(OBJTYPE);
             return await UpdateCalculatedPropertiesAsync(o);
         }
@@ -422,12 +416,9 @@ namespace YetaWF.DataProvider {
         /// <param name="Joins">A collection describing the dataset joins. Not supported by file data providers. Must be null for file data providers.</param>
         /// <returns>Returns a YetaWF.Core.DataProvider.DataProviderGetRecords object describing the data returned.</returns>
         public Task<DataProviderGetRecords<OBJTYPE>> GetRecordsAsync(int skip, int take, List<DataProviderSortInfo> sort, List<DataProviderFilterInfo> filters, List<JoinData> Joins = null) {
-            return GetRecords(skip, take, sort, filters, Joins: Joins, SpecificTypeOnly: false);
+            return GetRecords(skip, take, sort, filters, Joins: Joins);
         }
-        private Task<DataProviderGetRecords<OBJTYPE>> GetRecordsSpecificTypeAsync(int skip, int take, List<DataProviderSortInfo> sort, List<DataProviderFilterInfo> filters, List<JoinData> Joins = null) {
-            return GetRecords(skip, take, sort, filters, Joins: Joins, SpecificTypeOnly: true);
-        }
-        private async Task<DataProviderGetRecords<OBJTYPE>> GetRecords(int skip, int take, List<DataProviderSortInfo> sort, List<DataProviderFilterInfo> filters, List<JoinData> Joins = null, bool SpecificTypeOnly = false) {
+        private async Task<DataProviderGetRecords<OBJTYPE>> GetRecords(int skip, int take, List<DataProviderSortInfo> sort, List<DataProviderFilterInfo> filters, List<JoinData> Joins = null) {
 
             if (Joins != null) throw new InternalError("Joins not supported");
             List<string> files = await DataFilesProvider.GetDataFileNamesAsync(BaseFolder);
@@ -450,15 +441,9 @@ namespace YetaWF.DataProvider {
                     throw new InternalError("FileDataProvider only supports object keys of type string, int or Guid");
 
                 OBJTYPE obj;
-                if (SpecificTypeOnly) {
-                    obj = await GetSpecificTypeAsync(key);
-                    if (obj == null || typeof(OBJTYPE) != obj.GetType())
-                        continue;
-                } else {
-                    obj = await GetAsync(key);
-                    if (obj == null)
-                        throw new InternalError($"Object in file {file} is invalid");
-                }
+                obj = await GetAsync(key);
+                if (obj == null)
+                    continue;
                 objects.Add(obj);
             }
             foreach (OBJTYPE obj in objects)
@@ -624,7 +609,7 @@ namespace YetaWF.DataProvider {
         /// Only data records need to be added to the returned YetaWF.Core.DataProvider.DataProviderExportChunk object.
         /// </remarks>
         public async Task<DataProviderExportChunk> ExportChunkAsync(int chunk, SerializableList<SerializableFile> fileList) {
-            DataProviderGetRecords<OBJTYPE> recs = await GetRecordsSpecificTypeAsync(chunk * ChunkSize, ChunkSize, null, null);
+            DataProviderGetRecords<OBJTYPE> recs = await GetRecordsAsync(chunk * ChunkSize, ChunkSize, null, null);
             SerializableList<OBJTYPE> serList = new SerializableList<OBJTYPE>(recs.Data);
             object obj = serList;
             int count = serList.Count();
