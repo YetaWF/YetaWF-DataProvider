@@ -18,7 +18,7 @@
   </PropertyGroup>
 
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|AnyCPU'">
-    <DocumentationFile>YetaWF.DataProvider.SQL.xml</DocumentationFile>
+    <DocumentationFile>bin\Debug\netcoreapp3.0\YetaWF.DataProvider.SQL.xml</DocumentationFile>
   </PropertyGroup>
 
   <ItemGroup>
