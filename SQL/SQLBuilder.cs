@@ -13,7 +13,7 @@ namespace YetaWF.DataProvider.SQL {
     /// </summary>
     public class SQLBuilder {
 
-        StringBuilder _sb;
+        readonly StringBuilder _sb;
 
         /// <summary>
         /// Constructor.

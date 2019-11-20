@@ -799,7 +799,7 @@ namespace YetaWF.DataProvider.SQL {
         /// </remarks>
         public async Task Direct_QueryAsync(string sql) {
             await EnsureOpenAsync();
-            await Direct_QueryAsync(sql, new object[] { });
+            await Direct_QueryAsync(sql, Array.Empty<object>());
         }
         /// <summary>
         /// Executes the provided SQL statement(s).
@@ -835,7 +835,7 @@ namespace YetaWF.DataProvider.SQL {
         /// <returns>Returns a collection  of objects (one for each row retrieved) of type {i}TYPE{/i}.</returns>
         public async Task<List<TYPE>> Direct_QueryListAsync<TYPE>(string sql) {
             await EnsureOpenAsync();
-            return await Direct_QueryListAsync<TYPE>(sql, new object[] { });
+            return await Direct_QueryListAsync<TYPE>(sql, Array.Empty<object>());
         }
         /// <summary>
         /// Executes the provided SQL statement(s) and returns a collection of objects (one for each row retrieved) of type {i}TYPE{/i}.
@@ -933,7 +933,6 @@ namespace YetaWF.DataProvider.SQL {
         public async Task<DataProviderGetRecords<TYPE>> Direct_StoredProcAsync<TYPE>(string sqlProc, object parms = null) {
             await EnsureOpenAsync();
             SQLHelper sqlHelper = new SQLHelper(Conn, null, Languages);
-            SQLBuilder sb = new SQLBuilder();
 
             if (parms != null) {
                 foreach (PropertyInfo propertyInfo in parms.GetType().GetProperties(BindingFlags.Instance | BindingFlags.Public)) {
