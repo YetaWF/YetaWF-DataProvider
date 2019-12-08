@@ -450,6 +450,8 @@ namespace YetaWF.DataProvider.SQL {
             sorts = (from s in sorts select new DataProviderSortInfo(s)).ToList();// copy list
             foreach (DataProviderSortInfo sort in sorts) {
                 PropertyData propData = ObjectSupport.TryGetPropertyData(type, sort.Field);
+                if (propData == null)
+                    throw new InternalError($"Property {sort.Field} used for sorting not found");
                 if (propData.PropInfo.PropertyType == typeof(MultiString))
                     sort.Field = ColumnFromPropertyWithLanguage(MultiString.ActiveLanguage, sort.Field);
                 else
@@ -827,6 +829,44 @@ namespace YetaWF.DataProvider.SQL {
             await sqlHelper.ExecuteNonQueryAsync(sql);
         }
         /// <summary>
+        /// Executes the provided SQL statement(s) and returns an object of type {i}TYPE{/i}.
+        /// </summary>
+        /// <param name="sql">The SQL statement(s).</param>
+        /// <remarks>This is used by application data providers to build and execute complex queries that are not possible with the standard data providers.
+        /// Use of this method limits the application data provider to SQL repositories.</remarks>
+        /// <returns>Returns an object of type {i}TYPE{/i}.</returns>
+        public async Task<TYPE> Direct_QueryAsync<TYPE>(string sql) {
+            return await Direct_QueryAsync<TYPE>(sql, Array.Empty<object>());
+        }
+        /// <summary>
+        /// Executes the provided SQL statement(s) and returns an object of type {i}TYPE{/i}.
+        /// </summary>
+        /// <param name="sql">The SQL statement(s).</param>
+        /// <param name="args">Optional arguments that are passed when executing the SQL statements.</param>
+        /// <remarks>This is used by application data providers to build and execute complex queries that are not possible with the standard data providers.
+        /// Use of this method limits the application data provider to SQL repositories.</remarks>
+        /// <returns>Returns an object of type {i}TYPE{/i}.</returns>
+        public async Task<TYPE> Direct_QueryAsync<TYPE>(string sql, params object[] args) {
+            await EnsureOpenAsync();
+            SQLHelper sqlHelper = new SQLHelper(Conn, null, Languages);
+            string tableName = GetTableName();
+            int count = 0;
+            foreach (object arg in args) {
+                ++count;
+                sqlHelper.AddParam($"p{count}", arg);
+            }
+            sql = sql.Replace("{TableName}", SQLBuilder.WrapBrackets(tableName));
+            if (SiteIdentity > 0)
+                sql = sql.Replace($"{{{SiteColumn}}}", $"[{SiteColumn}] = {SiteIdentity}");
+            List<TYPE> list = new List<TYPE>();
+            using (SqlDataReader reader = await sqlHelper.ExecuteReaderAsync(sql)) {
+                if (YetaWFManager.IsSync() ? reader.Read() : await reader.ReadAsync())
+                    return sqlHelper.CreateObject<TYPE>(reader);
+                else
+                    return default(TYPE);
+            }
+        }
+        /// <summary>
         /// Executes the provided SQL statement(s) and returns a collection of objects (one for each row retrieved) of type {i}TYPE{/i}.
         /// </summary>
         /// <param name="sql">The SQL statement(s).</param>
@@ -834,7 +874,6 @@ namespace YetaWF.DataProvider.SQL {
         /// Use of this method limits the application data provider to SQL repositories.</remarks>
         /// <returns>Returns a collection  of objects (one for each row retrieved) of type {i}TYPE{/i}.</returns>
         public async Task<List<TYPE>> Direct_QueryListAsync<TYPE>(string sql) {
-            await EnsureOpenAsync();
             return await Direct_QueryListAsync<TYPE>(sql, Array.Empty<object>());
         }
         /// <summary>
