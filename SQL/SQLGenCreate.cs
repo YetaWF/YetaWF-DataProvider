@@ -397,7 +397,7 @@ namespace YetaWF.DataProvider {
                             List<PropertyData> subPropData = ObjectSupport.GetPropertyData(subType);
 
                             TableInfo subTableInfo = CreateSimpleTableFromModel(dbName, dbOwner, subTableName, SQLBase.SubTableKeyColumn, null,
-                                HasIdentity(identityName) ? identityName : SQLBase.IdentityColumn, subPropData, subType, errorList, columns,
+                                HasIdentity(identityName) ? identityName : SQLBase.IdentityColumn, subPropData, subType, errorList, new List<string>(),
                                 TopMost: false,
                                 ForeignKeyTable: newTable.Name,
                                 SubTable: true,
