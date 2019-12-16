@@ -230,7 +230,7 @@ namespace YetaWF.DataProvider {
         /// </summary>
         /// <returns>Returns a YetaWF.Core.DataProvider.DataProviderTransaction object.</returns>
         /// <remarks>This method is defined for symmetry with other data providers, but file data providers do not support transactions.</remarks>
-        public DataProviderTransaction StartTransaction() {
+        public DataProviderTransaction StartTransaction(DataProviderImpl ownerDP, params DataProviderImpl[] dps) {
             throw new NotSupportedException($"{nameof(StartTransaction)} is not supported");
         }
         /// <summary>

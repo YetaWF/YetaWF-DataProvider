@@ -44,6 +44,7 @@ namespace YetaWF.DataProvider.SQL {
         }
 
         private static List<Database> Databases = new List<Database>();
+        private static object DatabasesLockObject = new object();
 
         internal static Database GetDatabase(SqlConnection conn, string dbName) {
             Database db = GetDatabaseCond(conn, dbName);
@@ -55,7 +56,10 @@ namespace YetaWF.DataProvider.SQL {
         internal static Database GetDatabaseCond(SqlConnection conn, string dbName) {
             dbName = dbName.ToLower();
             string connLow = conn.DataSource.ToLower();
-            Database db = (from d in Databases where d.DataSource.ToLower() == connLow && dbName == d.Name.ToLower() select d).FirstOrDefault();
+            Database db;
+            lock (DatabasesLockObject) {
+                db = (from d in Databases where d.DataSource.ToLower() == connLow && dbName == d.Name.ToLower() select d).FirstOrDefault();
+            }
             if (db == null) {
                 using (SqlCommand cmd = new SqlCommand()) {
                     cmd.Connection = conn;
@@ -63,16 +67,23 @@ namespace YetaWF.DataProvider.SQL {
                     using (SqlDataReader rdr = cmd.ExecuteReader()) {
                         while (rdr.Read()) {
                             string name = rdr.GetString(0);
-                            Database d = (from s in Databases where s.DataSource.ToLower() == connLow && dbName == s.Name.ToLower() select s).FirstOrDefault();
+                            Database d;
+                            lock (DatabasesLockObject) {
+                                d = (from s in Databases where s.DataSource.ToLower() == connLow && dbName == s.Name.ToLower() select s).FirstOrDefault();
+                            }
                             if (d == null) {
-                                Databases.Add(new Database {
-                                    Name = name,
-                                    DataSource = conn.DataSource,
-                                });
+                                lock (DatabasesLockObject) {
+                                    Databases.Add(new Database {
+                                        Name = name,
+                                        DataSource = conn.DataSource,
+                                    });
+                                }
                             }
                         }
                     }
-                    db = (from d in Databases where d.DataSource.ToLower() == connLow && dbName == d.Name.ToLower() select d).FirstOrDefault();
+                    lock (DatabasesLockObject) {
+                        db = (from d in Databases where d.DataSource.ToLower() == connLow && dbName == d.Name.ToLower() select d).FirstOrDefault();
+                    }
                 }
             }
             return db;
@@ -302,7 +313,9 @@ namespace YetaWF.DataProvider.SQL {
         /// Clear the cache.
         /// </summary>
         internal static void ClearCache() {
-            Databases = new List<Database>();
+            lock (DatabasesLockObject) {
+                Databases = new List<Database>();
+            }
         }
     }
 }
