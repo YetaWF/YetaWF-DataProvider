@@ -1,4 +1,4 @@
-﻿/* Copyright © 2019 Softel vdm, Inc. - https://yetawf.com/Documentation/YetaWF/Licensing */
+﻿/* Copyright © 2020 Softel vdm, Inc. - https://yetawf.com/Documentation/YetaWF/Licensing */
 
 using System;
 using System.Collections;
@@ -116,7 +116,7 @@ namespace YetaWF.DataProvider.SQL {
 
             string script = $@"
 SELECT TOP 1 *
-    {calcProps} 
+    {calcProps}
 FROM {fullTableName} WITH(NOLOCK) {joins}
 WHERE {sqlHelper.Expr(Key1Name, "=", key)} {andKey2} {AndSiteIdentity}  --- result set
 ;
@@ -240,7 +240,7 @@ DECLARE @__IDENTITY int = @@IDENTITY
             string scriptMain = $@"
 {warningsOff}
 
-UPDATE {fullTableName} 
+UPDATE {fullTableName}
 SET {setColumns}
 WHERE {sqlHelper.Expr(Key1Name, "=", origKey)} {andKey2} {AndSiteIdentity}
 ;
@@ -254,7 +254,7 @@ SELECT @@ROWCOUNT --- result set
 {warningsOff}
 
 DECLARE @__IDENTITY int;
-SELECT @__IDENTITY = [{IdentityNameOrDefault}] FROM {fullTableName} 
+SELECT @__IDENTITY = [{IdentityNameOrDefault}] FROM {fullTableName}
 WHERE {sqlHelper.Expr(Key1Name, "=", origKey)} {andKey2} {AndSiteIdentity}
 
 UPDATE {fullTableName}
@@ -317,7 +317,7 @@ SELECT @@ROWCOUNT --- result set
 
             string scriptMain = $@"
 DELETE
-FROM {fullTableName} 
+FROM {fullTableName}
 WHERE {sqlHelper.Expr(Key1Name, "=", key)} {andKey2} {AndSiteIdentity}
 ;
 SELECT @@ROWCOUNT --- result set
@@ -326,7 +326,7 @@ SELECT @@ROWCOUNT --- result set
 
             string scriptWithSub = $@"
 DECLARE @ident int;
-SELECT @ident = [{IdentityNameOrDefault}] FROM {fullTableName} 
+SELECT @ident = [{IdentityNameOrDefault}] FROM {fullTableName}
 WHERE {sqlHelper.Expr(Key1Name, "=", key)} {andKey2} {AndSiteIdentity}
 
 {subTablesDeletes}
@@ -399,20 +399,20 @@ SELECT @@ROWCOUNT --- result set
 
             string scriptMain = $@"
 DELETE
-FROM {fullTableName} 
-{filter} 
+FROM {fullTableName}
+{filter}
 
 {sqlHelper.DebugInfo}";
 
             string scriptWithSub = $@"
 SELECT [{IdentityNameOrDefault}]
 INTO #TEMPTABLE
-FROM {fullTableName} WITH(NOLOCK) 
-{filter} 
+FROM {fullTableName} WITH(NOLOCK)
+{filter}
 ;
 DELETE
-FROM {fullTableName} WITH(NOLOCK) 
-{filter} 
+FROM {fullTableName} WITH(NOLOCK)
+{filter}
 ;
 SELECT @@ROWCOUNT --- result set
 ;
@@ -427,12 +427,12 @@ SELECT [{IdentityNameOrDefault}] FROM #TEMPTABLE
 OPEN @MyCursor
 FETCH NEXT FROM @MyCursor
 INTO @ident
- 
+
 WHILE @@FETCH_STATUS = 0
 BEGIN
     {subTablesDeletes}
     FETCH NEXT FROM @MyCursor INTO @ident
-END; 
+END;
 
 CLOSE @MyCursor ;
 DEALLOCATE @MyCursor;
@@ -480,10 +480,10 @@ DROP TABLE #TEMPTABLE
             string script = $@"
 {selectCount} --- result set
 SELECT {columnList} --- result set
-    {calcProps} 
-FROM {fullTableName} WITH(NOLOCK) 
-{joins} 
-{filter} 
+    {calcProps}
+FROM {fullTableName} WITH(NOLOCK)
+{joins}
+{filter}
 {orderBy}
 
 {sqlHelper.DebugInfo}";
@@ -699,7 +699,7 @@ FROM {fullTableName} WITH(NOLOCK)
                     string columns = GetColumnList(subPropData, subTable.Type, "", false, SubTable: true);
                     string values = GetValueList(sqlHelper, Dataset, obj, subPropData, subTable.Type, "", false, SubTable: true);
                     sb.Add($@"
-    INSERT INTO {subTable.Name} 
+    INSERT INTO {subTable.Name}
         ({columns})
         VALUES ({values}) ;
 ");

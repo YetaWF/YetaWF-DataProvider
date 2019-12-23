@@ -1,4 +1,4 @@
-﻿/* Copyright © 2019 Softel vdm, Inc. - https://yetawf.com/Documentation/YetaWF/Licensing */
+﻿/* Copyright © 2020 Softel vdm, Inc. - https://yetawf.com/Documentation/YetaWF/Licensing */
 
 using System;
 using System.Collections.Generic;
@@ -101,7 +101,7 @@ END
                 string fullTableName = SQLBuilder.GetTable(Database, Dbo, Dataset);
                 string scriptMain = $@"
 SELECT TOP 1 * FROM {fullBaseTableName} AS A WITH(NOLOCK)
-LEFT JOIN {fullTableName} AS B ON 
+LEFT JOIN {fullTableName} AS B ON
     A.[{Key1Name}] = B.[{Key1Name}] AND A.[{SiteColumn}] = B.[{SiteColumn}]
 WHERE {sqlHelper.Expr($"A.[{Key1Name}]", " =", key)} AND A.[{SiteColumn}] = {SiteIdentity}
 
@@ -190,7 +190,7 @@ VALUES ({values})
             string setColumns = SetColumns(sqlHelper, Dataset, propData, obj, typeof(OBJTYPE));
 
             string scriptMain = $@"
-UPDATE {fullBaseTableName} 
+UPDATE {fullBaseTableName}
 SET {setBaseColumns}
 WHERE {sqlHelper.Expr(Key1Name, "=", origKey)} {AndSiteIdentity}
 ;
@@ -336,7 +336,7 @@ WHERE {fullBaseTableName}.[DerivedDataTableName] = '{Dataset}' AND {fullBaseTabl
 SELECT *
 FROM {fullBaseTableName} WITH(NOLOCK)
 
-LEFT JOIN {fullTableName} ON 
+LEFT JOIN {fullTableName} ON
     {fullBaseTableName}.[{Key1Name}] = {fullTableName}.[{Key1Name}] AND {fullBaseTableName}.[{SiteColumn}] = {fullTableName}.[{SiteColumn}]
 
 WHERE {fullBaseTableName}.[DerivedDataTableName] = '{Dataset}' AND {fullBaseTableName}.[DerivedDataType] = '{typeof(OBJTYPE).FullName}'

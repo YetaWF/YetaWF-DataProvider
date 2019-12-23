@@ -1,4 +1,4 @@
-﻿/* Copyright © 2019 Softel vdm, Inc. - https://yetawf.com/Documentation/YetaWF/Licensing */
+﻿/* Copyright © 2020 Softel vdm, Inc. - https://yetawf.com/Documentation/YetaWF/Licensing */
 
 using System;
 using System.Collections.Generic;
@@ -69,7 +69,7 @@ namespace YetaWF.DataProvider.SQL {
 
             string script = $@"
 SELECT TOP 1 *
-    {calcProps} 
+    {calcProps}
 FROM {fullTableName} WITH(NOLOCK) {joins}
 WHERE {sqlHelper.Expr(IdentityName, "=", identity)} {AndSiteIdentity}  -- result set
 ;
