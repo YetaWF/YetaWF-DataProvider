@@ -228,31 +228,31 @@ namespace YetaWF.DataProvider.SQL {
             return ExecuteReaderAsync(SqlConnection, SqlTransaction, CommandType.StoredProcedure, sproc, Params);
         }
 
-        private static Task<SqlDataReader> ExecuteReaderAsync(SqlConnection connection, SqlTransaction transaction, CommandType commandType, string commandText, List<SqlParameter> sqlParms) {
+        private static async Task<SqlDataReader> ExecuteReaderAsync(SqlConnection connection, SqlTransaction transaction, CommandType commandType, string commandText, List<SqlParameter> sqlParms) {
             using (SqlCommand cmd = new SqlCommand()) {
                 PrepareCommand(cmd, connection, transaction, commandType, commandText, sqlParms);
                 if (YetaWFManager.IsSync())
-                    return Task.FromResult(cmd.ExecuteReader());
+                    return cmd.ExecuteReader();
                 else
-                    return cmd.ExecuteReaderAsync();
+                    return await cmd.ExecuteReaderAsync();
             }
         }
-        private static Task<object> ExecuteScalarAsync(SqlConnection connection, SqlTransaction transaction, CommandType commandType, string commandText, List<SqlParameter> sqlParms) {
+        private static async Task<object> ExecuteScalarAsync(SqlConnection connection, SqlTransaction transaction, CommandType commandType, string commandText, List<SqlParameter> sqlParms) {
             using (SqlCommand cmd = new SqlCommand()) {
                 PrepareCommand(cmd, connection, transaction, commandType, commandText, sqlParms);
                 if (YetaWFManager.IsSync())
-                    return Task.FromResult(cmd.ExecuteScalar());
+                    return cmd.ExecuteScalar();
                 else
-                    return cmd.ExecuteScalarAsync();
+                    return await cmd.ExecuteScalarAsync();
             }
         }
-        private static Task<int> ExecuteNonQueryAsync(SqlConnection connection, SqlTransaction transaction, CommandType commandType, string commandText, List<SqlParameter> sqlParms) {
+        private static async Task<int> ExecuteNonQueryAsync(SqlConnection connection, SqlTransaction transaction, CommandType commandType, string commandText, List<SqlParameter> sqlParms) {
             using (SqlCommand cmd = new SqlCommand()) {
                 PrepareCommand(cmd, connection, transaction, commandType, commandText, sqlParms);
                 if (YetaWFManager.IsSync())
-                    return Task.FromResult(cmd.ExecuteNonQuery());
+                    return cmd.ExecuteNonQuery();
                 else
-                    return cmd.ExecuteNonQueryAsync();
+                    return await cmd.ExecuteNonQueryAsync();
             }
         }
 
