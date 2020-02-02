@@ -3,7 +3,7 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
-using System.Data.SqlClient;
+using Microsoft.Data.SqlClient;
 using System.Drawing;
 using System.IO;
 using System.Linq;
@@ -136,7 +136,7 @@ namespace YetaWF.DataProvider.SQL {
         /// </remarks>
         public string Dbo { get; private set; }
         /// <summary>
-        /// The underlying System.Data.SqlClient.SqlConnection object used to connect to the database.
+        /// The underlying Microsoft.Data.SqlClient.SqlConnection object used to connect to the database.
         /// </summary>
         public SqlConnection Conn { get; private set; }
         /// <summary>
