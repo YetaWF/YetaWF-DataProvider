@@ -192,8 +192,11 @@ namespace YetaWF.DataProvider.SQL {
                 if (!visibleColumns.TryGetValue(column, out longColumn))
                     throw new InternalError($"Column {column} not found in list of visible columns");
                 return longColumn;
-            } else
-                return WrapBrackets(column.Replace('.', '_'));
+            } else {
+                if (!column.StartsWith("["))
+                    column = column.Replace('.', '_');
+                return WrapBrackets(column);
+            }
         }
         /// <summary>
         /// Returns a properly bracketed string.

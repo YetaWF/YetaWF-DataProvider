@@ -509,8 +509,10 @@ namespace YetaWF.DataProvider.SQL {
         internal List<DataProviderFilterInfo> NormalizeFilter(Type type, List<DataProviderFilterInfo> filters) {
             if (filters == null) return null;
             filters = (from f in filters select new DataProviderFilterInfo(f)).ToList();// copy list
-            foreach (DataProviderFilterInfo f in filters)
-                if (f.Field != null) f.Field = f.Field.Replace(".", "_");
+            foreach (DataProviderFilterInfo f in filters) {
+                if (f.Field != null && !f.Field.StartsWith("["))
+                    f.Field = f.Field.Replace(".", "_");
+            }
             DataProviderFilterInfo.NormalizeFilters(type, filters);
             foreach (DataProviderFilterInfo filter in filters) {
                 if (filter.Filters != null)
