@@ -112,7 +112,7 @@ namespace YetaWF.DataProvider.SQL {
             string andKey2 = HasKey2 ? "AND " + sqlHelper.Expr(Key2Name, "=", key2) : null;
 
             List<PropertyData> propData = GetPropertyData();
-            string subTablesSelects = SubTablesSelectsUsingJoin(sqlHelper, Dataset, key, propData, typeof(OBJTYPE));
+            string subTablesSelects = SubTablesSelectsUsingJoin(sqlHelper, Dataset, key, key2, propData, typeof(OBJTYPE));
 
             string script = $@"
 SELECT TOP 1 *
@@ -503,9 +503,12 @@ FROM {fullTableName} WITH(NOLOCK)
 
                     PropertyInfo piIdent = ObjectSupport.GetProperty(typeof(OBJTYPE), Key1Name);
                     KEYTYPE keyVal = (KEYTYPE)piIdent.GetValue(o);
-
-                    //TODO: should be expanded to support Key2
-                    subTablesSelects += SubTablesSelectsUsingJoin(subSqlHelper, Dataset, keyVal, propData, typeof(OBJTYPE), filters, visibleColumns);
+                    KEYTYPE2 key2Val = default(KEYTYPE2);
+                    if (HasKey2) {
+                        PropertyInfo piIdent2 = ObjectSupport.GetProperty(typeof(OBJTYPE), Key2Name);
+                        key2Val = (KEYTYPE2)piIdent2.GetValue(o);
+                    }
+                    subTablesSelects += SubTablesSelectsUsingJoin(subSqlHelper, Dataset, keyVal, key2Val, propData, typeof(OBJTYPE));
                 }
             }
             if (!string.IsNullOrWhiteSpace(subTablesSelects)) {
@@ -574,22 +577,19 @@ FROM {fullTableName} WITH(NOLOCK)
             return sb.ToString();
         }
 
-        internal string SubTablesSelectsUsingJoin(SQLHelper sqlHelper, string tableName, KEYTYPE key, List<PropertyData> propData, Type tpContainer, List<DataProviderFilterInfo> filters = null, Dictionary<string, string> visibleColumns = null) {
+        internal string SubTablesSelectsUsingJoin(SQLHelper sqlHelper, string tableName, KEYTYPE key, KEYTYPE2 key2, List<PropertyData> propData, Type tpContainer) {
             SQLBuilder sb = new SQLBuilder();
             List<SubTableInfo> subTables = GetSubTables(tableName, propData);
             if (subTables.Count > 0) {
                 string keyExpr = (key == null || key.Equals(default(KEYTYPE)) ? "1=1" : $"{SQLBuilder.BuildFullColumnName(Database, Dbo, tableName, Key1Name)} = {sqlHelper.AddTempParam(key)}");
+                string andKey2 = HasKey2 ? "AND " + sqlHelper.Expr(Key2Name, "=", key2) : null;
+
                 foreach (SubTableInfo subTable in subTables) {
                     sb.Add($@"
     SELECT * FROM {SQLBuilder.BuildFullTableName(Database, Dbo, subTable.Name)}   --- result set
     INNER JOIN {SQLBuilder.BuildFullTableName(Database, Dbo, tableName)} ON {SQLBuilder.BuildFullColumnName(tableName, IdentityNameOrDefault)} = {SQLBuilder.BuildFullColumnName(subTable.Name, SubTableKeyColumn)}
-    WHERE {keyExpr} {AndSiteIdentity}
+    WHERE {keyExpr} {andKey2} {AndSiteIdentity}
 ");
-                    if (filters != null && filters.Count > 0) {
-                        sb.Add(" AND (");
-                        sqlHelper.AddWhereExpr(sb, Dataset, filters, visibleColumns);
-                        sb.Add(")");
-                    }
                     sb.Add(@"
 ;
                         ");
