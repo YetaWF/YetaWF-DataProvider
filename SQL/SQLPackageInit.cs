@@ -2,7 +2,6 @@
 
 using System;
 using System.Collections.Generic;
-using Microsoft.Data.SqlClient;
 using System.IO;
 using System.Linq;
 using System.Text.RegularExpressions;
@@ -12,6 +11,11 @@ using YetaWF.Core.IO;
 using YetaWF.Core.Packages;
 using YetaWF.Core.Serializers;
 using YetaWF.Core.Support;
+#if MVC6
+using Microsoft.Data.SqlClient;
+#else
+using System.Data.SqlClient;
+#endif
 
 namespace YetaWF.DataProvider.SQL {
 

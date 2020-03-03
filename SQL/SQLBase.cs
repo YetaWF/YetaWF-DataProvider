@@ -3,7 +3,6 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
-using Microsoft.Data.SqlClient;
 using System.Drawing;
 using System.IO;
 using System.Linq;
@@ -18,6 +17,11 @@ using YetaWF.Core.Models;
 using YetaWF.Core.Packages;
 using YetaWF.Core.Support;
 using YetaWF.Core.Support.Serializers;
+#if MVC6
+using Microsoft.Data.SqlClient;
+#else
+using System.Data.SqlClient;
+#endif
 
 namespace YetaWF.DataProvider.SQL {
 

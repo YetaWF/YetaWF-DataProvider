@@ -2,11 +2,15 @@
 
 using System;
 using System.Collections.Generic;
-using Microsoft.Data.SqlClient;
 using System.Threading.Tasks;
 using YetaWF.Core.DataProvider;
 using YetaWF.Core.Models;
 using YetaWF.Core.Support;
+#if MVC6
+using Microsoft.Data.SqlClient;
+#else
+using System.Data.SqlClient;
+#endif
 
 namespace YetaWF.DataProvider.SQL {
 
