@@ -74,9 +74,7 @@ namespace YetaWF.DataProvider.SQL {
                             Database d;
                             lock (DatabasesLockObject) {
                                 d = (from s in Databases where s.DataSource.ToLower() == connLow && dbName == s.Name.ToLower() select s).FirstOrDefault();
-                            }
-                            if (d == null) {
-                                lock (DatabasesLockObject) {
+                                if (d == null) {
                                     Databases.Add(new Database {
                                         Name = name,
                                         DataSource = conn.DataSource,
