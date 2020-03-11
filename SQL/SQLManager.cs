@@ -3,8 +3,8 @@
 using System;
 using System.Collections.Generic;
 using System.Data;
-using System.Linq;
 using YetaWF.Core.Support;
+using YetaWF.DataProvider.SQLGeneric;
 #if MVC6
 using Microsoft.Data.SqlClient;
 #else
@@ -21,149 +21,55 @@ namespace YetaWF.DataProvider.SQL {
     /// Some of this could be made async, but often this is called in a context that is not async.
     /// As this is all cached and most of it is only used during model install/uninstall, using non-async is just easier.
     ///
-    /// The SQL queries used for model install/uninstall (like GetColumnInfo) is not very efficient. Simplicity over perfection.
+    /// The SQL queries used for model install/uninstall (like GetColumnNames) is not very efficient, but cached. Simplicity over perfection.
     /// </remarks>
-    internal static class SQLManager {
+    internal class SQLManager : SQLGenericManager<SqlConnection> {
 
-        /// <summary>
-        /// When using a "Database First" approach, any index or foreign key whose name starts with this prefix will be ignored and remain untouched/unaltered by model updates.
-        /// </summary>
-        public const string DBFIRST_PREFIX = "PREDEF_";
-
-        public class Database {
-            public string DataSource { get; set; }
-            public string Name { get; set; }
-            public Database() {
-                CachedTables = new List<Table>();
-            }
-            public List<Table> CachedTables { get; set; }
+        public override string GetDataSource(SqlConnection connInfo) {
+            return connInfo.DataSource;
         }
-        public class Table {
-            public string Name { get; set; }
-            public string Dbo { get; set; }
-            public Table() {
-                CachedColumns = new List<string>();
-            }
-            public List<string> CachedColumns { get; set; }
-        }
-
-        private static List<Database> Databases = new List<Database>();
-        private static object DatabasesLockObject = new object();
-
-        internal static Database GetDatabase(SqlConnection conn, string dbName) {
-            Database db = GetDatabaseCond(conn, dbName);
-            if (db == null)
-                throw new InternalError("Can't connect to SQL database {0}", conn.Database);
-            return db;
-        }
-
-        internal static Database GetDatabaseCond(SqlConnection conn, string dbName) {
-            dbName = dbName.ToLower();
-            string connLow = conn.DataSource.ToLower();
-            Database db;
-            lock (DatabasesLockObject) {
-                db = (from d in Databases where d.DataSource.ToLower() == connLow && dbName == d.Name.ToLower() select d).FirstOrDefault();
-            }
-            if (db == null) {
-                using (SqlCommand cmd = new SqlCommand()) {
-                    cmd.Connection = conn;
-                    cmd.CommandText = "SELECT name FROM master.sys.databases";
-                    using (SqlDataReader rdr = cmd.ExecuteReader()) {
-                        while (rdr.Read()) {
-                            string name = rdr.GetString(0);
-                            Database d;
-                            lock (DatabasesLockObject) {
-                                d = (from s in Databases where s.DataSource.ToLower() == connLow && dbName == s.Name.ToLower() select s).FirstOrDefault();
-                                if (d == null) {
-                                    Databases.Add(new Database {
-                                        Name = name,
-                                        DataSource = conn.DataSource,
-                                    });
-                                }
-                            }
-                        }
-                    }
-                    lock (DatabasesLockObject) {
-                        db = (from d in Databases where d.DataSource.ToLower() == connLow && dbName == d.Name.ToLower() select d).FirstOrDefault();
-                    }
-                }
-            }
-            return db;
-        }
-
-        internal static bool HasTable(SqlConnection conn, string databaseName, string dbo, string tableName) {
-            return GetTable(conn, databaseName, dbo, tableName) != null;
-        }
-        internal static Table GetTable(SqlConnection conn, string databaseName, string dbo, string tableName) {
-            List<Table> tables = GetTables(conn, databaseName, dbo);
-            if (tables == null)
-                return null;
-            tableName = tableName.ToLower();
-            dbo = dbo.ToLower();
-            return (from t in tables where t.Name.ToLower() == tableName && t.Dbo.ToLower() == dbo select t).FirstOrDefault();
-        }
-        internal static List<Table> GetTables(SqlConnection conn, string databaseName, string dbo) {
-            Database db = GetDatabaseCond(conn, databaseName);
-            if (db == null)
-                return null;
-            if (db.CachedTables.Count == 0) {
-                using (SqlCommand cmd = new SqlCommand()) {
-                    List<Table> tables = new List<Table>();
-                    cmd.Connection = conn;
-                    cmd.CommandText = $"SELECT TABLE_NAME, TABLE_SCHEMA FROM INFORMATION_SCHEMA.TABLES";
-                    using (SqlDataReader rdr = cmd.ExecuteReader()) {
-                        while (rdr.Read()) {
-                            string name = rdr.GetString(0);
-                            string schema = rdr.GetString(1);
-                            tables.Add(new Table {
-                                Dbo = schema,
-                                Name = name,
-                            });
-                        }
-                    }
-                    db.CachedTables = tables;
-                }
-            }
-            dbo = dbo.ToLower();
-            return (from t in db.CachedTables where t.Dbo.ToLower() == dbo select t).ToList();
-        }
-
-        internal static List<string> GetColumns(SqlConnection conn, string databaseName, string dbo, string tableName) {
-            List<string> columns = GetColumnsCond(conn, databaseName, dbo, tableName);
-            if (columns == null)
-                throw new InternalError($"Request for SQL DB {databaseName} table {tableName} which doesn't exist", databaseName, tableName);
-            return columns;
-        }
-        internal static List<string> GetColumnsCond(SqlConnection conn, string databaseName, string dbo, string tableName) {
-            Table table = GetTable(conn, databaseName, dbo, tableName);
-            if (table == null)
-                return null;
-            if (table.CachedColumns.Count == 0) {
-                using (SqlCommand cmd = new SqlCommand()) {
-                    List<string> columns = new List<string>();
-                    cmd.Connection = conn;
-                    cmd.CommandText = $"SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = N'{tableName}'";
-                    using (SqlDataReader rdr = cmd.ExecuteReader()) {
-                        while (rdr.Read()) {
-                            string name = rdr.GetString(0);
-                            columns.Add(name);
-                        }
-                    }
-                    table.CachedColumns = columns;
-                }
-            }
-            return table.CachedColumns;
-        }
-
-        internal static List<SQLGen.Column> GetInfoColumns(SqlConnection conn, string name, string dbOwner, string tableName) {
-
-            List<SQLGen.Column> list = new List<SQLGen.Column>();
+        public override List<string> GetDataBaseNames(SqlConnection connInfo) {
+            List<string> list = new List<string>();
             using (SqlCommand cmd = new SqlCommand()) {
-                cmd.Connection = conn;
+                cmd.Connection = connInfo;
+                cmd.CommandText = "SELECT name FROM master.sys.databases";
+                using (SqlDataReader rdr = cmd.ExecuteReader()) {
+                    while (rdr.Read()) {
+                        string name = rdr.GetString(0);
+                        list.Add(name);
+                    }
+                }
+            }
+            return list;
+        }
+        public override List<SQLGenericGen.Table> GetTableNames(SqlConnection connInfo, string databaseName, string schemaNotUsed) {
+            List<SQLGenericGen.Table> list = new List<SQLGenericGen.Table>();
+            using (SqlCommand cmd = new SqlCommand()) {
+                cmd.Connection = connInfo;
+                cmd.CommandText = $"SELECT TABLE_NAME, TABLE_SCHEMA FROM INFORMATION_SCHEMA.TABLES";
+                using (SqlDataReader rdr = cmd.ExecuteReader()) {
+                    while (rdr.Read()) {
+                        string name = rdr.GetString(0);
+                        string schema = rdr.GetString(1);
+                        list.Add(new SQLGenericGen.Table {
+                            Schema = schema,
+                            Name = name,
+                        });
+                    }
+                }
+            }
+            return list;
+        }
+
+        public override List<SQLGenericGen.Column> GetColumnNames(SqlConnection connInfo, string name, string dbOwner, string tableName) {
+
+            List<SQLGenericGen.Column> list = new List<SQLGenericGen.Column>();
+            using (SqlCommand cmd = new SqlCommand()) {
+                cmd.Connection = connInfo;
                 cmd.CommandText = $"SELECT COLUMN_NAME, DATA_TYPE, IS_NULLABLE, CHARACTER_MAXIMUM_LENGTH FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = N'{tableName}'";
                 using (SqlDataReader rdr = cmd.ExecuteReader()) {
                     while (rdr.Read()) {
-                        SQLGen.Column col = new SQLGen.Column {
+                        SQLGenericGen.Column col = new SQLGenericGen.Column {
                             Name = rdr.GetString(0),
                             DataType = GetDataType(rdr.GetString(1)),
                             Nullable = rdr.GetString(2) == "YES",
@@ -308,15 +214,6 @@ namespace YetaWF.DataProvider.SQL {
                 cmd.Connection = conn;
                 cmd.CommandText = $"DROP TABLE {SQLBuilder.WrapBrackets(databaseName)}.{SQLBuilder.WrapBrackets(dbo)}.{SQLBuilder.WrapBrackets(tableName)}";
                 cmd.ExecuteNonQuery();
-            }
-        }
-
-        /// <summary>
-        /// Clear the cache.
-        /// </summary>
-        internal static void ClearCache() {
-            lock (DatabasesLockObject) {
-                Databases = new List<Database>();
             }
         }
     }

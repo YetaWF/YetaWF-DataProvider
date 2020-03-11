@@ -60,12 +60,13 @@ namespace YetaWF.DataProvider.SQL {
         /// <param name="identity">The identity value.</param>
         /// <returns>Returns the record that satisfies the specified identity value. If no record exists null is returned.</returns>
         public async Task<OBJTYPE> GetByIdentityAsync(int identity) {
+            SQLBuilder sb = new SQLBuilder();
             await EnsureOpenAsync();
 
             SQLHelper sqlHelper = new SQLHelper(Conn, null, Languages);
 
             string joins = null;// RFFU
-            string fullTableName = SQLBuilder.GetTable(Database, Dbo, Dataset);
+            string fullTableName = sb.GetTable(Database, Dbo, Dataset);
             string calcProps = await CalculatedPropertiesAsync(typeof(OBJTYPE));
 
             List<PropertyData> propData = GetPropertyData();
@@ -99,11 +100,12 @@ DECLARE @ident int = {identity};
         /// <param name="identity">The identity value of the record to remove.</param>
         /// <returns>Returns true if the record was removed, or false if the record was not found. Other errors cause an exception.</returns>
         public async Task<bool> RemoveByIdentityAsync(int identity) {
+            SQLBuilder sb = new SQLBuilder();
             await EnsureOpenAsync();
 
             SQLHelper sqlHelper = new SQLHelper(Conn, null, Languages);
 
-            string fullTableName = SQLBuilder.GetTable(Database, Dbo, Dataset);
+            string fullTableName = sb.GetTable(Database, Dbo, Dataset);
             List<PropertyData> propData = GetPropertyData();
 
             string subTablesDeletes = SubTablesDeletes(Dataset, propData, typeof(OBJTYPE));
@@ -155,11 +157,12 @@ SELECT @@ROWCOUNT --- result set
         /// <param name="obj">The object being updated.</param>
         /// <returns>Returns a status indicator.</returns>
         public async Task<UpdateStatusEnum> UpdateByIdentityAsync(int identity, OBJTYPE obj) {
+            SQLBuilder sb = new SQLBuilder();
             await EnsureOpenAsync();
 
             SQLHelper sqlHelper = new SQLHelper(Conn, null, Languages);
 
-            string fullTableName = SQLBuilder.GetTable(Database, Dbo, Dataset);
+            string fullTableName = sb.GetTable(Database, Dbo, Dataset);
             List<PropertyData> propData = GetPropertyData();
             string setColumns = SetColumns(sqlHelper, Dataset, propData, obj, typeof(OBJTYPE));
 

@@ -349,26 +349,26 @@ namespace YetaWF.DataProvider.SQL {
                             isNull = false;
                             oper = ">="; break;
                         case "startswith":
-                            oper = "LIKE"; val = SQLBuilder.EscapeForLike((val ?? "").ToString(), false) + "%"; break;
+                            oper = "LIKE"; val = sb.EscapeForLike((val ?? "").ToString(), false) + "%"; break;
                         case "notstartswith":
                             isNull = true;
-                            oper = "NOT LIKE"; val = SQLBuilder.EscapeForLike((val ?? "").ToString(), false) + "%"; break;
+                            oper = "NOT LIKE"; val = sb.EscapeForLike((val ?? "").ToString(), false) + "%"; break;
                         case "endswith":
-                            oper = "LIKE"; val = "%" + SQLBuilder.EscapeForLike((val ?? "").ToString(), false); break;
+                            oper = "LIKE"; val = "%" + sb.EscapeForLike((val ?? "").ToString(), false); break;
                         case "notendswith":
                             isNull = true;
-                            oper = "NOT LIKE"; val = "%" + SQLBuilder.EscapeForLike((val ?? "").ToString(), false); break;
+                            oper = "NOT LIKE"; val = "%" + sb.EscapeForLike((val ?? "").ToString(), false); break;
                         case "contains":
-                            oper = "LIKE"; val = "%" + SQLBuilder.EscapeForLike((val ?? "").ToString(), false) + "%"; break;
+                            oper = "LIKE"; val = "%" + sb.EscapeForLike((val ?? "").ToString(), false) + "%"; break;
                         case "notcontains":
                             isNull = true;
-                            oper = "NOT LIKE"; val = "%" + SQLBuilder.EscapeForLike((val ?? "").ToString(), false) + "%"; break;
+                            oper = "NOT LIKE"; val = "%" + sb.EscapeForLike((val ?? "").ToString(), false) + "%"; break;
                         default:
                             throw new InternalError("Invalid operator {0}", f.Operator);
                     }
                     if (isNull != null) {
                         sb.Add("(");
-                        string s = SQLBuilder.BuildFullColumnName(f.Field, visibleColumns);
+                        string s = sb.BuildFullColumnName(f.Field, visibleColumns);
                         AddExpr(sb, s, oper, val);
                         if (isNull == true)
                             sb.Add($" OR {s} IS NULL");
@@ -376,7 +376,7 @@ namespace YetaWF.DataProvider.SQL {
                             sb.Add($" AND {s} IS NOT NULL");
                         sb.Add(")");
                     } else {
-                        AddExpr(sb, SQLBuilder.BuildFullColumnName(f.Field, visibleColumns), oper, val);
+                        AddExpr(sb, sb.BuildFullColumnName(f.Field, visibleColumns), oper, val);
                     }
                 }
                 firstDone = true;

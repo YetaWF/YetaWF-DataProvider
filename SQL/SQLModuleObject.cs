@@ -56,8 +56,9 @@ namespace YetaWF.DataProvider.SQL {
             await EnsureOpenAsync();
 
             SQLHelper sqlHelper = new SQLHelper(Conn, null, Languages);
+            SQLBuilder sb = new SQLBuilder();
 
-            string fullBaseTableName = SQLBuilder.GetTable(Database, Dbo, BaseDataset);
+            string fullBaseTableName = sb.GetTable(Database, Dbo, BaseDataset);
 
             if (Dataset == BaseDataset) {
                 // we're reading the base and have to find the derived table
@@ -102,7 +103,7 @@ END
 
             } else {
                 // we're reading the derived table
-                string fullTableName = SQLBuilder.GetTable(Database, Dbo, Dataset);
+                string fullTableName = sb.GetTable(Database, Dbo, Dataset);
                 string scriptMain = $@"
 SELECT TOP 1 * FROM {fullBaseTableName} AS A WITH(NOLOCK)
 LEFT JOIN {fullTableName} AS B ON
@@ -128,16 +129,17 @@ WHERE {sqlHelper.Expr($"A.[{Key1Name}]", " =", key)} AND A.[{SiteColumn}] = {Sit
         /// For all other errors, an exception occurs.
         /// </returns>
         public new async Task<bool> AddAsync(OBJTYPE obj) {
+            SQLBuilder sb = new SQLBuilder();
             await EnsureOpenAsync();
             if (Dataset == BaseDataset) throw new InternalError("Only derived types are supported");
 
             SQLHelper sqlHelper = new SQLHelper(Conn, null, Languages);
 
-            string fullBaseTableName = SQLBuilder.GetTable(Database, Dbo, BaseDataset);
+            string fullBaseTableName = sb.GetTable(Database, Dbo, BaseDataset);
             List<PropertyData> propBaseData = GetBasePropertyData();
             string baseColumns = GetColumnList(propBaseData, typeof(ModuleDefinition), "", true, SiteSpecific: SiteIdentity > 0, WithDerivedInfo: true);
             string baseValues = GetValueList(sqlHelper, Dataset, obj, propBaseData, typeof(ModuleDefinition), SiteSpecific: SiteIdentity > 0, DerivedType: typeof(OBJTYPE), DerivedTableName: Dataset);
-            string fullTableName = SQLBuilder.GetTable(Database, Dbo, Dataset);
+            string fullTableName = sb.GetTable(Database, Dbo, Dataset);
             List<PropertyData> propData = GetPropertyData();
             string columns = GetColumnList(propData, obj.GetType(), "", true, SiteSpecific: SiteIdentity > 0);
             string values = GetValueList(sqlHelper, Dataset, obj, propData, typeof(OBJTYPE), SiteSpecific: SiteIdentity > 0);
@@ -178,6 +180,7 @@ VALUES ({values})
         /// <param name="obj">The object being updated.</param>
         /// <returns>Returns a status indicator.</returns>
         public new async Task<UpdateStatusEnum> UpdateAsync(KEY origKey, KEY newKey, OBJTYPE obj) {
+            SQLBuilder sb = new SQLBuilder();
             await EnsureOpenAsync();
             if (Dataset == BaseDataset) throw new InternalError("Only derived types are supported");
 
@@ -185,8 +188,8 @@ VALUES ({values})
 
             SQLHelper sqlHelper = new SQLHelper(Conn, null, Languages);
 
-            string fullBaseTableName = SQLBuilder.GetTable(Database, Dbo, BaseDataset);
-            string fullTableName = SQLBuilder.GetTable(Database, Dbo, Dataset);
+            string fullBaseTableName = sb.GetTable(Database, Dbo, BaseDataset);
+            string fullTableName = sb.GetTable(Database, Dbo, Dataset);
 
             List<PropertyData> propBaseData = GetBasePropertyData();
             string setBaseColumns = SetColumns(sqlHelper, Dataset, propBaseData, obj, typeof(ModuleDefinition));
@@ -232,12 +235,13 @@ WHERE {sqlHelper.Expr(Key1Name, "=", origKey)} {AndSiteIdentity}
         /// <param name="key">The primary key value of the record to remove.</param>
         /// <returns>Returns true if the record was removed, or false if the record was not found. Other errors cause an exception.</returns>
         public new async Task<bool> RemoveAsync(KEY key) {
+            SQLBuilder sb = new SQLBuilder();
             await EnsureOpenAsync();
             if (Dataset != BaseDataset) throw new InternalError("Only base types are supported");
 
             SQLHelper sqlHelper = new SQLHelper(Conn, null, Languages);
 
-            string fullBaseTableName = SQLBuilder.GetTable(Database, Dbo, BaseDataset);
+            string fullBaseTableName = sb.GetTable(Database, Dbo, BaseDataset);
 
             List<PropertyData> propData = GetPropertyData();
 
@@ -300,6 +304,7 @@ DROP TABLE #BASETABLE
         /// <param name="Joins">A collection describing the dataset joins.</param>
         /// <returns>Returns a YetaWF.Core.DataProvider.DataProviderGetRecords object describing the data returned.</returns>
         public new async Task<DataProviderGetRecords<OBJTYPE>> GetRecordsAsync(int skip, int take, List<DataProviderSortInfo> sorts, List<DataProviderFilterInfo> filters, List<JoinData> Joins = null) {
+            SQLBuilder sb = new SQLBuilder();
             await EnsureOpenAsync();
             if (Dataset == BaseDataset) {
                 // we're reading the base table
@@ -310,13 +315,12 @@ DROP TABLE #BASETABLE
 
                 DataProviderGetRecords<OBJTYPE> recs = new DataProviderGetRecords<OBJTYPE>();
 
-                string fullBaseTableName = SQLBuilder.GetTable(Database, Dbo, BaseDataset);
-                string fullTableName = SQLBuilder.GetTable(Database, Dbo, Dataset);
+                string fullBaseTableName = sb.GetTable(Database, Dbo, BaseDataset);
+                string fullTableName = sb.GetTable(Database, Dbo, Dataset);
 
                 // get total # of records (only if a subset is requested)
                 string selectCount = null;
                 if (skip != 0 || take != 0) {
-                    SQLBuilder sb = new SQLBuilder();
                     sb.Add($@"
 
 SELECT COUNT(*)
@@ -415,11 +419,12 @@ WHERE {fullBaseTableName}.[DerivedDataTableName] = '{Dataset}' AND {fullBaseTabl
         /// </summary>
         /// <returns>true if the data provider is installed and available, false otherwise.</returns>
         public new async Task<bool> IsInstalledAsync() {
+            SQLManager sqlManager = new SQLManager();
             await EnsureOpenAsync();
-            if (!SQLManager.HasTable(Conn, Database, Dbo, BaseDataset))
+            if (!sqlManager.HasTable(Conn, Database, Dbo, BaseDataset))
                 return false;
             if (Dataset != BaseDataset) {
-                if (!SQLManager.HasTable(Conn, Database, Dbo, Dataset))
+                if (!sqlManager.HasTable(Conn, Database, Dbo, Dataset))
                     return false;
             }
             return true;
@@ -434,11 +439,12 @@ WHERE {fullBaseTableName}.[DerivedDataTableName] = '{Dataset}' AND {fullBaseTabl
         /// <remarks>
         /// While a package is installed, all data models are installed by calling the InstallModelAsync method.</remarks>
         public new async Task<bool> InstallModelAsync(List<string> errorList) {
+            SQLManager sqlManager = new SQLManager();
             await EnsureOpenAsync();
             if (Dataset == BaseDataset) throw new InternalError("Base dataset is not supported");
             bool success = false;
             success = CreateTableWithBaseType(Conn, Database, errorList);
-            SQLManager.ClearCache();
+            sqlManager.ClearCache();
             return success;
         }
         private bool CreateTableWithBaseType(SqlConnection conn, string dbName, List<string> errorList) {
@@ -465,6 +471,7 @@ WHERE {fullBaseTableName}.[DerivedDataTableName] = '{Dataset}' AND {fullBaseTabl
         /// <remarks>
         /// While a package is uninstalled, all data models are uninstalled by calling the UninstallModelAsync method.</remarks>
         public new async Task<bool> UninstallModelAsync(List<string> errorList) {
+            SQLManager sqlManager = new SQLManager();
             await EnsureOpenAsync();
             if (Dataset == BaseDataset) throw new InternalError("Base dataset is not supported");
             try {
@@ -474,12 +481,13 @@ WHERE {fullBaseTableName}.[DerivedDataTableName] = '{Dataset}' AND {fullBaseTabl
                 errorList.Add(string.Format("{0}: {1}", typeof(OBJTYPE).FullName, ErrorHandling.FormatExceptionMessage(exc)));
                 return false;
             } finally {
-                SQLManager.ClearCache();
+                sqlManager.ClearCache();
             }
         }
         private async Task<bool> DropTableWithBaseType(string dbName, List<string> errorList) {
+            SQLManager sqlManager = new SQLManager();
             try {
-                if (SQLManager.HasTable(Conn, dbName, Dbo, Dataset)) {
+                if (sqlManager.HasTable(Conn, dbName, Dbo, Dataset)) {
                     // Remove all records from the table (this removes the records in BaseTableName also)
                     SQLHelper sqlHelper = new SQLHelper(Conn, null, Languages);
                     SQLBuilder sb = new SQLBuilder();
@@ -491,7 +499,7 @@ DELETE {BaseDataset} FROM {BaseDataset}
                     // then drop the table
                     SQLManager.DropTable(Conn, dbName, Dbo, Dataset);
                 }
-                if (SQLManager.HasTable(Conn, dbName, Dbo, BaseDataset)) {
+                if (sqlManager.HasTable(Conn, dbName, Dbo, BaseDataset)) {
                     SQLHelper sqlHelper = new SQLHelper(Conn, null, Languages);
                     SQLBuilder sb = new SQLBuilder();
                     sb.Add($@"

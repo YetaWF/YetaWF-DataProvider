@@ -4,6 +4,7 @@ using System;
 using System.Collections.Generic;
 using YetaWF.Core.Support;
 using YetaWF.DataProvider.SQL;
+using YetaWF.DataProvider.SQLGeneric;
 
 namespace YetaWF.DataProvider {
 
@@ -22,9 +23,10 @@ namespace YetaWF.DataProvider {
         }
         public bool DropSubTables(string dbName, string dbo, string tableName, List<string> errorList) {
             bool status = true;
+            SQLManager sqlManager = new SQLManager();
             string subtablePrefix = tableName + "_";
-            List<SQLManager.Table> tables = SQLManager.GetTables(Conn, dbName, dbo);
-            foreach (SQLManager.Table table in tables) {
+            List<SQLGenericGen.Table> tables = sqlManager.GetTables(Conn, dbName, dbo);
+            foreach (SQLGenericGen.Table table in tables) {
                 if (table.Name.StartsWith(subtablePrefix))
                     if (!DropTable(dbName, dbo, table.Name, errorList))
                         status = false;

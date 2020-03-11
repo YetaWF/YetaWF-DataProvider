@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Text;
 using YetaWF.Core.DataProvider;
 using YetaWF.Core.Support;
+using YetaWF.DataProvider.SQLGeneric;
 
 namespace YetaWF.DataProvider.SQL {
 
@@ -11,22 +12,7 @@ namespace YetaWF.DataProvider.SQL {
     /// Helper class used to create dynamic SQL strings.
     /// Similar to the System.Text.StringBuilder class but specialized for SQL statements.
     /// </summary>
-    public class SQLBuilder {
-
-        readonly StringBuilder _sb;
-
-        /// <summary>
-        /// Constructor.
-        /// </summary>
-        public SQLBuilder() {
-            _sb = new StringBuilder();
-        }
-
-        /// <summary>
-        /// Appends a string.
-        /// </summary>
-        /// <param name="s">The string to append.</param>
-        public void Add(string s) { _sb.Append(s); }
+    public class SQLBuilder : SQLGenericBuilder {
 
         /// <summary>
         /// Appends a table name. Renders a fully qualified table name, including database and DB owner, with brackets.
@@ -34,7 +20,7 @@ namespace YetaWF.DataProvider.SQL {
         /// <param name="database">The database name.</param>
         /// <param name="dbo">The database owner.</param>
         /// <param name="tableName">The table name.</param>
-        public void AddTable(string database, string dbo, string tableName) { _sb.Append(BuildFullTableName(database, dbo, tableName)); }
+        internal void AddTable(string database, string dbo, string tableName) { _sb.Append(BuildFullTableName(database, dbo, tableName)); }
 
         /// <summary>
         /// Returns a fully qualified table name, including database and DB owner, with brackets.
@@ -43,22 +29,7 @@ namespace YetaWF.DataProvider.SQL {
         /// <param name="dbo">The database owner.</param>
         /// <param name="tableName">The table name.</param>
         /// <returns>Returns a fully qualified table name, including database and DB owner, with brackets.</returns>
-        public static string GetTable(string database, string dbo, string tableName) { return BuildFullTableName(database, dbo, tableName); }
-
-        /// <summary>
-        /// Returns the complete SQL string built using this instance.
-        /// </summary>
-        /// <returns>Returns the complete SQL string.</returns>
-        public override string ToString() { return _sb.ToString(); }
-
-        /// <summary>
-        /// Removes the last appended character from the string.
-        /// </summary>
-        /// <remarks>This can be used when generating lists to remove the last trailing comma, for example.</remarks>
-        public void RemoveLastCharacter() {
-            if (_sb.Length > 0)
-                _sb.Remove(_sb.Length - 1, 1);// remove last character
-        }
+        internal string GetTable(string database, string dbo, string tableName) { return BuildFullTableName(database, dbo, tableName); }
 
         /// <summary>
         /// Appends a fully formatted ORDER BY clause based on the provided sort criteria and paging info.
@@ -71,7 +42,7 @@ namespace YetaWF.DataProvider.SQL {
         /// If <paramref name="Offset"/> and <paramref name="Next"/> are specified (not 0),
         /// OFFSET <paramref name="Offset"/> ROWS FETCH NEXT <paramref name="Next"/> ROWS ONLY is appended to the generated ORDER BY clause.
         /// </remarks>
-        public void AddOrderBy(Dictionary<string, string> visibleColumns, List<DataProviderSortInfo> sorts, int Offset = 0, int Next = 0) {
+        internal void AddOrderBy(Dictionary<string, string> visibleColumns, List<DataProviderSortInfo> sorts, int Offset = 0, int Next = 0) {
             Add(GetOrderBy(visibleColumns, sorts, Offset:Offset, Next: Next));
         }
         /// <summary>
@@ -85,7 +56,7 @@ namespace YetaWF.DataProvider.SQL {
         /// If <paramref name="Offset"/> and <paramref name="Next"/> are specified (not 0),
         /// OFFSET <paramref name="Offset"/> ROWS FETCH NEXT <paramref name="Next"/> ROWS ONLY is appended to the generated ORDER BY clause.
         /// </remarks>
-        public string GetOrderBy(Dictionary<string, string> visibleColumns, List<DataProviderSortInfo> sorts, int Offset = 0, int Next = 0) {
+        internal string GetOrderBy(Dictionary<string, string> visibleColumns, List<DataProviderSortInfo> sorts, int Offset = 0, int Next = 0) {
             StringBuilder sb = new StringBuilder();
             sb.Append("ORDER BY ");
             bool first = true;
@@ -105,7 +76,7 @@ namespace YetaWF.DataProvider.SQL {
         /// <param name="value">The value to search for.</param>
         /// <param name="escapeApostrophe">Defines whether to escape an apostrophe. Can be used to prevent double escaping of apostrophes.</param>
         /// <returns>Returns the translated value ready to be used in a LIKE statement.</returns>
-        public static string EscapeForLike(string value, bool escapeApostrophe = true) {
+        internal string EscapeForLike(string value, bool escapeApostrophe = true) {
             string[] specialChars = { "%", "_", "-", "^" };
             string newChars;
 
@@ -128,7 +99,7 @@ namespace YetaWF.DataProvider.SQL {
         /// </summary>
         /// <param name="sql">A SQL statement fragment.</param>
         /// <returns>Returns the clean SQL fragment, with escaped apostrophes.</returns>
-        public static string EscapeApostrophe(string sql) {
+        internal string EscapeApostrophe(string sql) {
             sql = sql.Replace("'", "''");
             return sql;
         }
@@ -143,7 +114,7 @@ namespace YetaWF.DataProvider.SQL {
         /// <param name="tableName">The table name.</param>
         /// <returns>Returns a formatted table or a formatted name database name, database owner and table name, with brackets.</returns>
         /// <remarks>The result is bracketed. This method considers whether any of the parameters is already bracketed in which case no further brackets are added.</remarks>
-        public static string BuildFullTableName(string tableName) {
+        public override string BuildFullTableName(string tableName) {
             return WrapBrackets(tableName);
         }
         /// <summary>
@@ -153,7 +124,7 @@ namespace YetaWF.DataProvider.SQL {
         /// <param name="column">The column name.</param>
         /// <returns>Returns a formatted table name and column name, with brackets.</returns>
         /// <remarks>The result is bracketed. This method considers whether either parameter is already bracketed in which case no further brackets are added.</remarks>
-        public static string BuildFullColumnName(string tableName, string column) {
+        public override string BuildFullColumnName(string tableName, string column) {
             return BuildFullTableName(tableName) + "." + WrapBrackets(column);
         }
         /// <summary>
@@ -164,7 +135,7 @@ namespace YetaWF.DataProvider.SQL {
         /// <param name="tableName">The table name.</param>
         /// <returns>Returns a formatted table or a formatted name database name, database owner and table name, with brackets.</returns>
         /// <remarks>The result is bracketed. This method considers whether any of the parameters is already bracketed in which case no further brackets are added.</remarks>
-        public static string BuildFullTableName(string database, string dbo, string tableName) {
+        public override string BuildFullTableName(string database, string dbo, string tableName) {
             return $"{WrapBrackets(database)}.{WrapBrackets(dbo)}.{WrapBrackets(tableName)}";
         }
         /// <summary>
@@ -176,7 +147,7 @@ namespace YetaWF.DataProvider.SQL {
         /// <param name="column">The column name.</param>
         /// <returns>Returns a formatted column name or a formatted database name, database owner, table name and column name, with brackets.</returns>
         /// <remarks>The result is bracketed. This method considers whether any of the parameters is already bracketed in which case no further brackets are added.</remarks>
-        public static string BuildFullColumnName(string database, string dbOwner, string tableName, string column) {
+        public override string BuildFullColumnName(string database, string dbOwner, string tableName, string column) {
             return WrapBrackets(database) + "." + WrapBrackets(dbOwner) + "." + BuildFullColumnName(tableName, column);
         }
         /// <summary>
@@ -186,7 +157,7 @@ namespace YetaWF.DataProvider.SQL {
         /// <param name="visibleColumns">The collection of columns visible in the table.</param>
         /// <returns>Returns a formatted column name or a formatted database name, database owner, table name and column name, with brackets.</returns>
         /// <remarks>The result is bracketed. This method considers whether any of the parameters is already bracketed in which case no further brackets are added.</remarks>
-        public static string BuildFullColumnName(string column, Dictionary<string, string> visibleColumns) {
+        internal string BuildFullColumnName(string column, Dictionary<string, string> visibleColumns) {
             if (visibleColumns != null) {
                 string longColumn;
                 if (!visibleColumns.TryGetValue(column, out longColumn))

@@ -25,13 +25,6 @@ namespace YetaWF.DataProvider {
 
     internal partial class SQLGen {
 
-        // This isn't used any longer.
-        // It was used to drop all constraints, foreign keys, but that turned out to be a problem.
-        // We don't really need it right now. Dropping all indexes/foreign keys was used
-        // when columns had to be converted from varchar to nvarchar. If such an issue comes up again,
-        // we have to handle it in UpdateTable.
-        public bool MajorDataChange = false;
-
         public SqlConnection Conn { get; private set; }
         public int IdentitySeed { get; private set; }
         public bool Logging { get; private set; }
@@ -83,6 +76,7 @@ namespace YetaWF.DataProvider {
                 bool SubTable = false) {
             try {
 
+                SQLManager sqlManager = new SQLManager();
                 Table currentTable = null;
                 Table newTable = new Table {
                     Name = tableName,
@@ -93,12 +87,12 @@ namespace YetaWF.DataProvider {
                     SubTables = new List<TableInfo>(),
                 };
 
-                if (SQLManager.HasTable(Conn, dbName, dbOwner, tableName)) {
+                if (sqlManager.HasTable(Conn, dbName, dbOwner, tableName)) {
                     currentTable = tableInfo.CurrentTable = new Table() {
                         Name = tableName,
                         Indexes = SQLManager.GetInfoIndexes(Conn, dbName, dbOwner, tableName),
                         ForeignKeys = SQLManager.GetInfoForeignKeys(Conn, dbName, dbOwner, tableName),
-                        Columns = SQLManager.GetInfoColumns(Conn, dbName, dbOwner, tableName),
+                        Columns = sqlManager.GetColumns(Conn, dbName, dbOwner, tableName),
                     };
                 }
                 bool hasSubTable = AddTableColumns(dbName, dbOwner, tableInfo, key1Name, key2Name, identityName, propData, tpProps, "", true, columns, errorList, SubTable: SubTable);
@@ -519,13 +513,8 @@ namespace YetaWF.DataProvider {
             List<Index> removedIndexes;
             List<ForeignKey> removedForeignKeys;
 
-            if (!MajorDataChange) {
-                removedIndexes = currentTable.Indexes.Except(newTable.Indexes, new IndexComparer()).ToList();
-                removedForeignKeys = currentTable.ForeignKeys.Except(newTable.ForeignKeys, new ForeignKeyComparer()).ToList();
-            } else {
-                removedIndexes = currentTable.Indexes;
-                removedForeignKeys = currentTable.ForeignKeys;
-            }
+            removedIndexes = currentTable.Indexes.Except(newTable.Indexes, new IndexComparer()).ToList();
+            removedForeignKeys = currentTable.ForeignKeys.Except(newTable.ForeignKeys, new ForeignKeyComparer()).ToList();
 
             StringBuilder sb = new StringBuilder();
 
@@ -568,12 +557,7 @@ namespace YetaWF.DataProvider {
             removedColumns = removedColumns.Except(alteredColumns, new ColumnNameComparer()).ToList();
             addedColumns = addedColumns.Except(alteredColumns, new ColumnNameComparer()).ToList();
 
-            List<Index> addedIndexes;
-            if (!MajorDataChange) {
-                addedIndexes = newTable.Indexes.Except(currentTable.Indexes, new IndexComparer()).ToList();
-            } else {
-                addedIndexes = newTable.Indexes;
-            }
+            List<Index> addedIndexes = newTable.Indexes.Except(currentTable.Indexes, new IndexComparer()).ToList();
 
             // Remove columns
             foreach (Column col in removedColumns) {
@@ -628,12 +612,7 @@ ELSE
 
             StringBuilder sb = new StringBuilder();
 
-            List<ForeignKey> addedForeignKeys;
-            if (!MajorDataChange)
-                addedForeignKeys = newTable.ForeignKeys.Except(currentTable.ForeignKeys, new ForeignKeyComparer()).ToList();
-            else
-                addedForeignKeys = newTable.ForeignKeys;
-
+            List<ForeignKey> addedForeignKeys = newTable.ForeignKeys.Except(currentTable.ForeignKeys, new ForeignKeyComparer()).ToList();
             foreach (ForeignKey fk in addedForeignKeys) {
                 sb.Append(GetAddForeignKey(fk, dbName, dbOwner, newTable));
             }

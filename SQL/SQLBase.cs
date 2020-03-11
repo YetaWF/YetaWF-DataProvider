@@ -12,11 +12,11 @@ using System.Threading.Tasks;
 using System.Transactions;
 using YetaWF.Core.DataProvider;
 using YetaWF.Core.DataProvider.Attributes;
-using YetaWF.Core.Language;
 using YetaWF.Core.Models;
 using YetaWF.Core.Packages;
 using YetaWF.Core.Support;
 using YetaWF.Core.Support.Serializers;
+using YetaWF.DataProvider.SQLGeneric;
 #if MVC6
 using Microsoft.Data.SqlClient;
 #else
@@ -28,13 +28,14 @@ namespace YetaWF.DataProvider.SQL {
     /// <summary>
     /// This abstract class is the base class for all SQL low-level data providers.
     /// </summary>
-    public abstract class SQLBase : IDisposable, IDataProviderTransactions {
+    public class SQLBase : SQLGenericBase, IDataProviderTransactions {
 
         /// <summary>
         /// Defines the name of the SQL low-level data provider.
         /// This name is used in AppSettings.json ("IOMode": "SQL").
         /// </summary>
         public const string ExternalName = "SQL";
+
         /// <summary>
         /// Defines the key used in AppSettings.json to define a SQL connection string
         /// ("SQLConnect": "Data Source=...datasource...;Initial Catalog=...catalog...;User ID=..userid..;Password=..password..").
@@ -43,88 +44,6 @@ namespace YetaWF.DataProvider.SQL {
 
         private const string DefaultString = "Default";
         private const string SQLDboString = "SQLDbo";
-
-        /// <summary>
-        /// Defines the column name used to associate a site with a data record. The __Site column contains the site ID, or 0 if there is no associated site.
-        /// Not all tables use the __Site column.
-        /// </summary>
-        public const string SiteColumn = "__Site";
-        /// <summary>
-        /// Defines the column name of the identity column used in tables. Not all tables use an identity column.
-        /// </summary>
-        public const string IdentityColumn = "Identity";
-        /// <summary>
-        /// Defines the column name in subtables to connect a subtable and its records to the main table.
-        /// The __Key column in a subtable contains the identity column used in the main table, used to join record data across tables.
-        /// </summary>
-        public const string SubTableKeyColumn = "__Key";
-
-        /// <summary>
-        /// A dictionary of options and optional parameters as provided to the YetaWF.Core.DataProvider.DataProviderImpl.MakeDataProvider method when the data provider was created.
-        /// </summary>
-        public Dictionary<string, object> Options { get; private set; }
-        /// <summary>
-        /// The package implementing the data provider.
-        /// </summary>
-        public Package Package { get; private set; }
-
-        /// <summary>
-        /// The section in AppSettings.json, where SQL connection string, database owner, etc. are located.
-        /// WebConfigArea is normally not specified and all connection information is derived from the AppSettings.json section that corresponds to the table name used by the data provider.
-        /// This can be overridden by passing an optional WebConfigArea parameter to the YetaWF.Core.DataProvider.DataProviderImpl.MakeDataProvider method when the data provider is created.
-        /// </summary>
-        /// <remarks>This is not used by application data providers. Only the YetaWF.DataProvider.ModuleDefinitionDataProvider uses this feature.</remarks>
-        public string WebConfigArea { get; private set; }
-        /// <summary>
-        /// The dataset provided to the YetaWF.Core.DataProvider.DataProviderImpl.MakeDataProvider method when the data provider was created.
-        /// </summary>
-        public string Dataset { get; protected set; }
-        /// <summary>
-        /// The database used by this data provider. This information is extracted from the SQL connection string.
-        /// </summary>
-        public string Database { get; private set; }
-        /// <summary>
-        /// The site identity provided to the YetaWF.Core.DataProvider.DataProviderImpl.MakeDataProvider method when the data provider was created.
-        ///
-        /// This may be 0 if no specific site is associated with the data provider.
-        /// </summary>
-        public int SiteIdentity { get; private set; }
-        /// <summary>
-        /// The initial value of the identity seed. The default value is defined by YetaWF.Core.DataProvider.DataProviderImpl.IDENTITY_SEED, but this can be overridden by passing an
-        /// optional IdentitySeed parameter to the YetaWF.Core.DataProvider.DataProviderImpl.MakeDataProvider method when the data provider is created.
-        /// </summary>
-        public int IdentitySeed { get; private set; }
-        /// <summary>
-        /// Defines whether the data is cacheable.
-        /// This corresponds to the Cacheable parameter of the YetaWF.Core.DataProvider.DataProviderImpl.MakeDataProvider method.
-        /// </summary>
-        public bool Cacheable { get; private set; }
-        /// <summary>
-        /// Defines whether logging is wanted for the data provider. The default value is false, but this can be overridden by passing an
-        /// optional Logging parameter to the YetaWF.Core.DataProvider.DataProviderImpl.MakeDataProvider method when the data provider is created.
-        /// </summary>
-        public bool Logging { get; private set; }
-        /// <summary>
-        /// Defines whether language support (for YetaWF.Core.Models.MultiString) is wanted for the data provider. The default is true. This can be overridden by passing an
-        /// optional NoLanguages parameter to the YetaWF.Core.DataProvider.DataProviderImpl.MakeDataProvider method when the data provider is created.
-        /// </summary>
-        public bool NoLanguages { get; private set; }
-        /// <summary>
-        /// Defines the languages supported by the data provider. If NoLanguages is true, no language data is available.
-        /// Otherwise, the languages supported are identical to collection of active languages defined by YetaWF.Core.Models.MultiString.Languages.
-        /// </summary>
-        public List<LanguageData> Languages { get; private set; }
-
-        /// <summary>
-        /// An optional callback which is called whenever an object is retrieved to update some properties.
-        /// </summary>
-        /// <remarks>
-        /// Properties that are derived from other property values are considered "calculated properties". This callback
-        /// is called after retrieving an object to update these properties.
-        ///
-        /// This callback is typically set by the data provider itself, in its constructor or as the data provider is being created.
-        /// </remarks>
-        protected Func<string, Task<string>> CalculatedPropertyCallbackAsync { get; set; }
 
         /// <summary>
         /// Defines the SQL connection string used by this data provider.
@@ -159,62 +78,25 @@ namespace YetaWF.DataProvider.SQL {
         ///
         /// For debugging purposes, instances of this class are tracked using the DisposableTracker class.
         /// </remarks>
-        protected SQLBase(Dictionary<string, object> options) {
-            Options = options;
-            if (!Options.ContainsKey(nameof(Package)) || !(Options[nameof(Package)] is Package))
-                throw new InternalError($"No Package for data provider {GetType().FullName}");
-            Package = (Package)Options[nameof(Package)];
-            if (!Options.ContainsKey(nameof(Dataset)) || string.IsNullOrWhiteSpace((string)Options[nameof(Dataset)]))
-                throw new InternalError($"No Dataset for data provider {GetType().FullName}");
-            Dataset = (string)Options[nameof(Dataset)];
-            if (Options.ContainsKey(nameof(SiteIdentity)) && Options[nameof(SiteIdentity)] is int)
-                SiteIdentity = Convert.ToInt32(Options[nameof(SiteIdentity)]);
-            if (Options.ContainsKey(nameof(IdentitySeed)) && Options[nameof(IdentitySeed)] is int)
-                IdentitySeed = Convert.ToInt32(Options[nameof(IdentitySeed)]);
-            else
-                IdentitySeed = DataProviderImpl.IDENTITY_SEED;
-            if (Options.ContainsKey(nameof(Cacheable)) && Options[nameof(Cacheable)] is bool)
-                Cacheable = Convert.ToBoolean(Options[nameof(Cacheable)]);
-            if (Options.ContainsKey(nameof(Logging)) && Options[nameof(Logging)] is bool)
-                Logging = Convert.ToBoolean(Options[nameof(Logging)]);
-            else
-                Logging = true;
-            if (Options.ContainsKey(nameof(NoLanguages)) && Options[nameof(NoLanguages)] is bool)
-                NoLanguages = Convert.ToBoolean(Options[nameof(NoLanguages)]);
-
-            if (Options.ContainsKey("WebConfigArea"))
-                WebConfigArea = (string)Options["WebConfigArea"];
-
+        protected SQLBase(Dictionary<string, object> options) : base(options) {
             SqlConnectionStringBuilder sqlsb = new SqlConnectionStringBuilder(GetSqlConnectionString());
             sqlsb.MultipleActiveResultSets = true;
             ConnectionString = sqlsb.ToString();
             Dbo = GetSqlDbo();
 
-            if (NoLanguages)
-                Languages = new List<LanguageData>();
-            else {
-                Languages = MultiString.Languages;
-                if (Languages.Count == 0) throw new InternalError("We need Languages");
-            }
             if (SiteIdentity > 0)
                 AndSiteIdentity = $"AND [{SiteColumn}] = {SiteIdentity}";
 
             Conn = GetSqlConnection(ConnectionString);
             ConnDynamic = true;
-
-            DisposableTracker.AddObject(this);
         }
         /// <summary>
         /// Performs application-defined tasks associated with freeing, releasing, or resetting unmanaged resources.
         /// </summary>
-        public void Dispose() { Dispose(true); }
-        /// <summary>
-        /// Performs application-defined tasks associated with freeing, releasing, or resetting unmanaged resources.
-        /// </summary>
         /// <param name="disposing">true to close the database connection and release the DisposableTracker reference count, false otherwise.</param>
-        protected virtual void Dispose(bool disposing) {
+        protected override void Dispose(bool disposing) {
+            base.Dispose(disposing);
             if (disposing) {
-                DisposableTracker.RemoveObject(this);
                 if (Conn != null) {
                     if (ConnDynamic)
                         ReleaseSqlConnection(ConnectionString);
@@ -240,7 +122,7 @@ namespace YetaWF.DataProvider.SQL {
             Database = Conn.Database;
             return Task.CompletedTask;
         }
-        private static object OpenLock = new object();
+        private static readonly object OpenLock = new object();
 
         private class ConnectionEntry {
             public SqlConnection Conn { get; set; }
@@ -315,121 +197,6 @@ namespace YetaWF.DataProvider.SQL {
         }
         private static string _defaultConnectString;
         private static string _defaultDbo;
-
-        /// <summary>
-        /// Returns the primary key's column name.
-        /// </summary>
-        /// <param name="tableName">The table name.</param>
-        /// <param name="propertyData">The collection of property information.</param>
-        /// <returns> Returns the primary key's column name.</returns>
-        /// <remarks>
-        /// A primary key is defined in a model by decorating a property with the YetaWF.Core.DataProvider.Attributes.Data_PrimaryKey attribute.
-        /// If no primary key is defined for the specified table, an exception occurs.
-        /// </remarks>
-        protected string GetKey1Name(string tableName, List<PropertyData> propertyData) {
-            if (_key1Name == null) {
-                // find primary key
-                foreach (var prop in propertyData) {
-                    if (prop.HasAttribute(Data_PrimaryKey.AttributeName)) {
-                        _key1Name = prop.Name;
-                        return prop.Name;
-                    }
-                }
-                throw new InternalError("Primary key not defined in table {0}", tableName);
-            }
-            return _key1Name;
-        }
-        private string _key1Name;
-
-        /// <summary>
-        /// Returns the secondary key's column name.
-        /// </summary>
-        /// <param name="tableName">The table name.</param>
-        /// <param name="propertyData">The collection of property information.</param>
-        /// <returns> Returns the secondary key's column name.</returns>
-        /// <remarks>
-        /// A secondary key is defined in a model by decorating a property with the YetaWF.Core.DataProvider.Attributes.Data_PrimaryKey2 attribute.
-        /// If no secondary key is defined for the specified table, an exception occurs.
-        /// </remarks>
-        protected string GetKey2Name(string tableName, List<PropertyData> propertyData) {
-            if (_key2Name == null) {
-                // find primary key
-                foreach (var prop in propertyData) {
-                    if (prop.HasAttribute(Data_PrimaryKey2.AttributeName)) {
-                        _key2Name = prop.Name;
-                        return prop.Name;
-                    }
-                }
-                throw new InternalError("Second primary key not defined in table {0}", tableName);
-            }
-            return _key2Name;
-        }
-        private string _key2Name;
-
-        /// <summary>
-        /// Returns the identity column name.
-        /// </summary>
-        /// <param name="tableName">The table name.</param>
-        /// <param name="propertyData">The collection of property information.</param>
-        /// <returns>Returns the identity column name.</returns>
-        /// <remarks>
-        /// An identity column is defined in a model by decorating a property with the YetaWF.Core.DataProvider.Attributes.Data_Identity attribute.
-        /// If no identity column is defined for the specified table, an empty string is returned.
-        /// </remarks>
-        protected string GetIdentityName(string tableName, List<PropertyData> propertyData) {
-            if (_identityName == null) {
-                // find identity
-                foreach (var prop in propertyData) {
-                    if (prop.HasAttribute(Data_Identity.AttributeName)) {
-                        _identityName = prop.Name;
-                        return _identityName;
-                    }
-                }
-                _identityName = "";
-            }
-            return _identityName;
-        }
-        private string _identityName;
-
-        /// <summary>
-        /// Returns whether the specified identity name string <paramref name="identityName"/> is a valid identity name.
-        /// </summary>
-        /// <param name="identityName">A string.</param>
-        /// <returns>Returns whether the specified identity name strin <paramref name="identityName"/> is a valid identity name.</returns>
-        protected bool HasIdentity(string identityName) {
-            return !string.IsNullOrWhiteSpace(identityName);
-        }
-
-        /// <summary>
-        /// Tests whether a given type is a simple type that can be stored in one column.
-        /// </summary>
-        /// <param name="tp">The type to test.</param>
-        /// <returns>Returns true if the type is a simple type that can be stored in one column, false otherwise.</returns>
-        protected static bool TryGetDataType(Type tp) {
-            if (tp == typeof(DateTime) || tp == typeof(DateTime?))
-                return true;
-            else if (tp == typeof(TimeSpan) || tp == typeof(TimeSpan?))
-                return true;
-            else if (tp == typeof(decimal) || tp == typeof(decimal?))
-                return true;
-            else if (tp == typeof(bool) || tp == typeof(bool?))
-                return true;
-            else if (tp == typeof(System.Guid) || tp == typeof(System.Guid?))
-                return true;
-            else if (tp == typeof(Image))
-                return true;
-            else if (tp == typeof(int) || tp == typeof(int?))
-                return true;
-            else if (tp == typeof(long) || tp == typeof(long?))
-                return true;
-            else if (tp == typeof(Single) || tp == typeof(Single?))
-                return true;
-            else if (tp == typeof(string))
-                return true;
-            else if (tp.IsEnum)
-                return true;
-            return false;
-        }
 
         // IDATAPROVIDERTRANSACTIONS
         // IDATAPROVIDERTRANSACTIONS
@@ -509,53 +276,6 @@ namespace YetaWF.DataProvider.SQL {
         // SORTS, FILTERS
         // SORTS, FILTERS
 
-        // Update column names for constructed names (as used in MultiString)
-        internal List<DataProviderFilterInfo> NormalizeFilter(Type type, List<DataProviderFilterInfo> filters) {
-            if (filters == null) return null;
-            filters = (from f in filters select new DataProviderFilterInfo(f)).ToList();// copy list
-            foreach (DataProviderFilterInfo f in filters) {
-                if (f.Field != null && !f.Field.StartsWith("["))
-                    f.Field = f.Field.Replace(".", "_");
-            }
-            DataProviderFilterInfo.NormalizeFilters(type, filters);
-            foreach (DataProviderFilterInfo filter in filters) {
-                if (filter.Filters != null)
-                    filter.Filters = NormalizeFilter(type, filter.Filters);
-                else if (!string.IsNullOrWhiteSpace(filter.Field))
-                    filter.Field = NormalizeFilter(type, filter);
-            }
-            return filters;
-        }
-        private string NormalizeFilter(Type type, DataProviderFilterInfo filter) {
-            PropertyData propData = ObjectSupport.TryGetPropertyData(type, filter.Field);
-            if (propData == null) return filter.Field; // could be a composite field, like Event.ImplementingAssembly
-            if (propData.PropInfo.PropertyType == typeof(MultiString)) {
-                MultiString ms = new MultiString(filter.ValueAsString);
-                filter.Value = ms.ToString();
-                return ColumnFromPropertyWithLanguage(MultiString.ActiveLanguage, filter.Field);
-            }
-            return propData.ColumnName;
-        }
-        internal List<DataProviderSortInfo> NormalizeSort(Type type, List<DataProviderSortInfo> sorts) {
-            if (sorts == null) return null;
-            sorts = (from s in sorts select new DataProviderSortInfo(s)).ToList();// copy list
-            foreach (DataProviderSortInfo sort in sorts) {
-                PropertyData propData = ObjectSupport.TryGetPropertyData(type, sort.Field);
-                if (propData == null)
-                    throw new InternalError($"Property {sort.Field} used for sorting not found");
-                if (propData.PropInfo.PropertyType == typeof(MultiString))
-                    sort.Field = ColumnFromPropertyWithLanguage(MultiString.ActiveLanguage, sort.Field);
-                else
-                    sort.Field = propData.ColumnName;
-            }
-            return sorts;
-        }
-        internal static string ColumnFromPropertyWithLanguage(string langId, string field) {
-            return field + "_" + langId.Replace("-", "_");
-        }
-        internal static string GetLanguageSuffix() {
-            return ColumnFromPropertyWithLanguage(MultiString.ActiveLanguage, "");
-        }
         internal async Task<string> MakeJoinsAsync(SQLHelper helper, List<JoinData> joins) {
             SQLBuilder sb = new SQLBuilder();
             if (joins != null) {
@@ -571,9 +291,9 @@ namespace YetaWF.DataProvider.SQL {
                     sb.Add(" ON ");
                     if (join.UseSite && SiteIdentity > 0)
                         sb.Add("(");
-                    sb.Add($"{SQLBuilder.BuildFullColumnName(mainTable, join.MainColumn)} = {SQLBuilder.BuildFullColumnName(joinTable, join.JoinColumn)}");
+                    sb.Add($"{sb.BuildFullColumnName(mainTable, join.MainColumn)} = {sb.BuildFullColumnName(joinTable, join.JoinColumn)}");
                     if (join.UseSite && SiteIdentity > 0)
-                        sb.Add($") AND {SQLBuilder.BuildFullColumnName(mainTable, SiteColumn)} = {SQLBuilder.BuildFullColumnName(joinTable, SiteColumn)}");
+                        sb.Add($") AND {sb.BuildFullColumnName(mainTable, SiteColumn)} = {sb.BuildFullColumnName(joinTable, SiteColumn)}");
                 }
             }
             return sb.ToString();
@@ -587,10 +307,10 @@ namespace YetaWF.DataProvider.SQL {
                     sb.Add("WHERE ");
                 sqlHelper.AddWhereExpr(sb, Dataset, filters, visibleColumns);
                 if (SiteIdentity > 0)
-                    sb.Add($") AND {SQLBuilder.BuildFullColumnName(Database, Dbo, Dataset, SiteColumn)} = {SiteIdentity}");
+                    sb.Add($") AND {sb.BuildFullColumnName(Database, Dbo, Dataset, SiteColumn)} = {SiteIdentity}");
             } else {
                 if (SiteIdentity > 0)
-                    sb.Add($"WHERE {SQLBuilder.BuildFullColumnName(Database, Dbo, Dataset, SiteColumn)} = {SiteIdentity}");
+                    sb.Add($"WHERE {sb.BuildFullColumnName(Database, Dbo, Dataset, SiteColumn)} = {SiteIdentity}");
             }
             return sb.ToString();
         }
@@ -614,9 +334,10 @@ namespace YetaWF.DataProvider.SQL {
         // Flatten the current table(with joins) and create a lookup table for all fields.
         // If a joined table has a field with the same name as the lookup table, it is not accessible.
         internal async Task<Dictionary<string, string>> GetVisibleColumnsAsync(string databaseName, string dbOwner, string tableName, Type objType, List<JoinData> joins) {
+            SQLManager sqlManager = new SQLManager();
             Dictionary<string, string> visibleColumns = new Dictionary<string, string>();
             tableName = tableName.Trim(new char[] { '[', ']' });
-            List<string> columns = SQLManager.GetColumns(Conn, databaseName, dbOwner, tableName);
+            List<string> columns = sqlManager.GetColumnsOnly(Conn, databaseName, dbOwner, tableName);
             AddVisibleColumns(visibleColumns, databaseName, dbOwner, tableName, columns);
             if (CalculatedPropertyCallbackAsync != null) {
                 List<PropertyData> props = ObjectSupport.GetPropertyData(objType);
@@ -632,23 +353,24 @@ namespace YetaWF.DataProvider.SQL {
                     dbOwner = mainInfo.GetDbOwner();
                     tableName = mainInfo.GetTableName();
                     tableName = tableName.Split(new char[] { '.' }).Last().Trim(new char[] { '[', ']' });
-                    columns = SQLManager.GetColumns(Conn, databaseName, dbOwner, tableName);
+                    columns = sqlManager.GetColumnsOnly(Conn, databaseName, dbOwner, tableName);
                     AddVisibleColumns(visibleColumns, databaseName, dbOwner, tableName, columns);
                     ISQLTableInfo joinInfo = await join.JoinDP.GetDataProvider().GetISQLTableInfoAsync();
                     databaseName = joinInfo.GetDatabaseName();
                     dbOwner = joinInfo.GetDbOwner();
                     tableName = joinInfo.GetTableName();
                     tableName = tableName.Split(new char[] { '.' }).Last().Trim(new char[] { '[', ']' });
-                    columns = SQLManager.GetColumns(join.JoinDP.GetDataProvider().Conn, databaseName, dbOwner, tableName);
+                    columns = sqlManager.GetColumnsOnly(join.JoinDP.GetDataProvider().Conn, databaseName, dbOwner, tableName);
                     AddVisibleColumns(visibleColumns, databaseName, dbOwner, tableName, columns);
                 }
             }
             return visibleColumns;
         }
         private void AddVisibleColumns(Dictionary<string, string> visibleColumns, string databaseName, string dbOwner, string tableName, List<string> columns) {
+            SQLBuilder sb = new SQLBuilder();
             foreach (string column in columns) {
                 if (!visibleColumns.ContainsKey(column))
-                    visibleColumns.Add(column, SQLBuilder.BuildFullColumnName(databaseName, dbOwner, tableName, column));
+                    visibleColumns.Add(column, sb.BuildFullColumnName(databaseName, dbOwner, tableName, column));
             }
         }
 
@@ -1122,7 +844,8 @@ namespace YetaWF.DataProvider.SQL {
         /// </summary>
         /// <returns>Returns the table name used by the data provider.</returns>
         public string GetTableName() {
-            return SQLBuilder.BuildFullTableName(Database, Dbo, Dataset);
+            SQLBuilder sb = new SQLBuilder();
+            return sb.BuildFullTableName(Database, Dbo, Dataset);
         }
         /// <summary>
         /// Replaces search text in a SQL string fragment with the table name used by the data provider.

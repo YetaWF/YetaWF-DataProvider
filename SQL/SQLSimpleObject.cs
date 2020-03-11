@@ -107,11 +107,12 @@ namespace YetaWF.DataProvider.SQL {
         /// <param name="key2">The secondary key value.</param>
         /// <returns>Returns the record that satisfies the specified primary and secondary keys. If no record exists null is returned.</returns>
         public async Task<OBJTYPE> GetAsync(KEYTYPE key, KEYTYPE2 key2) {
+            SQLBuilder sb = new SQLBuilder();
             await EnsureOpenAsync();
             SQLHelper sqlHelper = new SQLHelper(Conn, null, Languages);
 
             string joins = null;// RFFU
-            string fullTableName = SQLBuilder.GetTable(Database, Dbo, Dataset);
+            string fullTableName = sb.GetTable(Database, Dbo, Dataset);
             string calcProps = await CalculatedPropertiesAsync(typeof(OBJTYPE));
             string andKey2 = HasKey2 ? "AND " + sqlHelper.Expr(Key2Name, "=", key2) : null;
 
@@ -148,11 +149,12 @@ WHERE {sqlHelper.Expr(Key1Name, "=", key)} {andKey2} {AndSiteIdentity}  --- resu
         /// For all other errors, an exception occurs.
         /// </returns>
         public async Task<bool> AddAsync(OBJTYPE obj) {
+            SQLBuilder sb = new SQLBuilder();
             await EnsureOpenAsync();
 
             SQLHelper sqlHelper = new SQLHelper(Conn, null, Languages);
 
-            string fullTableName = SQLBuilder.GetTable(Database, Dbo, Dataset);
+            string fullTableName = sb.GetTable(Database, Dbo, Dataset);
             List<PropertyData> propData = GetPropertyData();
             string columns = GetColumnList(propData, obj.GetType(), "", true, SiteSpecific: SiteIdentity > 0);
             string values = GetValueList(sqlHelper, Dataset, obj, propData, typeof(OBJTYPE), SiteSpecific: SiteIdentity > 0);
@@ -227,11 +229,12 @@ DECLARE @__IDENTITY int = @@IDENTITY
         /// <param name="obj">The object being updated.</param>
         /// <returns>Returns a status indicator.</returns>
         public async Task<UpdateStatusEnum> UpdateAsync(KEYTYPE origKey, KEYTYPE2 origKey2, KEYTYPE newKey, KEYTYPE2 newKey2, OBJTYPE obj) {
+            SQLBuilder sb = new SQLBuilder();
             await EnsureOpenAsync();
 
             SQLHelper sqlHelper = new SQLHelper(Conn, null, Languages);
 
-            string fullTableName = SQLBuilder.GetTable(Database, Dbo, Dataset);
+            string fullTableName = sb.GetTable(Database, Dbo, Dataset);
             List<PropertyData> propData = GetPropertyData();
             string setColumns = SetColumns(sqlHelper, Dataset, propData, obj, typeof(OBJTYPE));
             string andKey2 = HasKey2 ? "AND " + sqlHelper.Expr(Key2Name, "=", origKey2) : null;
@@ -309,11 +312,12 @@ SELECT @@ROWCOUNT --- result set
         /// <param name="key2">The secondary key value of the record to remove.</param>
         /// <returns>Returns true if the record was removed, or false if the record was not found. Other errors cause an exception.</returns>
         public async Task<bool> RemoveAsync(KEYTYPE key, KEYTYPE2 key2) {
+            SQLBuilder sb = new SQLBuilder();
             await EnsureOpenAsync();
 
             SQLHelper sqlHelper = new SQLHelper(Conn, null, Languages);
 
-            string fullTableName = SQLBuilder.GetTable(Database, Dbo, Dataset);
+            string fullTableName = sb.GetTable(Database, Dbo, Dataset);
             string andKey2 = HasKey2 ? "AND " + sqlHelper.Expr(Key2Name, "=", key2) : null;
 
             List<PropertyData> propData = GetPropertyData();
@@ -390,12 +394,13 @@ SELECT @@ROWCOUNT --- result set
         /// <param name="filters">A collection describing the filtering criteria.</param>
         /// <returns>Returns the number of records removed.</returns>
         public async Task<int> RemoveRecordsAsync(List<DataProviderFilterInfo> filters) {
+            SQLBuilder sb = new SQLBuilder();
             await EnsureOpenAsync();
             filters = NormalizeFilter(typeof(OBJTYPE), filters);
 
             SQLHelper sqlHelper = new SQLHelper(Conn, null, Languages);
 
-            string fullTableName = SQLBuilder.GetTable(Database, Dbo, Dataset);
+            string fullTableName = sb.GetTable(Database, Dbo, Dataset);
             List<PropertyData> propData = GetPropertyData();
             string filter = MakeFilter(sqlHelper, filters);
 
@@ -452,12 +457,12 @@ DROP TABLE #TEMPTABLE
         }
 
         internal async Task<DataProviderGetRecords<OBJTYPE>> GetMainTableRecordsAsync(int skip, int take, List<DataProviderSortInfo> sorts, List<DataProviderFilterInfo> filters, List<JoinData> Joins = null) {
-
+            SQLBuilder sb = new SQLBuilder();
             SQLHelper sqlHelper = new SQLHelper(Conn, null, Languages);
 
             DataProviderGetRecords<OBJTYPE> recs = new DataProviderGetRecords<OBJTYPE>();
 
-            string fullTableName = SQLBuilder.GetTable(Database, Dbo, Dataset);
+            string fullTableName = sb.GetTable(Database, Dbo, Dataset);
             List<PropertyData> propData = GetPropertyData();
             Dictionary<string, string> visibleColumns = await GetVisibleColumnsAsync(Database, Dbo, Dataset, typeof(OBJTYPE), Joins);
             string columnList = MakeColumnList(sqlHelper, visibleColumns, Joins);
@@ -467,14 +472,14 @@ DROP TABLE #TEMPTABLE
             // get total # of records (only if a subset is requested)
             string selectCount = null;
             if (skip != 0 || take != 0) {
-                SQLBuilder sb = new SQLBuilder();
+                sb = new SQLBuilder();
                 sb.Add($"SELECT COUNT(*) FROM {fullTableName} WITH(NOLOCK) {joins} {filter} ");
                 selectCount = sb.ToString();
             }
 
             string orderBy;
             {
-                SQLBuilder sb = new SQLBuilder();
+                sb = new SQLBuilder();
                 if (sorts == null || sorts.Count == 0)
                     sorts = new List<DataProviderSortInfo> { new DataProviderSortInfo { Field = Key1Name, Order = DataProviderSortInfo.SortDirection.Ascending } };
                 sb.AddOrderBy(visibleColumns, sorts, skip, take);
@@ -536,6 +541,7 @@ FROM {fullTableName} WITH(NOLOCK)
 
         // TODO: Could add caching
         internal List<SubTableInfo> GetSubTables(string tableName, List<PropertyData> propData) {
+            SQLBuilder sb = new SQLBuilder();
             List<SubTableInfo> list = new List<SubTableInfo>();
             foreach (PropertyData prop in propData) {
                 PropertyInfo pi = prop.PropInfo;
@@ -556,7 +562,7 @@ FROM {fullTableName} WITH(NOLOCK)
                         // enumerated type -> subtable
                         Type subType = pi.PropertyType.GetInterfaces().Where(t => t.IsGenericType == true && t.GetGenericTypeDefinition() == typeof(IEnumerable<>))
                                 .Select(t => t.GetGenericArguments()[0]).FirstOrDefault();
-                        string subTableName = SQLBuilder.BuildFullTableName(tableName + "_" + pi.Name);
+                        string subTableName = sb.BuildFullTableName(tableName + "_" + pi.Name);
                         list.Add(new SubTableInfo {
                             Name = subTableName,
                             Type = subType,
@@ -574,7 +580,7 @@ FROM {fullTableName} WITH(NOLOCK)
             if (subTables.Count > 0) {
                 foreach (SubTableInfo subTable in subTables) {
                     sb.Add($@"
-    SELECT * FROM {SQLBuilder.BuildFullTableName(Database, Dbo, subTable.Name)} WHERE {SQLBuilder.BuildFullColumnName(subTable.Name, SubTableKeyColumn)} = @ident ; --- result set
+    SELECT * FROM {sb.BuildFullTableName(Database, Dbo, subTable.Name)} WHERE {sb.BuildFullColumnName(subTable.Name, SubTableKeyColumn)} = @ident ; --- result set
 ");
                 }
             }
@@ -585,13 +591,13 @@ FROM {fullTableName} WITH(NOLOCK)
             SQLBuilder sb = new SQLBuilder();
             List<SubTableInfo> subTables = GetSubTables(tableName, propData);
             if (subTables.Count > 0) {
-                string keyExpr = (key == null || key.Equals(default(KEYTYPE)) ? "1=1" : $"{SQLBuilder.BuildFullColumnName(Database, Dbo, tableName, Key1Name)} = {sqlHelper.AddTempParam(key)}");
+                string keyExpr = (key == null || key.Equals(default(KEYTYPE)) ? "1=1" : $"{sb.BuildFullColumnName(Database, Dbo, tableName, Key1Name)} = {sqlHelper.AddTempParam(key)}");
                 string andKey2 = HasKey2 ? "AND " + sqlHelper.Expr(Key2Name, "=", key2) : null;
 
                 foreach (SubTableInfo subTable in subTables) {
                     sb.Add($@"
-    SELECT * FROM {SQLBuilder.BuildFullTableName(Database, Dbo, subTable.Name)}   --- result set
-    INNER JOIN {SQLBuilder.BuildFullTableName(Database, Dbo, tableName)} ON {SQLBuilder.BuildFullColumnName(tableName, IdentityNameOrDefault)} = {SQLBuilder.BuildFullColumnName(subTable.Name, SubTableKeyColumn)}
+    SELECT * FROM {sb.BuildFullTableName(Database, Dbo, subTable.Name)}   --- result set
+    INNER JOIN {sb.BuildFullTableName(Database, Dbo, tableName)} ON {sb.BuildFullColumnName(tableName, IdentityNameOrDefault)} = {sb.BuildFullColumnName(subTable.Name, SubTableKeyColumn)}
     WHERE {keyExpr} {andKey2} {AndSiteIdentity}
 ");
                     sb.Add(@"
@@ -717,7 +723,7 @@ FROM {fullTableName} WITH(NOLOCK)
             List<SubTableInfo> subTables = GetSubTables(tableName, propData);
             foreach (SubTableInfo subTable in subTables) {
                 sb.Add($@"
-    DELETE FROM {SQLBuilder.BuildFullTableName(Database, Dbo, subTable.Name)} WHERE {SQLBuilder.BuildFullColumnName(subTable.Name, SubTableKeyColumn)} = @ident ;
+    DELETE FROM {sb.BuildFullTableName(Database, Dbo, subTable.Name)} WHERE {sb.BuildFullColumnName(subTable.Name, SubTableKeyColumn)} = @ident ;
 ");
             }
             return sb.ToString();
@@ -732,8 +738,9 @@ FROM {fullTableName} WITH(NOLOCK)
         /// </summary>
         /// <returns>true if the data provider is installed and available, false otherwise.</returns>
         public async Task<bool> IsInstalledAsync() {
+            SQLManager sqlManager = new SQLManager();
             await EnsureOpenAsync();
-            return SQLManager.HasTable(Conn, Database, Dbo, Dataset);
+            return sqlManager.HasTable(Conn, Database, Dbo, Dataset);
         }
 
         /// <summary>
@@ -745,6 +752,7 @@ FROM {fullTableName} WITH(NOLOCK)
         /// <remarks>
         /// While a package is installed, all data models are installed by calling the InstallModelAsync method.</remarks>
         public async Task<bool> InstallModelAsync(List<string> errorList) {
+            SQLManager sqlManager = new SQLManager();
             await EnsureOpenAsync();
             List<string> columns = new List<string>();
             SQLGen sqlCreate = new SQLGen(Conn, Languages, IdentitySeed, Logging);
@@ -752,7 +760,7 @@ FROM {fullTableName} WITH(NOLOCK)
             bool success = sqlCreate.CreateTableFromModel(Database, Dbo, Dataset, Key1Name, HasKey2 ? Key2Name : null, IdentityName, GetPropertyData(), typeof(OBJTYPE), errorList, columns,
                 SiteSpecific: SiteIdentity > 0,
                 TopMost: true);
-            SQLManager.ClearCache();
+            sqlManager.ClearCache();
             return success;
         }
 
@@ -765,6 +773,7 @@ FROM {fullTableName} WITH(NOLOCK)
         /// <remarks>
         /// While a package is uninstalled, all data models are uninstalled by calling the UninstallModelAsync method.</remarks>
         public async Task<bool> UninstallModelAsync(List<string> errorList) {
+            SQLManager sqlManager = new SQLManager();
             await EnsureOpenAsync();
             try {
                 SQLGen sqlCreate = new SQLGen(Conn, Languages, IdentitySeed, Logging);
@@ -780,7 +789,7 @@ FROM {fullTableName} WITH(NOLOCK)
                 errorList.Add(string.Format("{0}: {1}", typeof(OBJTYPE).FullName, ErrorHandling.FormatExceptionMessage(exc)));
                 return false;
             } finally {
-                SQLManager.ClearCache();
+                sqlManager.ClearCache();
             }
         }
 
@@ -799,11 +808,11 @@ FROM {fullTableName} WITH(NOLOCK)
         /// When a site is deleted, the RemoveSiteDataAsync method is called for all data providers.
         /// Data providers can then remove site-specific data as the site is removed.</remarks>
         public async Task RemoveSiteDataAsync() { // remove site-specific data
+            SQLBuilder sb = new SQLBuilder();
             await EnsureOpenAsync();
             if (SiteIdentity > 0) {
-                string fullTableName = SQLBuilder.GetTable(Database, Dbo, Dataset);
+                string fullTableName = sb.GetTable(Database, Dbo, Dataset);
                 SQLHelper sqlHelper = new SQLHelper(Conn, null, Languages);
-                SQLBuilder sb = new SQLBuilder();
                 sb.Add($@"
 DELETE FROM {fullTableName} WHERE [{SiteColumn}] = {SiteIdentity}
 ;
