@@ -39,7 +39,7 @@ namespace YetaWF.DataProvider.SQL {
 #if DEBUG
                 SQLBuilder sb = new SQLBuilder();
                 sb.Add("-- Debug"); sb.Add(Environment.NewLine);
-                foreach (var p in Params) {
+                foreach (SqlParameter p in Params) {
                     string val = p.Value?.ToString();
                     if (val != null) val = val.Replace('\r', ' ').Replace('\n', ' ');
                     sb.Add($"-- {p.ParameterName} - {val}"); sb.Add(Environment.NewLine);
@@ -76,7 +76,7 @@ namespace YetaWF.DataProvider.SQL {
         }
         public void FillObject(IDataReader dr, object obj) {
             List<string> columns = new List<string>();
-            for (var ci = 0; ci < dr.FieldCount; ci++)
+            for (int ci = 0; ci < dr.FieldCount; ci++)
                 columns.Add(dr.GetName(ci));
             FillObject(dr, obj, columns);
         }
@@ -103,7 +103,7 @@ namespace YetaWF.DataProvider.SQL {
                         }
                     } else if (pi.PropertyType == typeof(MultiString)) {
                         MultiString ms = prop.GetPropertyValue<MultiString>(container);
-                        foreach (var lang in Languages) {
+                        foreach (LanguageData lang in Languages) {
                             string key = colName + "_" + lang.Id.Replace("-", "_");
                             if (columns.Contains(key)) {
                                 object value = dr[key];
@@ -136,7 +136,7 @@ namespace YetaWF.DataProvider.SQL {
             }
         }
         private bool ComplexTypeInColumns(List<string> columns, string prefix) {
-            foreach (var column in columns) {
+            foreach (string column in columns) {
                 if (column.StartsWith(prefix))
                     return true;
             }
@@ -305,7 +305,7 @@ namespace YetaWF.DataProvider.SQL {
         }
         private void AddFiltersExpr(SQLBuilder sb, string tableName, List<DataProviderFilterInfo> filter, string logic, Dictionary<string, string> visibleColumns) {
             bool firstDone = false;
-            foreach (var f in filter) {
+            foreach (DataProviderFilterInfo f in filter) {
                 if (firstDone) {
                     if (logic == "and" || logic == "&&") sb.Add(" AND ");
                     else if (logic == "or" || logic == "||") sb.Add(" OR ");
@@ -421,7 +421,7 @@ namespace YetaWF.DataProvider.SQL {
         /// <param name="value">The value of the parameter</param>
         /// <returns>The generated name for the parameter</returns>
         public string AddTempParam(object value) {
-            var name = "_tempParam" + Params.Count;
+            string name = "_tempParam" + Params.Count;
             AddParam(name, value);
             return "@" + name;
         }
@@ -431,7 +431,7 @@ namespace YetaWF.DataProvider.SQL {
         /// </summary>
         /// <returns>The generated name for the parameter</returns>
         public string AddNullTempParam(ParameterDirection direction = ParameterDirection.Input) {
-            var name = "_tempParam" + Params.Count;
+            string name = "_tempParam" + Params.Count;
             SqlParameter parm = new SqlParameter(name, SqlDbType.Binary);
             parm.Direction = direction;
             Params.Add(parm);

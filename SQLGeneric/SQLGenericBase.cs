@@ -235,7 +235,7 @@ namespace YetaWF.DataProvider.SQLGeneric {
         protected string GetKey2Name(string tableName, List<PropertyData> propertyData) {
             if (_key2Name == null) {
                 // find primary key
-                foreach (var prop in propertyData) {
+                foreach (PropertyData prop in propertyData) {
                     if (prop.HasAttribute(Data_PrimaryKey2.AttributeName)) {
                         _key2Name = prop.Name;
                         return prop.Name;
@@ -260,7 +260,7 @@ namespace YetaWF.DataProvider.SQLGeneric {
         protected string GetIdentityName(string tableName, List<PropertyData> propertyData) {
             if (_identityName == null) {
                 // find identity
-                foreach (var prop in propertyData) {
+                foreach (PropertyData prop in propertyData) {
                     if (prop.HasAttribute(Data_Identity.AttributeName)) {
                         _identityName = prop.Name;
                         return _identityName;
@@ -286,7 +286,7 @@ namespace YetaWF.DataProvider.SQLGeneric {
         /// </summary>
         /// <param name="tp">The type to test.</param>
         /// <returns>Returns true if the type is a simple type that can be stored in one column, false otherwise.</returns>
-        protected static bool TryGetDataType(Type tp) {
+        public static bool TryGetDataType(Type tp) {
             if (tp == typeof(DateTime) || tp == typeof(DateTime?))
                 return true;
             else if (tp == typeof(TimeSpan) || tp == typeof(TimeSpan?))

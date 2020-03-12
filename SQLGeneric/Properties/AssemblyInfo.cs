@@ -4,7 +4,7 @@ using System.Reflection;
 using YetaWF.PackageAttributes;
 
 [assembly: AssemblyTitle("SQL")]
-[assembly: AssemblyDescription("YetaWF SQL Data Provider")]
+[assembly: AssemblyDescription("YetaWF Base Classes For All SQL-Based Data Provider")]
 [assembly: AssemblyConfiguration("")]
 [assembly: AssemblyCompany("Softel vdm, Inc.")]
 [assembly: AssemblyCopyright("Copyright © 2020 - Softel vdm, Inc.")]

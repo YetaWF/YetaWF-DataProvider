@@ -1,6 +1,9 @@
 ﻿/* Copyright © 2020 Softel vdm, Inc. - https://yetawf.com/Documentation/YetaWF/Licensing */
 
+using System;
 using System.Collections.Generic;
+using System.Drawing;
+using System.Linq;
 
 namespace YetaWF.DataProvider.SQLGeneric {
 
@@ -28,6 +31,9 @@ namespace YetaWF.DataProvider.SQLGeneric {
                 Indexes = new List<Index>();
                 ForeignKeys = new List<ForeignKey>();
                 CachedColumns = new List<Column>();
+            }
+            public bool HasColumn(string name) {
+                return (from c in Columns where c.Name == name select c).FirstOrDefault() != null;
             }
         }
         public class Column {

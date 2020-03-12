@@ -395,12 +395,12 @@ WHERE {fullBaseTableName}.[DerivedDataTableName] = '{Dataset}' AND {fullBaseTabl
                 // subtract all properties that are already defined in the base type
                 List<PropertyData> basePropData = GetBasePropertyData();
                 _propertyData = new List<PropertyData>();
-                foreach (var p in propData) {
+                foreach (PropertyData p in propData) {
                     if (p.HasAttribute(Data_PrimaryKey.AttributeName)) {
                         // The primary key has to be present in both derived and base table because they're used as foreign key
                         _propertyData.Add(p);
                     } else {
-                        var first = (from bp in basePropData where bp.Name == p.Name select p).FirstOrDefault();
+                        PropertyData first = (from bp in basePropData where bp.Name == p.Name select p).FirstOrDefault();
                         if (first == null)
                             _propertyData.Add(p);
                     }

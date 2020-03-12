@@ -151,7 +151,7 @@ namespace YetaWF.DataProvider {
                                 if (propIndex.PropInfo.PropertyType == typeof(MultiString)) {
                                     if (Languages.Count == 0) throw new InternalError("We need Languages for MultiString support");
                                     MultiString ms = new MultiString();
-                                    foreach (var lang in Languages) {
+                                    foreach (LanguageData lang in Languages) {
                                         string col = SQLBase.ColumnFromPropertyWithLanguage(lang.Id, propIndex.Name);
                                         Index newIndex = new Index {
                                             Name = "K_" + tableName + "_" + col,
@@ -333,7 +333,7 @@ namespace YetaWF.DataProvider {
                         } else if (pi.PropertyType == typeof(MultiString)) {
                             if (Languages.Count == 0)
                                 throw new InternalError("We need Languages for MultiString support");
-                            foreach (var lang in Languages) {
+                            foreach (LanguageData lang in Languages) {
                                 colName = prefix + SQLBase.ColumnFromPropertyWithLanguage(lang.Id, prop.Name);
                                 Column newColumn = new Column {
                                     Name = colName,
@@ -359,7 +359,7 @@ namespace YetaWF.DataProvider {
                                 Nullable = true,
                             };
                             newTable.Columns.Add(newColumn);
-                        } else if (TryGetDataType(pi.PropertyType)) {
+                        } else if (SQLGenericBase.TryGetDataType(pi.PropertyType)) {
                             Column newColumn = new Column {
                                 Name = colName,
                                 Nullable = true,
@@ -380,7 +380,7 @@ namespace YetaWF.DataProvider {
                                 nullable = true;
                             newColumn.Nullable = nullable;
                             Data_NewValue newValAttr = (Data_NewValue)pi.GetCustomAttribute(typeof(Data_NewValue));
-                            if (currentTable != null && !HasColumn(currentTable, colName)) {
+                            if (currentTable != null && !currentTable.HasColumn(colName)) {
                                 if (newValAttr == null)
                                     throw new InternalError("Property {0} in table {1} doesn't have a Data_NewValue attribute, which is required when updating tables", prop.Name, newTable.Name);
                             }
@@ -632,35 +632,6 @@ ELSE
             }
         }
 
-        private bool HasColumn(Table table, string name) {
-            return (from c in table.Columns where c.Name == name select c).FirstOrDefault() != null;
-        }
-
-        protected bool TryGetDataType(Type tp) {
-            if (tp == typeof(DateTime) || tp == typeof(DateTime?))
-                return true;
-            else if (tp == typeof(TimeSpan) || tp == typeof(TimeSpan?))
-                return true;
-            else if (tp == typeof(decimal) || tp == typeof(decimal?))
-                return true;
-            else if (tp == typeof(bool) || tp == typeof(bool?))
-                return true;
-            else if (tp == typeof(System.Guid) || tp == typeof(System.Guid?))
-                return true;
-            else if (tp == typeof(Image))
-                return true;
-            else if (tp == typeof(int) || tp == typeof(int?))
-                return true;
-            else if (tp == typeof(long) || tp == typeof(long?))
-                return true;
-            else if (tp == typeof(Single) || tp == typeof(Single?))
-                return true;
-            else if (tp == typeof(string))
-                return true;
-            else if (tp.IsEnum)
-                return true;
-            return false;
-        }
         private SqlDbType GetDataType(PropertyInfo pi) {
             Type tp = pi.PropertyType;
             if (tp == typeof(DateTime) || tp == typeof(DateTime?))

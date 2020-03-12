@@ -17,6 +17,7 @@ using YetaWF.Core.Packages;
 using YetaWF.Core.Support;
 using YetaWF.Core.Support.Serializers;
 using YetaWF.DataProvider.SQLGeneric;
+using YetaWF.Core.Language;
 #if MVC6
 using Microsoft.Data.SqlClient;
 #else
@@ -40,10 +41,11 @@ namespace YetaWF.DataProvider.SQL {
         /// Defines the key used in AppSettings.json to define a SQL connection string
         /// ("SQLConnect": "Data Source=...datasource...;Initial Catalog=...catalog...;User ID=..userid..;Password=..password..").
         /// </summary>
-        public const string SQLConnectString = "SQLConnect";
+        internal const string SQLConnectString = "SQLConnect";
+
+        internal const string SQLDboString = "SQLDbo";
 
         private const string DefaultString = "Default";
-        private const string SQLDboString = "SQLDbo";
 
         /// <summary>
         /// Defines the SQL connection string used by this data provider.
@@ -401,7 +403,7 @@ namespace YetaWF.DataProvider.SQL {
                         sb.Add($"[{prefix}{colName}],");
                     } else if (pi.PropertyType == typeof(MultiString)) {
                         if (Languages.Count == 0) throw new InternalError("We need Languages for MultiString support");
-                        foreach (var lang in Languages)
+                        foreach (LanguageData lang in Languages)
                             sb.Add($"[{prefix}{ColumnFromPropertyWithLanguage(lang.Id, colName)}],");
                     } else if (pi.PropertyType == typeof(Image)) {
                         sb.Add($"[{prefix}{colName}],");
@@ -462,7 +464,7 @@ namespace YetaWF.DataProvider.SQL {
                     } else if (pi.PropertyType == typeof(MultiString)) {
                         if (Languages.Count == 0) throw new InternalError("We need Languages for MultiString support");
                         MultiString ms = (MultiString)pi.GetValue(container);
-                        foreach (var lang in Languages) {
+                        foreach (LanguageData lang in Languages) {
                             sb.Add(sqlHelper.AddTempParam(ms[lang.Id] ?? ""));
                             sb.Add(",");
                         }
@@ -540,7 +542,7 @@ namespace YetaWF.DataProvider.SQL {
                     } else if (pi.PropertyType == typeof(MultiString)) {
                         if (Languages.Count == 0) throw new InternalError("We need Languages for MultiString support");
                         MultiString ms = (MultiString)pi.GetValue(container);
-                        foreach (var lang in Languages) {
+                        foreach (LanguageData lang in Languages) {
                             sb.Add(sqlHelper.Expr(prefix + ColumnFromPropertyWithLanguage(lang.Id, colName), "=", ms[lang.Id], true));
                             sb.Add(",");
                         }
@@ -597,7 +599,7 @@ namespace YetaWF.DataProvider.SQL {
             sql = sql.Replace("{TableName}", SQLBuilder.WrapBrackets(tableName));
             if (SiteIdentity > 0)
                 sql = sql.Replace($"{{{SiteColumn}}}", $"[{SiteColumn}] = {SiteIdentity}");
-            var o = await sqlHelper.ExecuteScalarAsync(sql);
+            object o = await sqlHelper.ExecuteScalarAsync(sql);
             if (o == null || o.GetType() == typeof(System.DBNull))
                 return 0;
             return Convert.ToInt32(o);

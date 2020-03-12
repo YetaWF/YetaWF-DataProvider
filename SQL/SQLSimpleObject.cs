@@ -651,7 +651,7 @@ FROM {fullTableName} WITH(NOLOCK)
             foreach (SubTableInfo subTable in subTables) {
                 List<PropertyData> subPropData = ObjectSupport.GetPropertyData(subTable.Type);
                 IEnumerable ienum = (IEnumerable)subTable.PropInfo.GetValue(container);
-                foreach (var obj in ienum) {
+                foreach (object obj in ienum) {
                     string columns = GetColumnList(subPropData, subTable.Type, "", false, SubTable: true);
                     string values = GetValueList(sqlHelper, Dataset, obj, subPropData, subTable.Type, "", false, SubTable: true);
                     sb.Add($@"
@@ -673,7 +673,7 @@ FROM {fullTableName} WITH(NOLOCK)
 ");
                 List<PropertyData> subPropData = ObjectSupport.GetPropertyData(subTable.Type);
                 IEnumerable ienum = (IEnumerable)subTable.PropInfo.GetValue(container);
-                foreach (var obj in ienum) {
+                foreach (object obj in ienum) {
                     string columns = GetColumnList(subPropData, subTable.Type, "", false, SubTable: true);
                     string values = GetValueList(sqlHelper, Dataset, obj, subPropData, subTable.Type, "", false, SubTable: true);
                     sb.Add($@"
