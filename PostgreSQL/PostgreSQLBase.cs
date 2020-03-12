@@ -1,8 +1,10 @@
 ﻿/* Copyright © 2020 Softel vdm, Inc. - https://yetawf.com/Documentation/YetaWF/Licensing */
 
+using Npgsql;
 using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.Data.Common;
 using System.Drawing;
 using System.IO;
 using System.Linq;
@@ -12,62 +14,52 @@ using System.Threading.Tasks;
 using System.Transactions;
 using YetaWF.Core.DataProvider;
 using YetaWF.Core.DataProvider.Attributes;
+using YetaWF.Core.Language;
 using YetaWF.Core.Models;
 using YetaWF.Core.Packages;
 using YetaWF.Core.Support;
 using YetaWF.Core.Support.Serializers;
 using YetaWF.DataProvider.SQLGeneric;
-using YetaWF.Core.Language;
-#if MVC6
-using Microsoft.Data.SqlClient;
-#else
-using System.Data.SqlClient;
-#endif
 
-namespace YetaWF.DataProvider.SQL {
+namespace YetaWF.DataProvider.PostgreSQL {
 
     /// <summary>
-    /// This abstract class is the base class for all SQL low-level data providers.
+    /// This abstract class is the base class for all PostgreSQL low-level data providers.
     /// </summary>
     public abstract class SQLBase : SQLGenericBase, IDataProviderTransactions {
 
         /// <summary>
-        /// Defines the name of the SQL low-level data provider.
-        /// This name is used in AppSettings.json ("IOMode": "SQL").
+        /// Defines the name of the PostgreSQL low-level data provider.
+        /// This name is used in AppSettings.json ("IOMode": "PostgreSQL").
         /// </summary>
-        public const string ExternalName = "SQL";
-
+        public const string ExternalName = "PostgreSQL";
         /// <summary>
-        /// Defines the key used in AppSettings.json to define a SQL connection string
-        /// ("SQLConnect": "Data Source=...datasource...;Initial Catalog=...catalog...;User ID=..userid..;Password=..password..").
+        /// Defines the key used in appsettings.json to define a PostgreSQL connection string
+        /// ("PostgreSQLConnect": "Host=..host..;Port=..port..;Database=..database..;User ID=..userid..;Password=..password..").
         /// </summary>
-        internal const string SQLConnectString = "SQLConnect";
+        internal const string PostgreSQLConnectString = "PostgreSQLConnect";
 
-        internal const string SQLDboString = "SQLDbo";
+        internal const string PostgreSQLSchemaString = "PostgreSQLSchema";
 
         private const string DefaultString = "Default";
 
         /// <summary>
-        /// Defines the SQL connection string used by this data provider.
+        /// Defines the PostgreSQL connection string used by this data provider.
         /// </summary>
-        /// <remarks>The connection string is defined in AppSettings.json but may be modified by the data provider.
-        /// The ConnectionString property contains the actual connection string used to connect to the SQL database.
+        /// <remarks>The connection string is defined in appsettings.json but may be modified by the data provider.
+        /// The ConnectionString property contains the actual connection string used to connect to the PostgreSQL database.
         /// </remarks>
         public string ConnectionString { get; private set; }
         /// <summary>
-        /// Defines the database owner used by this data provider.
+        /// Defines the database schema used by this data provider.
         /// </summary>
-        /// <remarks>The database owner is defined in AppSettings.json ("SQLDbo": "dbo").
+        /// <remarks>The database schema is defined in AppSettings.json ("PostgreSQLSchema": "public").
         /// </remarks>
-        public string Dbo { get; private set; }
+        public string Schema { get; private set; }
         /// <summary>
-        /// The underlying Microsoft.Data.SqlClient.SqlConnection object used to connect to the database.
+        /// The underlying Nqgsql.NpgsqlConnection object used to connect to the database.
         /// </summary>
-        public SqlConnection Conn { get; private set; }
-        /// <summary>
-        /// Dynamically allocated SQL connection with a use count, otherwise it's explicitly allocated.
-        /// </summary>
-        public bool ConnDynamic { get; private set; }
+        public NpgsqlConnection Conn { get; private set; }
 
         internal string AndSiteIdentity { get; private set; }
 
@@ -81,16 +73,15 @@ namespace YetaWF.DataProvider.SQL {
         /// For debugging purposes, instances of this class are tracked using the DisposableTracker class.
         /// </remarks>
         protected SQLBase(Dictionary<string, object> options, bool HasKey2 = false) : base(options, HasKey2) {
-            SqlConnectionStringBuilder sqlsb = new SqlConnectionStringBuilder(GetSqlConnectionString());
-            sqlsb.MultipleActiveResultSets = true;
+            NpgsqlConnectionStringBuilder sqlsb = new NpgsqlConnectionStringBuilder(GetPostgreSqlConnectionString());
+            //$$$ sqlsb.MultipleActiveResultSets = true;
             ConnectionString = sqlsb.ToString();
-            Dbo = GetSqlDbo();
+            Schema = GetPostgreSqlSchema();
 
             if (SiteIdentity > 0)
-                AndSiteIdentity = $"AND [{SiteColumn}] = {SiteIdentity}";
+                AndSiteIdentity = $"AND \"{SiteColumn}\" = {SiteIdentity}";
 
-            Conn = GetSqlConnection(ConnectionString);
-            ConnDynamic = true;
+            Conn = new NpgsqlConnection(ConnectionString);
         }
         /// <summary>
         /// Performs application-defined tasks associated with freeing, releasing, or resetting unmanaged resources.
@@ -100,10 +91,8 @@ namespace YetaWF.DataProvider.SQL {
             base.Dispose(disposing);
             if (disposing) {
                 if (Conn != null) {
-                    if (ConnDynamic)
-                        ReleaseSqlConnection(ConnectionString);
-                    else
-                        Conn.Close();
+                    Conn.Close();
+                    Conn.Dispose();
                     Conn = null;
                 }
             }
@@ -115,90 +104,53 @@ namespace YetaWF.DataProvider.SQL {
         /// </summary>
         /// <remarks>Originally the connection was opened in the constructor (yeah, bad idea I had many years ago, before async).
         /// To avoid having to change the public APIs for data providers, this call in APIs offered by data providers opens the connection. All data provider APIs are async so no changes needed.</remarks>
-        public Task EnsureOpenAsync() {
-            lock (OpenLock) { // prevent concurrent Open calls, could cause errors when multiple threads try to open the same DB
-                if (Conn.State == System.Data.ConnectionState.Closed) {
-                    Conn.Open();
-                }
-            }
-            Database = Conn.Database;
-            return Task.CompletedTask;
-        }
-        private static readonly object OpenLock = new object();
-
-        private class ConnectionEntry {
-            public SqlConnection Conn { get; set; }
-            public int UseCount { get; set; }
-        }
-        private SqlConnection GetSqlConnection(string connectionString) {
-            lock (ConnectionCacheLock) {
-                ConnectionEntry entry;
-                if (ConnectionCache.TryGetValue(connectionString, out entry)) {
-                    entry.UseCount++;
-                    return entry.Conn;
-                }
-                entry = new ConnectionEntry {
-                    Conn = new SqlConnection(connectionString),
-                    UseCount = 1,
-                };
-                ConnectionCache.Add(connectionString, entry);
-                return entry.Conn;
-            }
-        }
-        private void ReleaseSqlConnection(string connectionString) {
-            lock (ConnectionCacheLock) {
-                ConnectionEntry entry;
-                if (!ConnectionCache.TryGetValue(connectionString, out entry))
-                    throw new InternalError($"Releasing unallocated sql connection");
-                entry.UseCount--;
-                if (entry.UseCount <= 0) {
-                    ConnectionCache.Remove(connectionString);
-                    entry.Conn.Close();
-                    entry.Conn.Dispose();
-                }
+        public async Task EnsureOpenAsync() {
+            if (Conn.State == System.Data.ConnectionState.Closed) {
+                if (YetaWFManager.IsSync())
+                    Conn.OpenAsync().Wait();
+                else
+                    await Conn.OpenAsync();
+                Database = Conn.Database;
             }
         }
 
-        private static Dictionary<string, ConnectionEntry> ConnectionCache = new Dictionary<string, ConnectionEntry>();
-        private static object ConnectionCacheLock = new object();
-
-
-        private string GetSqlConnectionString() {
-            string connString = WebConfigHelper.GetValue<string>(string.IsNullOrWhiteSpace(WebConfigArea) ? Dataset : WebConfigArea, SQLConnectString);
+        private string GetPostgreSqlConnectionString() {
+            string connString = WebConfigHelper.GetValue<string>(string.IsNullOrWhiteSpace(WebConfigArea) ? Dataset : WebConfigArea, PostgreSQLConnectString);
             if (string.IsNullOrWhiteSpace(connString)) {
                 if (string.IsNullOrWhiteSpace(WebConfigArea))
-                    connString = WebConfigHelper.GetValue<string>(Package.AreaName, SQLConnectString);
+                    connString = WebConfigHelper.GetValue<string>(Package.AreaName, PostgreSQLConnectString);
                 if (string.IsNullOrWhiteSpace(connString)) {
                     if (_defaultConnectString == null) {
-                        _defaultConnectString = WebConfigHelper.GetValue<string>(DefaultString, SQLConnectString);
+                        _defaultConnectString = WebConfigHelper.GetValue<string>(DefaultString, PostgreSQLConnectString);
                         if (_defaultConnectString == null)
                             throw new InternalError("No SQLConnect connection string found (also no default)");
                     }
                     connString = _defaultConnectString;
                 }
             }
-            if (string.IsNullOrWhiteSpace(connString)) throw new InternalError($"No SQL connection string provided (also no default)");
+            if (string.IsNullOrWhiteSpace(connString)) throw new InternalError($"No PostgreSQL connection string provided (also no default)");
             return connString;
         }
-        private string GetSqlDbo() {
-            string dbo = WebConfigHelper.GetValue<string>(string.IsNullOrWhiteSpace(WebConfigArea) ? Dataset : WebConfigArea, SQLDboString);
-            if (string.IsNullOrWhiteSpace(dbo)) {
+        private string GetPostgreSqlSchema() {
+            string schema = WebConfigHelper.GetValue<string>(string.IsNullOrWhiteSpace(WebConfigArea) ? Dataset : WebConfigArea, PostgreSQLSchemaString);
+            if (string.IsNullOrWhiteSpace(schema)) {
                 if (string.IsNullOrWhiteSpace(WebConfigArea))
-                    dbo = WebConfigHelper.GetValue<string>(Package.AreaName, SQLDboString);
-                if (string.IsNullOrWhiteSpace(dbo)) {
-                    if (_defaultDbo == null) {
-                        _defaultDbo = WebConfigHelper.GetValue<string>(DefaultString, SQLDboString);
-                        if (_defaultDbo == null)
-                            throw new InternalError("No SQLDBo owner found (also no default)");
+                    schema = WebConfigHelper.GetValue<string>(Package.AreaName, PostgreSQLSchemaString);
+                if (string.IsNullOrWhiteSpace(schema)) {
+                    if (_defaultSchema == null) {
+                        _defaultSchema = WebConfigHelper.GetValue<string>(DefaultString, PostgreSQLSchemaString);
+                        if (_defaultSchema == null)
+                            throw new InternalError("No PostgreSQLSchema schema found (also no default)");
                     }
-                    dbo = _defaultDbo;
+                    schema = _defaultSchema;
                 }
             }
-            if (string.IsNullOrWhiteSpace(dbo)) throw new InternalError($"No SQL dbo provided (also no default)");
-            return dbo;
+            if (string.IsNullOrWhiteSpace(schema)) throw new InternalError($"No PostgreSQLSchema schema provided (also no default)");
+            return schema;
         }
         private static string _defaultConnectString;
-        private static string _defaultDbo;
+        private static string _defaultSchema;
+
 
         // IDATAPROVIDERTRANSACTIONS
         // IDATAPROVIDERTRANSACTIONS
@@ -210,47 +162,7 @@ namespace YetaWF.DataProvider.SQL {
         /// Starts a transaction that can be committed, saving all updates, or aborted to abandon all updates.
         /// </summary>
         /// <returns>Returns a YetaWF.Core.DataProvider.DataProviderTransaction object.</returns>
-        /// <remarks>
-        /// It is expected that the first dataprovider to be used will implicitly open the connection.
-        /// Second, it is expected that all dataproviders will be disposed of around the same time(otherwise you'll get "can't access disposed object" for a connection.
-        /// Lastly, if you use a dataprovider that is not the owner or listed as a dps parameter, you'll still get  'This platform does not support distributed transactions.'
-        /// </remarks>
         public DataProviderTransaction StartTransaction(DataProviderImpl ownerDP, params DataProviderImpl[] dps) {
-            // This is to work around the 'This platform does not support distributed transactions.'
-            // problem because we are using multiple connections, even if it's the same database.
-            // we consolidate all dataproviders to use one dataprovider (the owner).
-            // In order to participate in the transaction we have to open the connection, so we use a non-cached,
-            // non-dynamic connection (for all data providers).
-
-            // release the owner's current connection
-            SQLBase ownerSqlBase = (SQLBase)ownerDP.GetDataProvider();
-            if (ConnDynamic)
-                ownerSqlBase.ReleaseSqlConnection(ownerSqlBase.ConnectionString);
-            else if (ownerSqlBase.Conn != null)
-                ownerSqlBase.Conn.Close();
-            ownerSqlBase.Conn = null;
-
-            // release all dependent dataprovider's connection
-            foreach (DataProviderImpl dp in dps) {
-                SQLBase sqlBase = (SQLBase)dp.GetDataProvider();
-                if (ConnDynamic)
-                    sqlBase.ReleaseSqlConnection(sqlBase.ConnectionString);
-                else if (ownerSqlBase.Conn != null)
-                    sqlBase.Conn.Close();
-                sqlBase.Conn = null;
-            }
-
-            // Make a new connection
-            ownerSqlBase.Conn = new SqlConnection(ownerSqlBase.ConnectionString);
-            ownerSqlBase.ConnDynamic = false;
-
-            // all dependent data providers have to use the same connection
-            foreach (DataProviderImpl dp in dps) {
-                SQLBase sqlBase = (SQLBase)dp.GetDataProvider();
-                sqlBase.Conn = ownerSqlBase.Conn;
-                sqlBase.ConnDynamic = false;
-            }
-
             if (Trans != null) throw new InternalError("StartTransaction has already been called for this data provider");
             Trans = new TransactionScope(TransactionScopeOption.Required, new TransactionOptions { IsolationLevel = IsolationLevel.Serializable }, TransactionScopeAsyncFlowOption.Enabled);
             return new DataProviderTransaction(CommitTransactionAsync, AbortTransaction);
@@ -282,9 +194,9 @@ namespace YetaWF.DataProvider.SQL {
             SQLBuilder sb = new SQLBuilder();
             if (joins != null) {
                 foreach (JoinData join in joins) {
-                    ISQLTableInfo joinInfo = await join.JoinDP.GetDataProvider().GetISQLTableInfoAsync();
+                    IPostgreSQLTableInfo joinInfo = await join.JoinDP.GetDataProvider().GetIPostgreSQLTableInfoAsync();
                     string joinTable = joinInfo.GetTableName();
-                    ISQLTableInfo mainInfo = await join.MainDP.GetDataProvider().GetISQLTableInfoAsync();
+                    IPostgreSQLTableInfo mainInfo = await join.MainDP.GetDataProvider().GetIPostgreSQLTableInfoAsync();
                     string mainTable = mainInfo.GetTableName();
                     if (join.JoinType == JoinData.JoinTypeEnum.Left)
                         sb.Add($"LEFT JOIN {joinTable}");
@@ -309,10 +221,10 @@ namespace YetaWF.DataProvider.SQL {
                     sb.Add("WHERE ");
                 sqlHelper.AddWhereExpr(sb, Dataset, filters, visibleColumns);
                 if (SiteIdentity > 0)
-                    sb.Add($") AND {sb.BuildFullColumnName(Database, Dbo, Dataset, SiteColumn)} = {SiteIdentity}");
+                    sb.Add($") AND {sb.BuildFullColumnName(Database, Schema, Dataset, SiteColumn)} = {SiteIdentity}");
             } else {
                 if (SiteIdentity > 0)
-                    sb.Add($"WHERE {sb.BuildFullColumnName(Database, Dbo, Dataset, SiteColumn)} = {SiteIdentity}");
+                    sb.Add($"WHERE {sb.BuildFullColumnName(Database, Schema, Dataset, SiteColumn)} = {SiteIdentity}");
             }
             return sb.ToString();
         }
@@ -335,12 +247,12 @@ namespace YetaWF.DataProvider.SQL {
 
         // Flatten the current table(with joins) and create a lookup table for all fields.
         // If a joined table has a field with the same name as the lookup table, it is not accessible.
-        internal async Task<Dictionary<string, string>> GetVisibleColumnsAsync(string databaseName, string dbOwner, string tableName, Type objType, List<JoinData> joins) {
-            SQLManager sqlManager = new SQLManager();
+        internal async Task<Dictionary<string, string>> GetVisibleColumnsAsync(string databaseName, string schema, string tableName, Type objType, List<JoinData> joins) {
+			SQLManager sqlManager = new SQLManager();
             Dictionary<string, string> visibleColumns = new Dictionary<string, string>();
             tableName = tableName.Trim(new char[] { '[', ']' });
-            List<string> columns = sqlManager.GetColumnsOnly(Conn, databaseName, dbOwner, tableName);
-            AddVisibleColumns(visibleColumns, databaseName, dbOwner, tableName, columns);
+            List<string> columns = sqlManager.GetColumnsOnly(Conn, databaseName, schema, tableName);
+            AddVisibleColumns(visibleColumns, databaseName, schema, tableName, columns);
             if (CalculatedPropertyCallbackAsync != null) {
                 List<PropertyData> props = ObjectSupport.GetPropertyData(objType);
                 props = (from p in props where p.CalculatedProperty select p).ToList();
@@ -350,29 +262,29 @@ namespace YetaWF.DataProvider.SQL {
             if (joins != null) {
                 // no support for calculated properties in joined tables
                 foreach (JoinData join in joins) {
-                    ISQLTableInfo mainInfo = await join.MainDP.GetDataProvider().GetISQLTableInfoAsync();
+                    IPostgreSQLTableInfo mainInfo = await join.MainDP.GetDataProvider().GetIPostgreSQLTableInfoAsync();
                     databaseName = mainInfo.GetDatabaseName();
-                    dbOwner = mainInfo.GetDbOwner();
+                    schema = mainInfo.GetSchema();
                     tableName = mainInfo.GetTableName();
                     tableName = tableName.Split(new char[] { '.' }).Last().Trim(new char[] { '[', ']' });
-                    columns = sqlManager.GetColumnsOnly(Conn, databaseName, dbOwner, tableName);
-                    AddVisibleColumns(visibleColumns, databaseName, dbOwner, tableName, columns);
-                    ISQLTableInfo joinInfo = await join.JoinDP.GetDataProvider().GetISQLTableInfoAsync();
+                    columns = sqlManager.GetColumnsOnly(Conn, databaseName, schema, tableName);
+                    AddVisibleColumns(visibleColumns, databaseName, schema, tableName, columns);
+                    IPostgreSQLTableInfo joinInfo = await join.JoinDP.GetDataProvider().GetIPostgreSQLTableInfoAsync();
                     databaseName = joinInfo.GetDatabaseName();
-                    dbOwner = joinInfo.GetDbOwner();
+                    schema = joinInfo.GetSchema();
                     tableName = joinInfo.GetTableName();
                     tableName = tableName.Split(new char[] { '.' }).Last().Trim(new char[] { '[', ']' });
-                    columns = sqlManager.GetColumnsOnly(join.JoinDP.GetDataProvider().Conn, databaseName, dbOwner, tableName);
-                    AddVisibleColumns(visibleColumns, databaseName, dbOwner, tableName, columns);
+                    columns = sqlManager.GetColumnsOnly(join.JoinDP.GetDataProvider().Conn, databaseName, schema, tableName);
+                    AddVisibleColumns(visibleColumns, databaseName, schema, tableName, columns);
                 }
             }
             return visibleColumns;
         }
-        private void AddVisibleColumns(Dictionary<string, string> visibleColumns, string databaseName, string dbOwner, string tableName, List<string> columns) {
+        private void AddVisibleColumns(Dictionary<string, string> visibleColumns, string databaseName, string schema, string tableName, List<string> columns) {
             SQLBuilder sb = new SQLBuilder();
             foreach (string column in columns) {
                 if (!visibleColumns.ContainsKey(column))
-                    visibleColumns.Add(column, sb.BuildFullColumnName(databaseName, dbOwner, tableName, column));
+                    visibleColumns.Add(column, sb.BuildFullColumnName(databaseName, schema, tableName, column));
             }
         }
 
@@ -400,15 +312,15 @@ namespace YetaWF.DataProvider.SQL {
                     if (prop.HasAttribute(Data_Identity.AttributeName)) {
                         ; // nothing
                     } else if (prop.HasAttribute(Data_BinaryAttribute.AttributeName)) {
-                        sb.Add($"[{prefix}{colName}],");
+                        sb.Add($"\"{prefix}{colName}\",");
                     } else if (pi.PropertyType == typeof(MultiString)) {
                         if (Languages.Count == 0) throw new InternalError("We need Languages for MultiString support");
                         foreach (LanguageData lang in Languages)
-                            sb.Add($"[{prefix}{ColumnFromPropertyWithLanguage(lang.Id, colName)}],");
+                            sb.Add($"\"{prefix}{ColumnFromPropertyWithLanguage(lang.Id, colName)}\",");
                     } else if (pi.PropertyType == typeof(Image)) {
-                        sb.Add($"[{prefix}{colName}],");
+                        sb.Add($"\"{prefix}{colName}\",");
                     } else if (TryGetDataType(pi.PropertyType)) {
-                        sb.Add($"[{prefix}{colName}],");
+                        sb.Add($"\"{prefix}{colName}\",");
                     } else if (pi.PropertyType.IsClass /* && propmmd.Model != null*/ && typeof(IEnumerable).IsAssignableFrom(pi.PropertyType)) {
                         // This is a enumerated type, so we have to create separate values using this table's identity column as a link
                         ; // these values are added as a subtable
@@ -423,15 +335,15 @@ namespace YetaWF.DataProvider.SQL {
                 }
             }
             if (SiteSpecific) {
-                sb.Add($"[{prefix}{SiteColumn}],");
+                sb.Add($"\"{prefix}{SiteColumn}\",");
             }
             if (WithDerivedInfo) {
-                sb.Add($"[{prefix}DerivedDataTableName],");
-                sb.Add($"[{prefix}DerivedDataType],");
-                sb.Add($"[{prefix}DerivedAssemblyName],");
+                sb.Add($"\"{prefix}DerivedDataTableName\",");
+                sb.Add($"\"{prefix}DerivedDataType\",");
+                sb.Add($"\"{prefix}DerivedAssemblyName\",");
             }
             if (SubTable) {
-                sb.Add($"[{prefix}{SubTableKeyColumn}],");
+                sb.Add($"[{prefix}{SubTableKeyColumn}\",");
             }
             sb.RemoveLastCharacter();// ,
             return sb.ToString();
@@ -531,19 +443,19 @@ namespace YetaWF.DataProvider.SQL {
                     } else if (prop.HasAttribute(Data_BinaryAttribute.AttributeName)) {
                         object val = pi.GetValue(container);
                         if (pi.PropertyType == typeof(byte[])) {
-                            sb.Add(sqlHelper.Expr(prefix + colName, "=", val, true));
+                            sb.Add(sqlHelper.Expr(prefix + colName, "=", val, null, true));
                         } else if (val == null) {
-                            sb.Add(sqlHelper.Expr(prefix + colName, "=", null, true));
+                            sb.Add(sqlHelper.Expr(prefix + colName, "=", null, null, true));
                         } else {
                             byte[] data = new GeneralFormatter().Serialize(val);
-                            sb.Add(sqlHelper.Expr(prefix + colName, "=", data, true));
+                            sb.Add(sqlHelper.Expr(prefix + colName, "=", data, null, true));
                         }
                         sb.Add(",");
                     } else if (pi.PropertyType == typeof(MultiString)) {
                         if (Languages.Count == 0) throw new InternalError("We need Languages for MultiString support");
                         MultiString ms = (MultiString)pi.GetValue(container);
                         foreach (LanguageData lang in Languages) {
-                            sb.Add(sqlHelper.Expr(prefix + ColumnFromPropertyWithLanguage(lang.Id, colName), "=", ms[lang.Id], true));
+                            sb.Add(sqlHelper.Expr(prefix + ColumnFromPropertyWithLanguage(lang.Id, colName), "=", ms[lang.Id], null, true));
                             sb.Add(",");
                         }
                     } else if (pi.PropertyType == typeof(Image)) {
@@ -551,16 +463,16 @@ namespace YetaWF.DataProvider.SQL {
                         BinaryFormatter binaryFmt = new BinaryFormatter { AssemblyFormat = 0/*System.Runtime.Serialization.Formatters.FormatterAssemblyStyle.Simple*/ };
                         using (MemoryStream ms = new MemoryStream()) {
                             binaryFmt.Serialize(ms, val);
-                            sb.Add(sqlHelper.Expr(prefix + colName, "=", ms.ToArray(), true));
+                            sb.Add(sqlHelper.Expr(prefix + colName, "=", ms.ToArray(), null, true));
                             sb.Add(",");
                         }
                     } else if (pi.PropertyType == typeof(TimeSpan)) {
                         TimeSpan val = (TimeSpan)pi.GetValue(container);
                         long ticks = val.Ticks;
-                        sb.Add(sqlHelper.Expr(prefix + colName, "=", ticks, true));
+                        sb.Add(sqlHelper.Expr(prefix + colName, "=", ticks, null, true));
                         sb.Add(",");
                     } else if (TryGetDataType(pi.PropertyType)) {
-                        sb.Add(sqlHelper.Expr(prefix + colName, "=", pi.GetValue(container), true));
+                        sb.Add(sqlHelper.Expr(prefix + colName, "=", pi.GetValue(container), null, true));
                         sb.Add(",");
                     } else if (pi.PropertyType.IsClass && typeof(IEnumerable).IsAssignableFrom(pi.PropertyType)) {
                         // This is a enumerated type, saved in a separate table
@@ -574,7 +486,7 @@ namespace YetaWF.DataProvider.SQL {
                 }
             }
             if (SiteSpecific) {
-                sb.Add(sqlHelper.Expr(prefix + SiteColumn, "=", SiteIdentity, true));
+                sb.Add(sqlHelper.Expr(prefix + SiteColumn, "=", SiteIdentity, null, true));
                 sb.Add(",");
             }
             sb.RemoveLastCharacter();
@@ -586,12 +498,12 @@ namespace YetaWF.DataProvider.SQL {
         // DIRECT
 
         /// <summary>
-        /// Executes the provided SQL statement(s) and returns a scalar integer.
+        /// Executes the provided PostgreSQL statement(s) and returns a scalar integer.
         /// </summary>
-        /// <param name="sql">The SQL statement(s).</param>
+        /// <param name="sql">The PostgreSQL statement(s).</param>
         /// <returns>Returns a scalar integer.</returns>
         /// <remarks>This is used by application data providers to build and execute complex queries that are not possible with the standard data providers.
-        /// Use of this method limits the application data provider to SQL repositories.</remarks>
+        /// Use of this method limits the application data provider to PostgreSQL repositories.</remarks>
         public async Task<int> Direct_ScalarIntAsync(string sql) {
             await EnsureOpenAsync();
             SQLHelper sqlHelper = new SQLHelper(Conn, null, Languages);
@@ -609,7 +521,7 @@ namespace YetaWF.DataProvider.SQL {
         /// </summary>
         /// <param name="sql">The SQL statement(s).</param>
         /// <remarks>This is used by application data providers to build and execute complex queries that are not possible with the standard data providers.
-        /// Use of this method limits the application data provider to SQL repositories.
+        /// Use of this method limits the application data provider to PostgreSQL repositories.
         ///
         /// When using arguments, they are referenced in the SQL statement(s) <paramref name="sql"/> using @p1, @p2, etc. where @p1 is replaced by the first optional argument.
         /// SQL injection attacks are not possible when using parameters.
@@ -619,12 +531,12 @@ namespace YetaWF.DataProvider.SQL {
             await Direct_QueryAsync(sql, Array.Empty<object>());
         }
         /// <summary>
-        /// Executes the provided SQL statement(s).
+        /// Executes the provided PostgreSQL statement(s).
         /// </summary>
         /// <param name="sql">The SQL statement(s).</param>
         /// <param name="args">Optional arguments that are passed when executing the SQL statements.</param>
         /// <remarks>This is used by application data providers to build and execute complex queries that are not possible with the standard data providers.
-        /// Use of this method limits the application data provider to SQL repositories.
+        /// Use of this method limits the application data provider to PostgreSQL repositories.
         ///
         /// When using arguments, they are referenced in the SQL statement(s) <paramref name="sql"/> using @p1, @p2, etc. where @p1 is replaced by the first optional argument.
         /// SQL injection attacks are not possible when using parameters.
@@ -659,7 +571,7 @@ namespace YetaWF.DataProvider.SQL {
         /// <param name="sql">The SQL statement(s).</param>
         /// <param name="args">Optional arguments that are passed when executing the SQL statements.</param>
         /// <remarks>This is used by application data providers to build and execute complex queries that are not possible with the standard data providers.
-        /// Use of this method limits the application data provider to SQL repositories.</remarks>
+        /// Use of this method limits the application data provider to PostgreSQL repositories.</remarks>
         /// <returns>Returns an object of type {i}TYPE{/i}.</returns>
         public async Task<TYPE> Direct_QueryAsync<TYPE>(string sql, params object[] args) {
             await EnsureOpenAsync();
@@ -674,7 +586,7 @@ namespace YetaWF.DataProvider.SQL {
             if (SiteIdentity > 0)
                 sql = sql.Replace($"{{{SiteColumn}}}", $"[{SiteColumn}] = {SiteIdentity}");
             List<TYPE> list = new List<TYPE>();
-            using (SqlDataReader reader = await sqlHelper.ExecuteReaderAsync(sql)) {
+            using (DbDataReader reader = await sqlHelper.ExecuteReaderAsync(sql)) {
                 if (YetaWFManager.IsSync() ? reader.Read() : await reader.ReadAsync())
                     return sqlHelper.CreateObject<TYPE>(reader);
                 else
@@ -712,7 +624,7 @@ namespace YetaWF.DataProvider.SQL {
             if (SiteIdentity > 0)
                 sql = sql.Replace($"{{{SiteColumn}}}", $"[{SiteColumn}] = {SiteIdentity}");
             List<TYPE> list = new List<TYPE>();
-            using (SqlDataReader reader = await sqlHelper.ExecuteReaderAsync(sql)) {
+            using (DbDataReader reader = await sqlHelper.ExecuteReaderAsync(sql)) {
                 while (YetaWFManager.IsSync() ? reader.Read() : await reader.ReadAsync())
                     list.Add(sqlHelper.CreateObject<TYPE>(reader));
             }
@@ -761,7 +673,7 @@ namespace YetaWF.DataProvider.SQL {
 
             DataProviderGetRecords<TYPE> recs = new DataProviderGetRecords<TYPE>();
 
-            using (SqlDataReader reader = await sqlHelper.ExecuteReaderAsync(sql)) {
+            using (DbDataReader reader = await sqlHelper.ExecuteReaderAsync(sql)) {
 
                 if (!(YetaWFManager.IsSync() ? reader.Read() : await reader.ReadAsync())) throw new InternalError("Expected # of records");
                 recs.Total = reader.GetInt32(0);
@@ -795,7 +707,7 @@ namespace YetaWF.DataProvider.SQL {
             }
 
             DataProviderGetRecords<TYPE> recs = new DataProviderGetRecords<TYPE>();
-            using (SqlDataReader reader = await sqlHelper.ExecuteReaderStoredProcAsync(sqlProc)) {
+            using (DbDataReader reader = await sqlHelper.ExecuteReaderStoredProcAsync(sqlProc)) {
 
                 while ((YetaWFManager.IsSync() ? reader.Read() : await reader.ReadAsync())) {
                     TYPE o = sqlHelper.CreateObject<TYPE>(reader);
@@ -807,21 +719,21 @@ namespace YetaWF.DataProvider.SQL {
             return recs;
         }
 
-        // ISQLTableInfo
-        // ISQLTableInfo
-        // ISQLTableInfo
+        // IPostgreSQLTableInfo
+        // IPostgreSQLTableInfo
+        // IPostgreSQLTableInfo
 
         /// <summary>
-        /// Returns an ISQLTableInfo interface for the data provider.
+        /// Returns an IPostgreSQLTableInfo interface for the data provider.
         /// </summary>
-        /// <returns>Returns an ISQLTableInfo interface for the data provider.</returns>
-        public async Task<ISQLTableInfo> GetISQLTableInfoAsync() {
+        /// <returns>Returns an IPostgreSQLTableInfo interface for the data provider.</returns>
+        public async Task<IPostgreSQLTableInfo> GetIPostgreSQLTableInfoAsync() {
             await EnsureOpenAsync();
-            return (ISQLTableInfo)this;
+            return (IPostgreSQLTableInfo)this;
         }
 
         /// <summary>
-        /// Returns the connection string used by the data provider.
+        /// Returns the PostgreSQL connection string used by the data provider.
         /// </summary>
         /// <returns>Returns the connection string used by the data provider.</returns>
         public string GetConnectionString() {
@@ -838,8 +750,8 @@ namespace YetaWF.DataProvider.SQL {
         /// Returns the database owner used by the data provider.
         /// </summary>
         /// <returns>Returns the database owner used by the data provider.</returns>
-        public string GetDbOwner() {
-            return Dbo;
+        public string GetSchema() {
+            return Schema;
         }
         /// <summary>
         /// Returns the table name used by the data provider.
@@ -847,7 +759,7 @@ namespace YetaWF.DataProvider.SQL {
         /// <returns>Returns the table name used by the data provider.</returns>
         public string GetTableName() {
             SQLBuilder sb = new SQLBuilder();
-            return sb.BuildFullTableName(Database, Dbo, Dataset);
+            return sb.BuildFullTableName(Database, Schema, Dataset);
         }
         /// <summary>
         /// Replaces search text in a SQL string fragment with the table name used by the data provider.

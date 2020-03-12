@@ -1,7 +1,9 @@
 ﻿/* Copyright © 2020 Softel vdm, Inc. - https://yetawf.com/Documentation/YetaWF/Licensing */
 
+using Npgsql;
 using System;
 using System.Collections.Generic;
+using System.Data.Common;
 using System.Linq;
 using System.Reflection;
 using System.Threading.Tasks;
@@ -12,13 +14,8 @@ using YetaWF.Core.Modules;
 using YetaWF.Core.Packages;
 using YetaWF.Core.Serializers;
 using YetaWF.Core.Support;
-#if MVC6
-using Microsoft.Data.SqlClient;
-#else
-using System.Data.SqlClient;
-#endif
 
-namespace YetaWF.DataProvider.SQL {
+namespace YetaWF.DataProvider.PostgreSQL {
 
     /// <summary>
     /// This class implements the base functionality to access the repository containing YetaWF modules.
@@ -58,7 +55,7 @@ namespace YetaWF.DataProvider.SQL {
             SQLHelper sqlHelper = new SQLHelper(Conn, null, Languages);
             SQLBuilder sb = new SQLBuilder();
 
-            string fullBaseTableName = sb.GetTable(Database, Dbo, BaseDataset);
+            string fullBaseTableName = sb.GetTable(Database, Schema, BaseDataset);
 
             if (Dataset == BaseDataset) {
                 // we're reading the base and have to find the derived table
@@ -87,7 +84,7 @@ END
 
 {sqlHelper.DebugInfo}";
 
-                using (SqlDataReader reader = await sqlHelper.ExecuteReaderAsync(script)) {
+                using (DbDataReader reader = await sqlHelper.ExecuteReaderAsync(script)) {
                     if (!(YetaWFManager.IsSync() ? reader.Read() : await reader.ReadAsync())) return default(OBJTYPE);
                     string derivedTableName = (string)reader[0];
                     string derivedDataType = (string)reader[1];
@@ -103,7 +100,7 @@ END
 
             } else {
                 // we're reading the derived table
-                string fullTableName = sb.GetTable(Database, Dbo, Dataset);
+                string fullTableName = sb.GetTable(Database, Schema, Dataset);
                 string scriptMain = $@"
 SELECT TOP 1 * FROM {fullBaseTableName} AS A WITH(NOLOCK)
 LEFT JOIN {fullTableName} AS B ON
@@ -112,7 +109,7 @@ WHERE {sqlHelper.Expr($"A.[{Key1Name}]", " =", key)} AND A.[{SiteColumn}] = {Sit
 
 {sqlHelper.DebugInfo}";
 
-                using (SqlDataReader reader = await sqlHelper.ExecuteReaderAsync(scriptMain)) {
+                using (DbDataReader reader = await sqlHelper.ExecuteReaderAsync(scriptMain)) {
                     if (!(YetaWFManager.IsSync() ? reader.Read() : await reader.ReadAsync())) return default(OBJTYPE);
                     OBJTYPE obj = sqlHelper.CreateObject<OBJTYPE>(reader);
                     return obj;
@@ -135,11 +132,11 @@ WHERE {sqlHelper.Expr($"A.[{Key1Name}]", " =", key)} AND A.[{SiteColumn}] = {Sit
 
             SQLHelper sqlHelper = new SQLHelper(Conn, null, Languages);
 
-            string fullBaseTableName = sb.GetTable(Database, Dbo, BaseDataset);
+            string fullBaseTableName = sb.GetTable(Database, Schema, BaseDataset);
             List<PropertyData> propBaseData = GetBasePropertyData();
             string baseColumns = GetColumnList(propBaseData, typeof(ModuleDefinition), "", true, SiteSpecific: SiteIdentity > 0, WithDerivedInfo: true);
             string baseValues = GetValueList(sqlHelper, Dataset, obj, propBaseData, typeof(ModuleDefinition), SiteSpecific: SiteIdentity > 0, DerivedType: typeof(OBJTYPE), DerivedTableName: Dataset);
-            string fullTableName = sb.GetTable(Database, Dbo, Dataset);
+            string fullTableName = sb.GetTable(Database, Schema, Dataset);
             List<PropertyData> propData = GetPropertyData();
             string columns = GetColumnList(propData, obj.GetType(), "", true, SiteSpecific: SiteIdentity > 0);
             string values = GetValueList(sqlHelper, Dataset, obj, propData, typeof(OBJTYPE), SiteSpecific: SiteIdentity > 0);
@@ -157,8 +154,8 @@ VALUES ({values})
             try {
                 await sqlHelper.ExecuteNonQueryAsync(scriptMain);
             } catch (Exception exc) {
-                SqlException sqlExc = exc as SqlException;
-                if (sqlExc != null && sqlExc.Number == 2627) // already exists
+                NpgsqlException sqlExc = exc as NpgsqlException;
+                if (sqlExc != null && sqlExc.ErrorCode == 2627) // already exists //$$$
                     return false;
                 throw new InternalError("Add failed for type {0} - {1}", typeof(OBJTYPE).FullName, ErrorHandling.FormatExceptionMessage(exc));
             }
@@ -188,8 +185,8 @@ VALUES ({values})
 
             SQLHelper sqlHelper = new SQLHelper(Conn, null, Languages);
 
-            string fullBaseTableName = sb.GetTable(Database, Dbo, BaseDataset);
-            string fullTableName = sb.GetTable(Database, Dbo, Dataset);
+            string fullBaseTableName = sb.GetTable(Database, Schema, BaseDataset);
+            string fullTableName = sb.GetTable(Database, Schema, Dataset);
 
             List<PropertyData> propBaseData = GetBasePropertyData();
             string setBaseColumns = SetColumns(sqlHelper, Dataset, propBaseData, obj, typeof(ModuleDefinition));
@@ -218,8 +215,8 @@ WHERE {sqlHelper.Expr(Key1Name, "=", origKey)} {AndSiteIdentity}
                     throw new InternalError($"Update failed - {changed} records updated");
             } catch (Exception exc) {
                 if (!newKey.Equals(origKey)) {
-                    SqlException sqlExc = exc as SqlException;
-                    if (sqlExc != null && sqlExc.Number == 2627) {
+                    NpgsqlException sqlExc = exc as NpgsqlException;
+                    if (sqlExc != null && sqlExc.ErrorCode == 2627) { //$$$
                         // duplicate key violation, meaning the new key already exists
                         return UpdateStatusEnum.NewKeyExists;
                     }
@@ -241,7 +238,7 @@ WHERE {sqlHelper.Expr(Key1Name, "=", origKey)} {AndSiteIdentity}
 
             SQLHelper sqlHelper = new SQLHelper(Conn, null, Languages);
 
-            string fullBaseTableName = sb.GetTable(Database, Dbo, BaseDataset);
+            string fullBaseTableName = sb.GetTable(Database, Schema, BaseDataset);
 
             List<PropertyData> propData = GetPropertyData();
 
@@ -315,8 +312,8 @@ DROP TABLE #BASETABLE
 
                 DataProviderGetRecords<OBJTYPE> recs = new DataProviderGetRecords<OBJTYPE>();
 
-                string fullBaseTableName = sb.GetTable(Database, Dbo, BaseDataset);
-                string fullTableName = sb.GetTable(Database, Dbo, Dataset);
+                string fullBaseTableName = sb.GetTable(Database, Schema, BaseDataset);
+                string fullTableName = sb.GetTable(Database, Schema, Dataset);
 
                 // get total # of records (only if a subset is requested)
                 string selectCount = null;
@@ -354,7 +351,7 @@ WHERE {fullBaseTableName}.[DerivedDataTableName] = '{Dataset}' AND {fullBaseTabl
 {sqlHelper.DebugInfo}
 ";
 
-                using (SqlDataReader reader = await sqlHelper.ExecuteReaderAsync(script)) {
+                using (DbDataReader reader = await sqlHelper.ExecuteReaderAsync(script)) {
                     if (skip != 0 || take != 0) {
                         if (!(YetaWFManager.IsSync() ? reader.Read() : await reader.ReadAsync())) throw new InternalError("Expected # of records");
                         recs.Total = reader.GetInt32(0);
@@ -421,10 +418,10 @@ WHERE {fullBaseTableName}.[DerivedDataTableName] = '{Dataset}' AND {fullBaseTabl
         public new async Task<bool> IsInstalledAsync() {
             SQLManager sqlManager = new SQLManager();
             await EnsureOpenAsync();
-            if (!sqlManager.HasTable(Conn, Database, Dbo, BaseDataset))
+            if (!sqlManager.HasTable(Conn, Database, Schema, BaseDataset))
                 return false;
             if (Dataset != BaseDataset) {
-                if (!sqlManager.HasTable(Conn, Database, Dbo, Dataset))
+                if (!sqlManager.HasTable(Conn, Database, Schema, Dataset))
                     return false;
             }
             return true;
@@ -446,16 +443,16 @@ WHERE {fullBaseTableName}.[DerivedDataTableName] = '{Dataset}' AND {fullBaseTabl
             sqlManager.ClearCache();
             return success;
         }
-        private bool CreateTableWithBaseType(SqlConnection conn, string dbName, List<string> errorList) {
+        private bool CreateTableWithBaseType(NpgsqlConnection conn, string dbName, List<string> errorList) {
             Type baseType = typeof(ModuleDefinition);
             List<string> columns = new List<string>();
             SQLGen sqlCreate = new SQLGen(conn, Languages, IdentitySeed, Logging);
-            if (!sqlCreate.CreateTableFromModel(dbName, Dbo, BaseDataset, Key1Name, null, IdentityName, GetBasePropertyData(), baseType, errorList, columns,
+            if (!sqlCreate.CreateTableFromModel(dbName, Schema, BaseDataset, Key1Name, null, IdentityName, GetBasePropertyData(), baseType, errorList, columns,
                     TopMost: true,
                     SiteSpecific: SiteIdentity > 0,
                     DerivedDataTableName: "DerivedDataTableName", DerivedDataTypeName: "DerivedDataType", DerivedAssemblyName: "DerivedAssemblyName"))
                 return false;
-            return sqlCreate.CreateTableFromModel(dbName, Dbo, Dataset, Key1Name, null, SQLBase.IdentityColumn, GetPropertyData(), typeof(OBJTYPE), errorList, columns,
+            return sqlCreate.CreateTableFromModel(dbName, Schema, Dataset, Key1Name, null, SQLBase.IdentityColumn, GetPropertyData(), typeof(OBJTYPE), errorList, columns,
                 TopMost: true,
                 SiteSpecific: SiteIdentity > 0,
                 ForeignKeyTable: BaseDataset);
@@ -486,7 +483,7 @@ WHERE {fullBaseTableName}.[DerivedDataTableName] = '{Dataset}' AND {fullBaseTabl
         private async Task<bool> DropTableWithBaseType(string dbName, List<string> errorList) {
             SQLManager sqlManager = new SQLManager();
             try {
-                if (sqlManager.HasTable(Conn, dbName, Dbo, Dataset)) {
+                if (sqlManager.HasTable(Conn, dbName, Schema, Dataset)) {
                     // Remove all records from the table (this removes the records in BaseTableName also)
                     SQLHelper sqlHelper = new SQLHelper(Conn, null, Languages);
                     SQLBuilder sb = new SQLBuilder();
@@ -496,9 +493,9 @@ DELETE {BaseDataset} FROM {BaseDataset}
                     ");
                     await sqlHelper.ExecuteNonQueryAsync(sb.ToString());
                     // then drop the table
-                    SQLManager.DropTable(Conn, dbName, Dbo, Dataset);
+                    SQLManager.DropTable(Conn, dbName, Schema, Dataset);
                 }
-                if (sqlManager.HasTable(Conn, dbName, Dbo, BaseDataset)) {
+                if (sqlManager.HasTable(Conn, dbName, Schema, BaseDataset)) {
                     SQLHelper sqlHelper = new SQLHelper(Conn, null, Languages);
                     SQLBuilder sb = new SQLBuilder();
                     sb.Add($@"
@@ -507,7 +504,7 @@ SELECT COUNT(*) FROM  {BaseDataset}
                     object val = await sqlHelper.ExecuteScalarAsync(sb.ToString());
                     int count = Convert.ToInt32(val);
                     if (count == 0)
-                        SQLManager.DropTable(Conn, dbName, Dbo, Dataset);
+                        SQLManager.DropTable(Conn, dbName, Schema, Dataset);
                 }
             } catch (Exception exc) {
                 if (Logging) YetaWF.Core.Log.Logging.AddErrorLog("Couldn't drop table", exc);

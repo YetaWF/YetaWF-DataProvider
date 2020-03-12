@@ -6,7 +6,7 @@ using YetaWF.Core.DataProvider;
 using YetaWF.Core.Support;
 using YetaWF.DataProvider.SQLGeneric;
 
-namespace YetaWF.DataProvider.SQL {
+namespace YetaWF.DataProvider.PostgreSQL {
 
     /// <summary>
     /// Helper class used to create dynamic SQL strings.
@@ -131,24 +131,24 @@ namespace YetaWF.DataProvider.SQL {
         /// Returns a formatted table name or a formatted database name, database owner and table name, with brackets.
         /// </summary>
         /// <param name="database">The database name.</param>
-        /// <param name="dbo">The database owner.</param>
+        /// <param name="schema">The database schema.</param>
         /// <param name="tableName">The table name.</param>
         /// <returns>Returns a formatted table or a formatted name database name, database owner and table name, with brackets.</returns>
         /// <remarks>The result is bracketed. This method considers whether any of the parameters is already bracketed in which case no further brackets are added.</remarks>
-        public override string BuildFullTableName(string database, string dbo, string tableName) {
-            return $"{WrapIdentifier(database)}.{WrapIdentifier(dbo)}.{WrapIdentifier(tableName)}";
+        public override string BuildFullTableName(string database, string schema, string tableName) {
+            return $"{schema}.{WrapIdentifier(tableName)}";
         }
         /// <summary>
         /// Returns a formatted column name or a formatted database name, database owner, table name and column name, with brackets.
         /// </summary>
         /// <param name="database">The database name.</param>
-        /// <param name="dbOwner">The database owner.</param>
+        /// <param name="schema">The database schema.</param>
         /// <param name="tableName">The table name.</param>
         /// <param name="column">The column name.</param>
         /// <returns>Returns a formatted column name or a formatted database name, database owner, table name and column name, with brackets.</returns>
         /// <remarks>The result is bracketed. This method considers whether any of the parameters is already bracketed in which case no further brackets are added.</remarks>
-        public override string BuildFullColumnName(string database, string dbOwner, string tableName, string column) {
-            return $"{WrapIdentifier(database)}.{WrapIdentifier(dbOwner)}.{BuildFullColumnName(tableName, column)}";
+        public override string BuildFullColumnName(string database, string schema, string tableName, string column) {
+            return $"{schema}.{BuildFullColumnName(tableName, column)}";
         }
         /// <summary>
         /// Returns a formatted column name or a formatted database name, database owner, table name and column name, with brackets.
@@ -164,7 +164,7 @@ namespace YetaWF.DataProvider.SQL {
                     throw new InternalError($"Column {column} not found in list of visible columns");
                 return longColumn;
             } else {
-                if (!column.StartsWith("["))
+                if (!column.StartsWith("\""))
                     column = column.Replace('.', '_');
                 return WrapIdentifier(column);
             }
@@ -176,10 +176,10 @@ namespace YetaWF.DataProvider.SQL {
         /// <returns>Returns a properly delimited identifier.</returns>
         /// <remarks>The result is delimited. This method considers whether the parameter is already delimited in which case no further delimiters are added.</remarks>
         public static string WrapIdentifier(string token) {
-            if (token.StartsWith("["))
+            if (token.StartsWith("\""))
                 return token;
             else
-                return $"[{token}]";
+                return $"\"{token}\"";
         }
     }
 }

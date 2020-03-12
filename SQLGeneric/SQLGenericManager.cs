@@ -14,8 +14,7 @@ namespace YetaWF.DataProvider.SQLGeneric {
     ///
     /// Some of this could be made async, but often this is called in a context that is not async.
     /// As this is all cached and most of it is only used during model install/uninstall, using non-async is just easier.
-    ///
-    /// The SQL queries used for model install/uninstall (like GetColumnInfo) is not very efficient. Simplicity over perfection.
+    /// The SQL queries used for model install/uninstall (like GetColumnInfo) are not very efficient. Simplicity over perfection.
     /// </remarks>
     public abstract class SQLGenericManager<TYPE> {
 
@@ -41,7 +40,7 @@ namespace YetaWF.DataProvider.SQLGeneric {
         }
         public SQLGenericGen.Database GetDatabaseCond(TYPE connInfo, string dbName) { 
             dbName = dbName.ToLower();
-            string connDataSource = GetDataSource(connInfo).ToLower();
+            string connDataSource = GetDataSource(connInfo);
             string connDataSourceLow = connDataSource.ToLower();
             SQLGenericGen.Database db;
             lock (DatabasesLockObject) {
