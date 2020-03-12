@@ -5,7 +5,7 @@
     <TargetFramework>netcoreapp3.1</TargetFramework>
 
     <DefineConstants>$(DefineConstants);MVC6;NETCOREAPP</DefineConstants>
-    <AssemblyName>YetaWF.DataProvider.SQLGenericGeneric</AssemblyName>
+    <AssemblyName>YetaWF.DataProvider.SQLGeneric</AssemblyName>
     <PackageId>SQLGeneric</PackageId>
     <GenerateAssemblyTitleAttribute>false</GenerateAssemblyTitleAttribute>
     <GenerateAssemblyDescriptionAttribute>false</GenerateAssemblyDescriptionAttribute>
@@ -14,7 +14,7 @@
     <GenerateAssemblyCopyrightAttribute>false</GenerateAssemblyCopyrightAttribute>
     <GenerateAssemblyProductAttribute>false</GenerateAssemblyProductAttribute>
     <GenerateAssemblyVersionAttribute>false</GenerateAssemblyVersionAttribute>
-    <RootNamespace>YetaWF.DataProvider.SQLGenericGeneric</RootNamespace>
+    <RootNamespace>YetaWF.DataProvider.SQLGeneric</RootNamespace>
   </PropertyGroup>
 
   <ItemGroup>

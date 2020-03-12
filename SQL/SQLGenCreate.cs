@@ -15,6 +15,7 @@ using YetaWF.Core.Models;
 using YetaWF.Core.Models.Attributes;
 using YetaWF.Core.Support;
 using YetaWF.DataProvider.SQL;
+using YetaWF.DataProvider.SQLGeneric;
 #if MVC6
 using Microsoft.Data.SqlClient;
 #else
@@ -23,7 +24,7 @@ using System.Data.SqlClient;
 
 namespace YetaWF.DataProvider {
 
-    internal partial class SQLGen {
+    internal partial class SQLGen : SQLGenericGen {
 
         public SqlConnection Conn { get; private set; }
         public int IdentitySeed { get; private set; }
@@ -481,6 +482,7 @@ namespace YetaWF.DataProvider {
             using (SqlCommand cmd = new SqlCommand()) {
                 cmd.Connection = Conn;
                 cmd.CommandText = sb.ToString();
+                YetaWF.Core.Log.Logging.AddTraceLog(cmd.CommandText);
                 cmd.ExecuteNonQuery();
             }
         }
@@ -497,6 +499,7 @@ namespace YetaWF.DataProvider {
             using (SqlCommand cmd = new SqlCommand()) {
                 cmd.Connection = Conn;
                 cmd.CommandText = sb.ToString();
+                YetaWF.Core.Log.Logging.AddTraceLog(cmd.CommandText);
                 cmd.ExecuteNonQuery();
             }
         }
@@ -542,6 +545,7 @@ namespace YetaWF.DataProvider {
                 using (SqlCommand cmd = new SqlCommand()) {
                     cmd.Connection = Conn;
                     cmd.CommandText = sb.ToString();
+                    YetaWF.Core.Log.Logging.AddTraceLog(cmd.CommandText);
                     cmd.ExecuteNonQuery();
                 }
             }
@@ -603,6 +607,7 @@ ELSE
                 using (SqlCommand cmd = new SqlCommand()) {
                     cmd.Connection = Conn;
                     cmd.CommandText = sb.ToString();
+                    YetaWF.Core.Log.Logging.AddTraceLog(cmd.CommandText);
                     cmd.ExecuteNonQuery();
                 }
             }
@@ -621,6 +626,7 @@ ELSE
                 using (SqlCommand cmd = new SqlCommand()) {
                     cmd.Connection = Conn;
                     cmd.CommandText = sb.ToString();
+                    YetaWF.Core.Log.Logging.AddTraceLog(cmd.CommandText);
                     cmd.ExecuteNonQuery();
                 }
             }

@@ -22,7 +22,7 @@ namespace YetaWF.DataProvider.SQL {
     /// <summary>
     /// Base class to implement executing all SQL procedures that are located in a package's Addons/_Main/Sql folder.
     /// </summary>
-    /// <remarks>This is used by derived classes to implement executing all SQL procedures that are located in a package's Addons/_Main/Sql folder.
+    /// <remarks>This is used to execute SQL procedures that are located in a package's Addons/_Main/Sql folder.
     ///
     /// Can be used to create tables, add stored procedures, etc.
     ///
@@ -36,6 +36,7 @@ namespace YetaWF.DataProvider.SQL {
 
         /// <summary>
         /// Executes all SQL procedures that are located in the package's Addons/_Main/Sql folder.
+        /// This is typically used to add/update database views, stored procs, etc.
         /// </summary>
         /// <param name="package">The package.</param>
         public async Task InitializeAsync(Package package) {
@@ -45,9 +46,9 @@ namespace YetaWF.DataProvider.SQL {
                 throw new InternalError($"No {SQLBase.SQLConnectString} connection string found for package {package.AreaName} - must be explicitly specified");
 
             string path = Path.Combine(package.AddonsFolder, "_Main", "Sql");
-            if (!Directory.Exists(path))
+            if (!await FileSystem.FileSystemProvider.DirectoryExistsAsync(path))
                 return;
-            string[] files = Directory.GetFiles(path, "*.sql");
+            List<string> files = await FileSystem.FileSystemProvider.GetFilesAsync(path, "*.sql");
 
             using (SqlConnection conn = new SqlConnection(connString)) {
                 conn.Open();
@@ -68,6 +69,7 @@ namespace YetaWF.DataProvider.SQL {
                             cmd.CommandTimeout = 300;
                             cmd.CommandType = System.Data.CommandType.Text;
 
+                            YetaWF.Core.Log.Logging.AddTraceLog(cmd.CommandText);
                             try {
                                 if (YetaWFManager.IsSync())
                                     cmd.ExecuteNonQuery();

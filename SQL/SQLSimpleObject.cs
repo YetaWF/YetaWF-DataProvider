@@ -43,39 +43,7 @@ namespace YetaWF.DataProvider.SQL {
     /// </summary>
     public class SQLSimpleObjectBase<KEYTYPE, KEYTYPE2, OBJTYPE> : SQLBase, IDataProvider<KEYTYPE, OBJTYPE>, ISQLTableInfo {
 
-        internal SQLSimpleObjectBase(Dictionary<string, object> options, bool HasKey2 = false) : base(options) {
-            this.HasKey2 = HasKey2;
-        }
-        /// <summary>
-        /// Defines whether the model defines a secondary key.
-        /// </summary>
-        public bool HasKey2 { get; protected set; }
-        /// <summary>
-        /// The column name of the primary key.
-        /// </summary>
-        /// <remarks>If a primary key has not been defined in the model, an exception occurs when this property is retrieved.</remarks>
-        public string Key1Name { get { return GetKey1Name(Dataset, GetPropertyData()); } }
-        /// <summary>
-        /// The column name of the secondary key.
-        /// </summary>
-        /// <remarks>If a secondary key has not been defined in the model, an exception occurs when this property is retrieved.</remarks>
-        public string Key2Name { get { return GetKey2Name(Dataset, GetPropertyData()); } }
-        /// <summary>
-        /// The column name of the identity column.
-        /// </summary>
-        /// <remarks>If no identity column is defined for the specified table, an empty string is returned.</remarks>
-        public string IdentityName { get { return GetIdentityName(Dataset, GetPropertyData()); } }
-
-        private string IdentityNameOrDefault {
-            get {
-                if (string.IsNullOrWhiteSpace(_identityOrDefault))
-                    _identityOrDefault = GetIdentityName(Dataset, GetPropertyData());
-                if (string.IsNullOrWhiteSpace(_identityOrDefault))
-                    _identityOrDefault = SQLBase.IdentityColumn;
-                return _identityOrDefault;
-            }
-        }
-        private string _identityOrDefault;
+        internal SQLSimpleObjectBase(Dictionary<string, object> options, bool HasKey2 = false) : base(options, HasKey2) { }
 
         /// <summary>
         /// Defines the chunk size used by SQL data providers when exporting/importing data using the methods
@@ -85,7 +53,7 @@ namespace YetaWF.DataProvider.SQL {
 
         internal bool Warnings = true;
 
-        internal List<PropertyData> GetPropertyData() {
+        protected override List<PropertyData> GetPropertyData() {
             if (_propertyData == null)
                 _propertyData = ObjectSupport.GetPropertyData(typeof(OBJTYPE));
             return _propertyData;
@@ -536,7 +504,7 @@ FROM {fullTableName} WITH(NOLOCK)
         internal class SubTableInfo {
             public string Name { get; set; }
             public Type Type { get; set; }
-            public PropertyInfo PropInfo { get; set; } // the container's property that hold this subtable
+            public PropertyInfo PropInfo { get; set; } // the container's property that holds this subtable
         }
 
         // TODO: Could add caching

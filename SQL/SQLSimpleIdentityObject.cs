@@ -50,9 +50,7 @@ namespace YetaWF.DataProvider.SQL {
     /// </summary>
     public partial class SQLSimpleIdentityObjectBase<KEYTYPE, KEYTYPE2, OBJTYPE> : SQLSimpleObjectBase<KEYTYPE, KEYTYPE2, OBJTYPE>, IDataProviderIdentity<KEYTYPE, KEYTYPE2, OBJTYPE> {
 
-        internal SQLSimpleIdentityObjectBase(Dictionary<string, object> options, bool HasKey2 = false) : base(options) {
-            this.HasKey2 = HasKey2;
-        }
+        internal SQLSimpleIdentityObjectBase(Dictionary<string, object> options, bool HasKey2 = false) : base(options, HasKey2) { }
 
         /// <summary>
         /// Retrieves one record from the database table that satisfies the specified identity <paramref name="identity"/>.

@@ -103,6 +103,40 @@ namespace YetaWF.DataProvider.SQLGeneric {
         /// </remarks>
         protected Func<string, Task<string>> CalculatedPropertyCallbackAsync { get; set; }
 
+
+        /// <summary>
+        /// Defines whether the model defines a secondary key.
+        /// </summary>
+        public bool HasKey2 { get; protected set; }
+        /// <summary>
+        /// The column name of the primary key.
+        /// </summary>
+        /// <remarks>If a primary key has not been defined in the model, an exception occurs when this property is retrieved.</remarks>
+        public string Key1Name { get { return GetKey1Name(Dataset, GetPropertyData()); } }
+        /// <summary>
+        /// The column name of the secondary key.
+        /// </summary>
+        /// <remarks>If a secondary key has not been defined in the model, an exception occurs when this property is retrieved.</remarks>
+        public string Key2Name { get { return GetKey2Name(Dataset, GetPropertyData()); } }
+        /// <summary>
+        /// The column name of the identity column.
+        /// </summary>
+        /// <remarks>If no identity column is defined for the specified table, an empty string is returned.</remarks>
+        public string IdentityName { get { return GetIdentityName(Dataset, GetPropertyData()); } }
+
+        protected string IdentityNameOrDefault {
+            get {
+                if (string.IsNullOrWhiteSpace(_identityOrDefault))
+                    _identityOrDefault = GetIdentityName(Dataset, GetPropertyData());
+                if (string.IsNullOrWhiteSpace(_identityOrDefault))
+                    _identityOrDefault = IdentityColumn;
+                return _identityOrDefault;
+            }
+        }
+        private string _identityOrDefault;
+
+        protected abstract List<PropertyData> GetPropertyData();
+
         /// <summary>
         /// Constructor.
         /// </summary>
@@ -112,7 +146,10 @@ namespace YetaWF.DataProvider.SQLGeneric {
         ///
         /// For debugging purposes, instances of this class are tracked using the DisposableTracker class.
         /// </remarks>
-        protected SQLGenericBase(Dictionary<string, object> options) {
+        protected SQLGenericBase(Dictionary<string, object> options, bool HasKey2 = false) {
+
+            this.HasKey2 = HasKey2;
+
             Options = options;
             if (!Options.ContainsKey(nameof(Package)) || !(Options[nameof(Package)] is Package))
                 throw new InternalError($"No Package for data provider {GetType().FullName}");

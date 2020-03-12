@@ -234,6 +234,7 @@ namespace YetaWF.DataProvider.SQL {
 
         private static async Task<SqlDataReader> ExecuteReaderAsync(SqlConnection connection, SqlTransaction transaction, CommandType commandType, string commandText, List<SqlParameter> sqlParms) {
             using (SqlCommand cmd = new SqlCommand()) {
+                YetaWF.Core.Log.Logging.AddTraceLog(commandText);
                 PrepareCommand(cmd, connection, transaction, commandType, commandText, sqlParms);
                 if (YetaWFManager.IsSync())
                     return cmd.ExecuteReader();
@@ -243,6 +244,7 @@ namespace YetaWF.DataProvider.SQL {
         }
         private static async Task<object> ExecuteScalarAsync(SqlConnection connection, SqlTransaction transaction, CommandType commandType, string commandText, List<SqlParameter> sqlParms) {
             using (SqlCommand cmd = new SqlCommand()) {
+                YetaWF.Core.Log.Logging.AddTraceLog(commandText);
                 PrepareCommand(cmd, connection, transaction, commandType, commandText, sqlParms);
                 if (YetaWFManager.IsSync())
                     return cmd.ExecuteScalar();
@@ -252,6 +254,7 @@ namespace YetaWF.DataProvider.SQL {
         }
         private static async Task<int> ExecuteNonQueryAsync(SqlConnection connection, SqlTransaction transaction, CommandType commandType, string commandText, List<SqlParameter> sqlParms) {
             using (SqlCommand cmd = new SqlCommand()) {
+                YetaWF.Core.Log.Logging.AddTraceLog(commandText);
                 PrepareCommand(cmd, connection, transaction, commandType, commandText, sqlParms);
                 if (YetaWFManager.IsSync())
                     return cmd.ExecuteNonQuery();

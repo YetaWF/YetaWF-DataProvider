@@ -21,7 +21,7 @@ namespace YetaWF.DataProvider.SQL {
     /// Some of this could be made async, but often this is called in a context that is not async.
     /// As this is all cached and most of it is only used during model install/uninstall, using non-async is just easier.
     ///
-    /// The SQL queries used for model install/uninstall (like GetColumnNames) is not very efficient, but cached. Simplicity over perfection.
+    /// The SQL queries used for model install/uninstall (like GetColumnNames) are not very efficient, but cached. Simplicity over perfection.
     /// </remarks>
     internal class SQLManager : SQLGenericManager<SqlConnection> {
 
@@ -33,6 +33,7 @@ namespace YetaWF.DataProvider.SQL {
             using (SqlCommand cmd = new SqlCommand()) {
                 cmd.Connection = connInfo;
                 cmd.CommandText = "SELECT name FROM master.sys.databases";
+                YetaWF.Core.Log.Logging.AddTraceLog(cmd.CommandText);
                 using (SqlDataReader rdr = cmd.ExecuteReader()) {
                     while (rdr.Read()) {
                         string name = rdr.GetString(0);
@@ -47,6 +48,7 @@ namespace YetaWF.DataProvider.SQL {
             using (SqlCommand cmd = new SqlCommand()) {
                 cmd.Connection = connInfo;
                 cmd.CommandText = $"SELECT TABLE_NAME, TABLE_SCHEMA FROM INFORMATION_SCHEMA.TABLES";
+                YetaWF.Core.Log.Logging.AddTraceLog(cmd.CommandText);
                 using (SqlDataReader rdr = cmd.ExecuteReader()) {
                     while (rdr.Read()) {
                         string name = rdr.GetString(0);
@@ -67,6 +69,7 @@ namespace YetaWF.DataProvider.SQL {
             using (SqlCommand cmd = new SqlCommand()) {
                 cmd.Connection = connInfo;
                 cmd.CommandText = $"SELECT COLUMN_NAME, DATA_TYPE, IS_NULLABLE, CHARACTER_MAXIMUM_LENGTH FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = N'{tableName}'";
+                YetaWF.Core.Log.Logging.AddTraceLog(cmd.CommandText);
                 using (SqlDataReader rdr = cmd.ExecuteReader()) {
                     while (rdr.Read()) {
                         SQLGenericGen.Column col = new SQLGenericGen.Column {
@@ -112,6 +115,7 @@ namespace YetaWF.DataProvider.SQL {
     FROM sys.indexes AS i
 	INNER JOIN sys.data_spaces AS ds ON i.data_space_id = ds.data_space_id
     WHERE is_hypothetical = 0 AND i.index_id<> 0 AND i.object_id = OBJECT_ID('{tableName}');";
+                YetaWF.Core.Log.Logging.AddTraceLog(cmd.CommandText);
                 using (SqlDataReader rdr = cmd.ExecuteReader()) {
                     while (rdr.Read()) {
                         string ixName = rdr.GetString(0);
@@ -142,6 +146,7 @@ namespace YetaWF.DataProvider.SQL {
             using (SqlCommand cmd = new SqlCommand()) {
                 cmd.Connection = conn;
                 cmd.CommandText = $"SELECT CONSTRAINT_NAME FROM INFORMATION_SCHEMA.TABLE_CONSTRAINTS WHERE CONSTRAINT_TYPE = 'FOREIGN KEY' AND TABLE_NAME = N'{tableName}'";
+                YetaWF.Core.Log.Logging.AddTraceLog(cmd.CommandText);
                 using (SqlDataReader rdr = cmd.ExecuteReader()) {
                     while (rdr.Read()) {
                         string fkName = rdr.GetString(0);
@@ -185,6 +190,7 @@ namespace YetaWF.DataProvider.SQL {
             using (SqlCommand cmd = new SqlCommand()) {
                 cmd.Connection = conn;
                 cmd.CommandText = $"ALTER TABLE [{dbo}].[{tableName}] DROP CONSTRAINT [{foreignKey}]";
+                YetaWF.Core.Log.Logging.AddTraceLog(cmd.CommandText);
                 cmd.ExecuteNonQuery();
             }
         }
@@ -192,6 +198,7 @@ namespace YetaWF.DataProvider.SQL {
             using (SqlCommand cmd = new SqlCommand()) {
                 cmd.Connection = conn;
                 cmd.CommandText = $"DROP INDEX {SQLBuilder.WrapBrackets(dbo)}.{SQLBuilder.WrapBrackets(tableName)}.{index}";
+                YetaWF.Core.Log.Logging.AddTraceLog(cmd.CommandText);
                 cmd.ExecuteNonQuery();
             }
         }
@@ -199,6 +206,7 @@ namespace YetaWF.DataProvider.SQL {
             using (SqlCommand cmd = new SqlCommand()) {
                 cmd.Connection = conn;
                 cmd.CommandText = $@"ALTER TABLE [{dbo}].[{tableName}] DROP CONSTRAINT [{index}]";
+                YetaWF.Core.Log.Logging.AddTraceLog(cmd.CommandText);
                 cmd.ExecuteNonQuery();
             }
         }
@@ -206,6 +214,7 @@ namespace YetaWF.DataProvider.SQL {
             using (SqlCommand cmd = new SqlCommand()) {
                 cmd.Connection = conn;
                 cmd.CommandText = $"ALTER TABLE [{dbo}].[{tableName}] DROP CONSTRAINT [{index}]";
+                YetaWF.Core.Log.Logging.AddTraceLog(cmd.CommandText);
                 cmd.ExecuteNonQuery();
             }
         }
@@ -213,6 +222,7 @@ namespace YetaWF.DataProvider.SQL {
             using (SqlCommand cmd = new SqlCommand()) {
                 cmd.Connection = conn;
                 cmd.CommandText = $"DROP TABLE {SQLBuilder.WrapBrackets(databaseName)}.{SQLBuilder.WrapBrackets(dbo)}.{SQLBuilder.WrapBrackets(tableName)}";
+                YetaWF.Core.Log.Logging.AddTraceLog(cmd.CommandText);
                 cmd.ExecuteNonQuery();
             }
         }

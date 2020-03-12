@@ -28,7 +28,7 @@ namespace YetaWF.DataProvider.SQL {
     /// <summary>
     /// This abstract class is the base class for all SQL low-level data providers.
     /// </summary>
-    public class SQLBase : SQLGenericBase, IDataProviderTransactions {
+    public abstract class SQLBase : SQLGenericBase, IDataProviderTransactions {
 
         /// <summary>
         /// Defines the name of the SQL low-level data provider.
@@ -78,7 +78,7 @@ namespace YetaWF.DataProvider.SQL {
         ///
         /// For debugging purposes, instances of this class are tracked using the DisposableTracker class.
         /// </remarks>
-        protected SQLBase(Dictionary<string, object> options) : base(options) {
+        protected SQLBase(Dictionary<string, object> options, bool HasKey2 = false) : base(options, HasKey2) {
             SqlConnectionStringBuilder sqlsb = new SqlConnectionStringBuilder(GetSqlConnectionString());
             sqlsb.MultipleActiveResultSets = true;
             ConnectionString = sqlsb.ToString();
