@@ -1,6 +1,7 @@
 ﻿/* Copyright © 2020 Softel vdm, Inc. - https://yetawf.com/Documentation/YetaWF/Licensing */
 
 using Npgsql;
+using NpgsqlTypes;
 using System;
 using System.Collections;
 using System.Collections.Generic;
@@ -97,26 +98,26 @@ namespace YetaWF.DataProvider.PostgreSQL {
                 if (DerivedDataTableName != null) {
                     newTable.Columns.Add(new Column {
                         Name = DerivedDataTableName,
-                        DataType = SqlDbType.NVarChar,
+                        DataType = NpgsqlDbType.Varchar,
                         Length = 80,
                     });
 
                     newTable.Columns.Add(new Column {
                         Name = DerivedDataTypeName,
-                        DataType = SqlDbType.NVarChar,
+                        DataType = NpgsqlDbType.Varchar,
                         Length = 200,
                     });
 
                     newTable.Columns.Add(new Column {
                         Name = DerivedAssemblyName,
-                        DataType = SqlDbType.NVarChar,
+                        DataType = NpgsqlDbType.Varchar,
                         Length = 200,
                     });
                 }
                 if (SiteSpecific) {
                     newTable.Columns.Add(new Column {
                         Name = SQLBase.SiteColumn,
-                        DataType = SqlDbType.Int,
+                        DataType = NpgsqlDbType.Integer,
                     });
                 }
 
@@ -184,7 +185,7 @@ namespace YetaWF.DataProvider.PostgreSQL {
                 if (SubTable) { // for replication
                     Column newColumn = new Column {
                         Name = SQLBase.IdentityColumn,
-                        DataType = SqlDbType.Int,
+                        DataType = NpgsqlDbType.Integer,
                         Nullable = false,
                         Identity = true,
                         IdentityIncrement = 1,
@@ -202,7 +203,7 @@ namespace YetaWF.DataProvider.PostgreSQL {
                     if (HasIdentity(identityName)) {
                         Column newColumn = new Column {
                             Name = identityName,
-                            DataType = SqlDbType.Int,
+                            DataType = NpgsqlDbType.Integer,
                             Nullable = false,
                             Identity = true,
                             IdentityIncrement = 1,
@@ -220,7 +221,7 @@ namespace YetaWF.DataProvider.PostgreSQL {
                         if (hasSubTable) {
                             Column newColumn = new Column {
                                 Name = SQLBase.IdentityColumn,
-                                DataType = SqlDbType.Int,
+                                DataType = NpgsqlDbType.Integer,
                                 Nullable = false,
                                 Identity = true,
                                 IdentityIncrement = 1,
@@ -250,7 +251,7 @@ namespace YetaWF.DataProvider.PostgreSQL {
 
                         Column newColumn = new Column {
                             Name = SQLBase.SubTableKeyColumn,
-                            DataType = SqlDbType.Int,
+                            DataType = NpgsqlDbType.Integer,
                             Nullable = false,
                         };
                         newTable.Columns.Add(newColumn);
@@ -321,7 +322,7 @@ namespace YetaWF.DataProvider.PostgreSQL {
                                 throw new InternalError("Binary data can't be a primary key - table {0}", newTable.Name);
                             Column newColumn = new Column {
                                 Name = colName,
-                                DataType = SqlDbType.VarBinary,
+                                DataType = NpgsqlDbType.Bytea,
                                 Nullable = true,
                             };
                             newTable.Columns.Add(newColumn);
@@ -332,7 +333,7 @@ namespace YetaWF.DataProvider.PostgreSQL {
                                 colName = prefix + SQLBase.ColumnFromPropertyWithLanguage(lang.Id, prop.Name);
                                 Column newColumn = new Column {
                                     Name = colName,
-                                    DataType = SqlDbType.NVarChar,
+                                    DataType = NpgsqlDbType.Varchar,
                                 };
                                 StringLengthAttribute attr = (StringLengthAttribute)pi.GetCustomAttribute(typeof(StringLengthAttribute));
                                 if (attr == null)
@@ -350,7 +351,7 @@ namespace YetaWF.DataProvider.PostgreSQL {
                                 throw new InternalError("Image can't be a primary key - table {0}", newTable.Name);
                             Column newColumn = new Column {
                                 Name = colName,
-                                DataType = SqlDbType.VarBinary,
+                                DataType = NpgsqlDbType.Bytea,
                                 Nullable = true,
                             };
                             newTable.Columns.Add(newColumn);
@@ -623,51 +624,51 @@ ELSE
             }
         }
 
-        private SqlDbType GetDataType(PropertyInfo pi) {
+        private NpgsqlDbType GetDataType(PropertyInfo pi) {
             Type tp = pi.PropertyType;
             if (tp == typeof(DateTime) || tp == typeof(DateTime?))
-                return SqlDbType.DateTime2;
+                return NpgsqlDbType.Timestamp;
             else if (tp == typeof(TimeSpan) || tp == typeof(TimeSpan?))
-                return SqlDbType.BigInt;
+                return NpgsqlDbType.Bigint;
             else if (tp == typeof(decimal) || tp == typeof(decimal?))
-                return SqlDbType.Money;
+                return NpgsqlDbType.Money;
             else if (tp == typeof(bool) || tp == typeof(bool?))
-                return SqlDbType.Bit;
+                return NpgsqlDbType.Bit;
             else if (tp == typeof(System.Guid) || tp == typeof(System.Guid?))
-                return SqlDbType.UniqueIdentifier;
+                return NpgsqlDbType.Uuid;
             else if (tp == typeof(Image))
-                return SqlDbType.VarBinary;
+                return NpgsqlDbType.Bytea;
             else if (tp == typeof(int) || tp == typeof(int?))
-                return SqlDbType.Int;
+                return NpgsqlDbType.Integer;
             else if (tp == typeof(long) || tp == typeof(long?))
-                return SqlDbType.BigInt;
+                return NpgsqlDbType.Bigint;
             else if (tp == typeof(Single) || tp == typeof(Single?))
-                return SqlDbType.Float;
+                return NpgsqlDbType.Double;
             else if (tp.IsEnum)
-                return SqlDbType.Int;
+                return NpgsqlDbType.Integer;
             else if (tp == typeof(string))
-                return SqlDbType.NVarChar;
+                return NpgsqlDbType.Varchar;
             throw new InternalError("Unsupported property type {0} for property {1}", tp.FullName, pi.Name);
         }
         private string GetDataTypeString(Column col) {
             switch (col.DataType) {
-                case SqlDbType.BigInt:
+                case NpgsqlDbType.Bigint:
                     return "bigint";
-                case SqlDbType.Bit:
+                case NpgsqlDbType.Bit:
                     return "boolean";
-                case SqlDbType.DateTime2:
-                    return "date";
-                case SqlDbType.Money:
+                case NpgsqlDbType.Timestamp:
+                    return "timestamp without time zone";
+                case NpgsqlDbType.Money:
                     return "money";
-                case SqlDbType.UniqueIdentifier:
+                case NpgsqlDbType.Uuid:
                     return "uuid";
-                case SqlDbType.VarBinary:
-                    return "bytea(max)";
-                case SqlDbType.Int:
+                case NpgsqlDbType.Bytea:
+                    return "bytea";
+                case NpgsqlDbType.Integer:
                     return "integer";
-                case SqlDbType.Float:
+                case NpgsqlDbType.Double:
                     return "double precision";
-                case SqlDbType.NVarChar:
+                case NpgsqlDbType.Varchar:
                     if (col.Length == 0)
                         return "text";
                     else
@@ -681,23 +682,23 @@ ELSE
                 return "";
 
             switch (col.DataType) {
-                case SqlDbType.BigInt:
+                case NpgsqlDbType.Bigint:
                     return $" SET DEFAULT 0";
-                case SqlDbType.Bit:
+                case NpgsqlDbType.Bit:
                     return $" SET DEFAULT 0";
-                case SqlDbType.DateTime2:
+                case NpgsqlDbType.Timestamp:
                     return "";
-                case SqlDbType.Money:
+                case NpgsqlDbType.Money:
                     return $" SET DEFAULT 0";
-                case SqlDbType.UniqueIdentifier:
+                case NpgsqlDbType.Uuid:
                     return "";
-                case SqlDbType.VarBinary:
+                case NpgsqlDbType.Bytea:
                     return "";
-                case SqlDbType.Int:
+                case NpgsqlDbType.Integer:
                     return $" SET DEFAULT 0";
-                case SqlDbType.Float:
+                case NpgsqlDbType.Double:
                     return $" SET DEFAULT 0";
-                case SqlDbType.NVarChar:
+                case NpgsqlDbType.Varchar:
                     return "";
                 default:
                     throw new InternalError($"Table {tableName}, column {col.Name} has an unsupported type name {col.DataType.ToString()}");

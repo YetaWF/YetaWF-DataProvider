@@ -223,7 +223,7 @@ namespace YetaWF.DataProvider.PostgreSQL {
         public Task<object> ExecuteScalarAsync(string text) {
             return ExecuteScalarAsync(NpqsqlConnection, NpgsqlTransaction, CommandType.Text, text, Params);
         }
-        public Task<int> ExecuteNonQueryAsync(string text) {
+        public Task ExecuteNonQueryAsync(string text) {
             return ExecuteNonQueryAsync(NpqsqlConnection, NpgsqlTransaction, CommandType.Text, text, Params);
         }
         public Task<DbDataReader> ExecuteReaderStoredProcAsync(string sproc) {
@@ -250,14 +250,14 @@ namespace YetaWF.DataProvider.PostgreSQL {
                     return await cmd.ExecuteScalarAsync();
             }
         }
-        private static async Task<int> ExecuteNonQueryAsync(NpgsqlConnection connection, NpgsqlTransaction transaction, CommandType commandType, string commandText, List<NpgsqlParameter> sqlParms) {
+        private static async Task ExecuteNonQueryAsync(NpgsqlConnection connection, NpgsqlTransaction transaction, CommandType commandType, string commandText, List<NpgsqlParameter> sqlParms) {
             using (NpgsqlCommand cmd = new NpgsqlCommand()) {
                 YetaWF.Core.Log.Logging.AddTraceLog(commandText);
                 PrepareCommand(cmd, connection, transaction, commandType, commandText, sqlParms);
                 if (YetaWFManager.IsSync())
-                    return cmd.ExecuteNonQuery();
+                    cmd.ExecuteNonQuery();
                 else
-                    return await cmd.ExecuteNonQueryAsync();
+                    await cmd.ExecuteNonQueryAsync();
             }
         }
 
@@ -320,7 +320,7 @@ namespace YetaWF.DataProvider.PostgreSQL {
                     string cast = "";
                     if (val != null && val.GetType() == typeof(DateTime)) {
                         val = ((DateTime)val).ToString("yyyy-MM-dd HH:mm:ss");
-                        cast = "date";
+                        cast = "timestamp";
                     }
                     switch (f.Operator.ToLower()) {
                         case "eq":

@@ -1,9 +1,9 @@
 ﻿/* Copyright © 2020 Softel vdm, Inc. - https://yetawf.com/Documentation/YetaWF/Licensing */
 
 using Npgsql;
+using NpgsqlTypes;
 using System;
 using System.Collections.Generic;
-using System.Data;
 using YetaWF.Core.Support;
 using YetaWF.DataProvider.SQLGeneric;
 
@@ -159,27 +159,27 @@ namespace YetaWF.DataProvider.PostgreSQL {
             return list;
         }
 
-        private static SqlDbType GetDataType(string typeName) { //$$$$ FIX THIS
-            if (typeName == "date")
-                return SqlDbType.DateTime2;
+        private static NpgsqlDbType GetDataType(string typeName) {
+            if (typeName == "timestamp without time zone")
+                return NpgsqlDbType.Timestamp;
             else if (typeName == "bigint")
-                return SqlDbType.BigInt;
-            else if (typeName == "money")//$$$??
-                return SqlDbType.Money;
+                return NpgsqlDbType.Bigint;
+            else if (typeName == "money")
+                return NpgsqlDbType.Money;
             else if (typeName == "boolean")
-                return SqlDbType.Bit;
+                return NpgsqlDbType.Bit;
             else if (typeName == "uuid")
-                return SqlDbType.UniqueIdentifier;
+                return NpgsqlDbType.Uuid;
             else if (typeName == "bytea")
-                return SqlDbType.VarBinary;
+                return NpgsqlDbType.Bytea;
             else if (typeName == "integer")
-                return SqlDbType.Int;
-            else if (typeName == "float")//$$$$
-                return SqlDbType.Float;
+                return NpgsqlDbType.Integer;
+            else if (typeName == "double precision")//$$$$
+                return NpgsqlDbType.Double;
             else if (typeName == "character varying")
-                return SqlDbType.NVarChar;
+                return NpgsqlDbType.Varchar;
             else if (typeName == "text")
-                return SqlDbType.NVarChar;
+                return NpgsqlDbType.Varchar;
             throw new InternalError($"Unsupported type name {typeName}");
         }
 

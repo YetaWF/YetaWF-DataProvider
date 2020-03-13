@@ -24,6 +24,7 @@
   <ItemGroup>
     <ProjectReference Include="..\..\CoreComponents\Core\Core.csproj" />
     <ProjectReference Include="..\File\File.csproj" />
+    <ProjectReference Include="..\PostgreSQL\PostgreSQL.csproj" />
     <ProjectReference Include="..\SQL\SQL.csproj" />
   </ItemGroup>
 </Project>

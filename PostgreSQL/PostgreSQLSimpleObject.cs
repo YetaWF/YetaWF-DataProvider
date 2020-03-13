@@ -152,7 +152,7 @@ SELECT @__IDENTITY -- result set
 
                 scriptMain = $@"
 INSERT INTO {fullTableName} ({columns})
-VALUES ({values}); -- result set
+VALUES ({values});
 
 {sqlHelper.DebugInfo}";
 
@@ -235,8 +235,7 @@ VALUES ({values});
 UPDATE {fullTableName}
 SET {setColumns}
 WHERE {sqlHelper.Expr(Key1Name, "=", origKey)} {andKey2} {AndSiteIdentity}
-;
-SELECT @@ROWCOUNT --- result set
+RETURNING 1; -- result set
 
 {warningsOn}
 
@@ -252,8 +251,7 @@ WHERE {sqlHelper.Expr(Key1Name, "=", origKey)} {andKey2} {AndSiteIdentity}
 UPDATE {fullTableName}
 SET {setColumns}
 WHERE [{IdentityNameOrDefault}] = @__IDENTITY
-;
-SELECT @@ROWCOUNT --- result set
+RETURNING 1; -- result set
 
 {subTablesUpdates}
 
@@ -263,12 +261,10 @@ SELECT @@ROWCOUNT --- result set
             string script = (string.IsNullOrWhiteSpace(subTablesUpdates)) ? scriptMain : scriptWithSub;
 
             try {
-                object val = await sqlHelper.ExecuteScalarAsync(script);
-                int changed = Convert.ToInt32(val);
-                if (changed == 0)
-                    return UpdateStatusEnum.RecordDeleted;
-                if (changed > 1)
-                    throw new InternalError($"Update failed - {changed} records updated");
+                using (DbDataReader reader = await sqlHelper.ExecuteReaderAsync(script)) {
+                    if (!reader.HasRows)
+                        return UpdateStatusEnum.RecordDeleted;
+                }
             } catch (Exception exc) {
                 if (!newKey.Equals(origKey)) {
                     NpgsqlException sqlExc = exc as NpgsqlException;
@@ -312,8 +308,7 @@ SELECT @@ROWCOUNT --- result set
 DELETE
 FROM {fullTableName}
 WHERE {sqlHelper.Expr(Key1Name, "=", key)} {andKey2} {AndSiteIdentity}
-;
-SELECT @@ROWCOUNT --- result set
+RETURNING 1; -- result set
 
 {sqlHelper.DebugInfo}";
 
@@ -321,24 +316,20 @@ SELECT @@ROWCOUNT --- result set
 DECLARE @ident int;
 SELECT @ident = [{IdentityNameOrDefault}] FROM {fullTableName}
 WHERE {sqlHelper.Expr(Key1Name, "=", key)} {andKey2} {AndSiteIdentity}
-
+RETURNING 1; -- result set
 {subTablesDeletes}
 
 DELETE
 FROM {fullTableName}
-WHERE [{IdentityNameOrDefault}] = @ident
-;
-SELECT @@ROWCOUNT --- result set
+WHERE [{IdentityNameOrDefault}] = @ident;
 
 {sqlHelper.DebugInfo}";
 
             string script = (string.IsNullOrWhiteSpace(subTablesDeletes)) ? scriptMain : scriptWithSub;
 
-            object val = await sqlHelper.ExecuteScalarAsync(script);
-            int deleted = Convert.ToInt32(val);
-            if (deleted > 1)
-                throw new InternalError($"More than 1 record deleted by {nameof(RemoveAsync)} method");
-            return deleted > 0;
+            using (DbDataReader reader = await sqlHelper.ExecuteReaderAsync(script)) {
+                return reader.HasRows;
+            }
         }
 
         /// <summary>
@@ -408,7 +399,7 @@ DELETE
 FROM {fullTableName}
 {filter}
 ;
-SELECT @@ROWCOUNT --- result set
+SELECT ROW_COUNT --- result set
 ;
 SELECT * FROM #TEMPTABLE --- result set
 ;
