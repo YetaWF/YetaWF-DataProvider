@@ -343,7 +343,7 @@ namespace YetaWF.DataProvider.PostgreSQL {
                 sb.Add($"\"{prefix}DerivedAssemblyName\",");
             }
             if (SubTable) {
-                sb.Add($"[{prefix}{SubTableKeyColumn}\",");
+                sb.Add($"\"{prefix}{SubTableKeyColumn}\",");
             }
             sb.RemoveLastCharacter();// ,
             return sb.ToString();
@@ -394,7 +394,10 @@ namespace YetaWF.DataProvider.PostgreSQL {
                         sb.Add(sqlHelper.AddTempParam(ticks));
                         sb.Add(",");
                     } else if (TryGetDataType(pi.PropertyType)) {
-                        sb.Add(sqlHelper.AddTempParam(pi.GetValue(container)));
+                        if (pi.PropertyType.IsEnum)
+                            sb.Add(sqlHelper.AddTempParam((int)pi.GetValue(container)));
+                        else
+                            sb.Add(sqlHelper.AddTempParam(pi.GetValue(container)));
                         sb.Add(",");
                     } else if (pi.PropertyType.IsClass /* && propmmd.Model != null*/ && typeof(IEnumerable).IsAssignableFrom(pi.PropertyType)) {
                         // This is a enumerated type, so we have to create separate values using this table's identity column as a link
@@ -426,7 +429,7 @@ namespace YetaWF.DataProvider.PostgreSQL {
                 sb.Add(",");
             }
             if (SubTable) {
-                sb.Add("@__IDENTITY,");
+                sb.Add("__IDENTITY,");
             }
             sb.RemoveLastCharacter();// ,
             return sb.ToString();
@@ -548,7 +551,7 @@ namespace YetaWF.DataProvider.PostgreSQL {
             int count = 0;
             foreach (object arg in args) {
                 ++count;
-                sqlHelper.AddParam($"p{count}", arg);
+                sqlHelper.AddParam($"@p{count}", arg);
             }
             sql = sql.Replace("{TableName}", SQLBuilder.WrapIdentifier(tableName));
             if (SiteIdentity > 0)
@@ -580,7 +583,7 @@ namespace YetaWF.DataProvider.PostgreSQL {
             int count = 0;
             foreach (object arg in args) {
                 ++count;
-                sqlHelper.AddParam($"p{count}", arg);
+                sqlHelper.AddParam($"@p{count}", arg);
             }
             sql = sql.Replace("{TableName}", SQLBuilder.WrapIdentifier(tableName));
             if (SiteIdentity > 0)
@@ -618,7 +621,7 @@ namespace YetaWF.DataProvider.PostgreSQL {
             int count = 0;
             foreach (object arg in args) {
                 ++count;
-                sqlHelper.AddParam($"p{count}", arg);
+                sqlHelper.AddParam($"@p{count}", arg);
             }
             sql = sql.Replace("{TableName}", SQLBuilder.WrapIdentifier(tableName));
             if (SiteIdentity > 0)
@@ -657,7 +660,7 @@ namespace YetaWF.DataProvider.PostgreSQL {
             int count = 0;
             foreach (object arg in args) {
                 ++count;
-                sqlHelper.AddParam($"p{count}", arg);
+                sqlHelper.AddParam($"@p{count}", arg);
             }
             sql = sql.Replace("{TableName}", SQLBuilder.WrapIdentifier(tableName));
             if (SiteIdentity > 0)
@@ -702,7 +705,7 @@ namespace YetaWF.DataProvider.PostgreSQL {
 
             if (parms != null) {
                 foreach (PropertyInfo propertyInfo in parms.GetType().GetProperties(BindingFlags.Instance | BindingFlags.Public)) {
-                    sqlHelper.AddParam("@"+propertyInfo.Name, propertyInfo.GetValue(parms, null));
+                    sqlHelper.AddParam($"@{propertyInfo.Name}", propertyInfo.GetValue(parms, null));
                 }
             }
 

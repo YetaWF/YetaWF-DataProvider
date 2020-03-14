@@ -40,10 +40,6 @@ namespace YetaWF.DataProvider.PostgreSQL {
             Logging = logging;
         }
 
-        protected bool HasIdentity(string identityName) {
-            return !string.IsNullOrWhiteSpace(identityName);
-        }
-
         public bool CreateTableFromModel(string dbName, string schema, string tableName, string key1Name, string key2Name, string identityName, List<PropertyData> propData, Type tpProps,
                 List<string> errorList, List<string> columns,
                 bool TopMost = false,
@@ -60,7 +56,6 @@ namespace YetaWF.DataProvider.PostgreSQL {
                 return false;
 
             MakeTables(dbName, schema, tableInfo);
-
             return true;
         }
 
@@ -418,7 +413,6 @@ namespace YetaWF.DataProvider.PostgreSQL {
                 RemoveIndexesAndForeignKeys(dbName, schema, tableInfo);
             }
             MakeTable(dbName, schema, tableInfo);
-            MakeForeignKeys(dbName, schema, tableInfo);// we can't make foreign keys until all tables have been created/updated
         }
 
         private void MakeTable(string dbName, string schema, TableInfo tableInfo) {
@@ -430,21 +424,13 @@ namespace YetaWF.DataProvider.PostgreSQL {
                 MakeTable(dbName, schema, subtableInfo);
         }
 
-        private void MakeForeignKeys(string dbName, string schema, TableInfo tableInfo) {
-            if (tableInfo.CurrentTable != null)
-                UpdateForeignKeys(dbName, schema, tableInfo.CurrentTable, tableInfo.NewTable);
-            else
-                CreateForeignKey(dbName, schema, tableInfo.NewTable);
-            foreach (TableInfo subtableInfo in tableInfo.SubTables)
-                MakeForeignKeys(dbName, schema, subtableInfo);
-        }
-
         private void CreateTable(string dbName, string schema, Table newTable) {
 
             StringBuilder sb = new StringBuilder();
             StringBuilder sbIx = new StringBuilder();
 
-            sb.Append($"CREATE TABLE {schema}.{SQLBuilder.WrapIdentifier(newTable.Name)} (\r\n");
+            sb.Append($"CREATE TABLE {SQLBuilder.WrapIdentifier(schema)}.{SQLBuilder.WrapIdentifier(newTable.Name)} (\r\n");
+
             // Columns
             foreach (Column col in newTable.Columns) {
                 sb.Append($"    {SQLBuilder.WrapIdentifier(col.Name)} {GetDataTypeString(col)}{GetIdentity(col)}{GetNullable(col)},\r\n");
@@ -464,9 +450,17 @@ namespace YetaWF.DataProvider.PostgreSQL {
                         break;
                 }
             }
+
+            // Foreign Keys
+
+            if (newTable.ForeignKeys.Count > 0) {
+                foreach (ForeignKey fk in newTable.ForeignKeys) {
+                    sb.Append(GetAddForeignKey(fk, dbName, schema, newTable));
+                }
+            }
             sb.RemoveLastComma();
 
-            sb.Append("\r\n) WITH ( OIDS = FALSE )\r\n\r\n");
+            sb.Append("\r\n) WITH ( OIDS = FALSE );\r\n\r\n");
 
             sb.Append(sbIx.ToString());
 
@@ -475,24 +469,6 @@ namespace YetaWF.DataProvider.PostgreSQL {
                 cmd.CommandText = sb.ToString();
                 YetaWF.Core.Log.Logging.AddTraceLog(cmd.CommandText);
                 cmd.ExecuteNonQuery();
-            }
-        }
-
-        private void CreateForeignKey(string dbName, string schema, Table newTable) {
-
-            if (newTable.ForeignKeys.Count > 0) {
-                StringBuilder sb = new StringBuilder();
-
-                foreach (ForeignKey fk in newTable.ForeignKeys) {
-                    sb.Append(GetAddForeignKey(fk, dbName, schema, newTable));
-                }
-
-                using (NpgsqlCommand cmd = new NpgsqlCommand()) {
-                    cmd.Connection = Conn;
-                    cmd.CommandText = sb.ToString();
-                    YetaWF.Core.Log.Logging.AddTraceLog(cmd.CommandText);
-                    cmd.ExecuteNonQuery();
-                }
             }
         }
 
@@ -520,17 +496,17 @@ namespace YetaWF.DataProvider.PostgreSQL {
                         sb.Append($"DROP INDEX {index.Name};\r\n");
                         break;
                     case IndexType.UniqueKey:
-                        sb.Append($"ALTER TABLE {schema}.{SQLBuilder.WrapIdentifier(newTable.Name)} DROP CONSTRAINT {SQLBuilder.WrapIdentifier(index.Name)};\r\n");
+                        sb.Append($"ALTER TABLE {SQLBuilder.WrapIdentifier(schema)}.{SQLBuilder.WrapIdentifier(newTable.Name)} DROP CONSTRAINT {SQLBuilder.WrapIdentifier(index.Name)};\r\n");
                         break;
                     case IndexType.PrimaryKey:
-                        sb.Append($"ALTER TABLE {schema}.{SQLBuilder.WrapIdentifier(newTable.Name)} DROP CONSTRAINT {SQLBuilder.WrapIdentifier(index.Name)};\r\n");
+                        sb.Append($"ALTER TABLE {SQLBuilder.WrapIdentifier(schema)}.{SQLBuilder.WrapIdentifier(newTable.Name)} DROP CONSTRAINT {SQLBuilder.WrapIdentifier(index.Name)};\r\n");
                         break;
                 }
             }
 
             // Remove foreign key
             foreach (ForeignKey fk in removedForeignKeys) {
-                sb.Append($"ALTER TABLE {schema}.{SQLBuilder.WrapIdentifier(newTable.Name)} DROP CONSTRAINT {SQLBuilder.WrapIdentifier(fk.Name)};\r\n");
+                sb.Append($"ALTER TABLE {SQLBuilder.WrapIdentifier(schema)}.{SQLBuilder.WrapIdentifier(newTable.Name)} DROP CONSTRAINT {SQLBuilder.WrapIdentifier(fk.Name)};\r\n");
             }
 
             if (sb.Length != 0) {
@@ -558,24 +534,24 @@ namespace YetaWF.DataProvider.PostgreSQL {
             // Remove columns
             foreach (Column col in removedColumns) {
                 sb.Append($@"
-IF EXISTS (SELECT * FROM  [{schema}].[sysobjects] WHERE id = OBJECT_ID(N'DF_{currentTable.Name}_{col.Name}') AND type = 'D')
+IF EXISTS (SELECT * FROM  [{SQLBuilder.WrapIdentifier(schema)}].[sysobjects] WHERE id = OBJECT_ID(N'DF_{currentTable.Name}_{col.Name}') AND type = 'D')
     BEGIN
-       ALTER TABLE  [{schema}].[{newTable.Name}] DROP CONSTRAINT [DF_{currentTable.Name}_{col.Name}], COLUMN [{col.Name}];
+       ALTER TABLE  [{SQLBuilder.WrapIdentifier(schema)}].[{newTable.Name}] DROP CONSTRAINT [DF_{currentTable.Name}_{col.Name}], COLUMN [{col.Name}];
     END
 ELSE
     BEGIN
-       ALTER TABLE  [{schema}].[{newTable.Name}] DROP COLUMN [{col.Name}];
+       ALTER TABLE  [{SQLBuilder.WrapIdentifier(schema)}].[{newTable.Name}] DROP COLUMN [{col.Name}];
     END
 ");
             }
 
             // Add columns
             foreach (Column col in addedColumns) {
-                sb.Append($"ALTER TABLE [{schema}].[{newTable.Name}] ADD [{col.Name}] {GetDataTypeString(col)}{GetDataTypeDefault(newTable.Name, col)}{GetIdentity(col)}{GetNullable(col)};\r\n");
+                sb.Append($"ALTER TABLE [{SQLBuilder.WrapIdentifier(schema)}].[{newTable.Name}] ADD [{col.Name}] {GetDataTypeString(col)}{GetDataTypeDefault(newTable.Name, col)}{GetIdentity(col)}{GetNullable(col)};\r\n");
             }
             // Altered columns
             foreach (Column col in alteredColumns) {
-                sb.Append($"ALTER TABLE [{schema}].[{newTable.Name}] ALTER [{col.Name}] {GetDataTypeString(col)}{GetDataTypeDefault(newTable.Name, col)}{GetIdentity(col)}{GetNullable(col)};\r\n");
+                sb.Append($"ALTER TABLE [{SQLBuilder.WrapIdentifier(schema)}].[{newTable.Name}] ALTER [{col.Name}] {GetDataTypeString(col)}{GetDataTypeDefault(newTable.Name, col)}{GetIdentity(col)}{GetNullable(col)};\r\n");
             }
 
             // Add index
@@ -583,7 +559,7 @@ ELSE
                 switch (index.IndexType) {
                     case IndexType.PrimaryKey:
                     case IndexType.UniqueKey:
-                        sb.Append($"ALTER TABLE [{schema}].[{newTable.Name}]\r\n");
+                        sb.Append($"ALTER TABLE [{SQLBuilder.WrapIdentifier(schema)}].[{newTable.Name}]\r\n");
                         sb.Append($"  ADD");
                         sb.Append(GetAddIndex(index, dbName, schema, newTable));
                         sb.RemoveLastComma();
@@ -738,36 +714,35 @@ ELSE
                     sb.Append($"),\r\n");
                     break;
                 case IndexType.Indexed:
-                    //$$$// created separately, after table
-                    //sb.Append($"CREATE {PostgreSQLBuilder.WrapQuotes(index.Name)} ON [{schema}].[{newTable.Name}] (\r\n");
-                    //foreach (string col in index.IndexedColumns) {
-                    //    sb.Append($"{PostgreSQLBuilder.WrapQuotes(col)},");
-                    //}
-                    //sb.RemoveLastComma();
-                    //sb.Append($"),\r\n");
+                    // created separately, after table
+                    sb.Append($"CREATE INDEX {SQLBuilder.WrapIdentifier(index.Name)} ON {SQLBuilder.WrapIdentifier(schema)}.{SQLBuilder.WrapIdentifier(newTable.Name)} USING btree (\r\n");
+                    foreach (string col in index.IndexedColumns) {
+                        sb.Append($"{SQLBuilder.WrapIdentifier(col)},");
+                    }
+                    sb.RemoveLastComma();
+                    sb.Append($");\r\n");
                     break;
             }
             return sb.ToString();
         }
         private string GetAddForeignKey(ForeignKey fk, string dbName, string schema, Table newTable) {
             StringBuilder sb = new StringBuilder();
-            sb.Append($"ALTER TABLE [{schema}].[{newTable.Name}] WITH CHECK ADD CONSTRAINT [{fk.Name}]\r\n");
-            sb.Append($"  FOREIGN KEY(\r\n");
+            sb.Append($"  CONSTRAINT {SQLBuilder.WrapIdentifier(fk.Name)} FOREIGN KEY (");
             foreach (ForeignKeyColumn fkCol in fk.ForeignKeyColumns) {
-                sb.Append($"    [{fkCol.Column}],\r\n");
+                sb.Append($"{SQLBuilder.WrapIdentifier(fkCol.Column)},");
             }
             sb.RemoveLastComma();
-            sb.Append($"\r\n  )\r\n");
-
-            sb.Append($"  REFERENCES[{schema}].[{fk.ReferencedTable}] (\r\n");
+            sb.Append($")\r\n");
+            sb.Append($"    REFERENCES {SQLBuilder.WrapIdentifier(schema)}.{SQLBuilder.WrapIdentifier(fk.ReferencedTable)} (");
             foreach (ForeignKeyColumn fkCol in fk.ForeignKeyColumns) {
-                sb.Append($"    [{fkCol.ReferencedColumn}],\r\n");
+                sb.Append($"{SQLBuilder.WrapIdentifier(fkCol.ReferencedColumn)},");
             }
             sb.RemoveLastComma();
-            sb.Append($"\r\n  )\r\n");
-            sb.Append($"  ON DELETE CASCADE;\r\n\r\n");
+            sb.Append($") MATCH SIMPLE\r\n");
 
-            sb.Append($"ALTER TABLE [{schema}].[{newTable.Name}] CHECK CONSTRAINT [{fk.Name}];\r\n\r\n");
+            sb.Append($"    ON UPDATE NO ACTION\r\n");
+            sb.Append($"    ON DELETE CASCADE,\r\n");
+
             return sb.ToString();
         }
     }

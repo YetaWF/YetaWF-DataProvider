@@ -138,13 +138,17 @@ VALUES ({values})
 {sqlHelper.DebugInfo}";
 
                 scriptWithSub = $@"
-INSERT INTO {fullTableName} ({columns})
-VALUES ({values})
- RETURNING {SQLBuilder.WrapIdentifier(IdentityName)} INTO [@__IDENTITY];
+DO $$
+    DECLARE __IDENTITY integer;
+BEGIN
+    INSERT INTO {fullTableName} ({columns})
+    VALUES ({values})
+        RETURNING {SQLBuilder.WrapIdentifier(IdentityName)} INTO __IDENTITY;
 
-SELECT @__IDENTITY -- result set
+    SELECT __IDENTITY -- result set
 ;
 {subTablesInserts}
+END $$;
 
 {sqlHelper.DebugInfo}";
 
@@ -678,7 +682,7 @@ FROM {fullTableName}
             sb.Add("BEGIN TRANSACTION Upd;");
             foreach (SubTableInfo subTable in subTables) {
                 sb.Add($@"
-    DELETE FROM {subTable.Name} WITH(SERIALIZABLE) WHERE {SQLBase.SubTableKeyColumn} = @__IDENTITY ;
+    DELETE FROM {subTable.Name} WITH(SERIALIZABLE) WHERE {SQLBase.SubTableKeyColumn} = __IDENTITY ;
 ");
                 List<PropertyData> subPropData = ObjectSupport.GetPropertyData(subTable.Type);
                 IEnumerable ienum = (IEnumerable)subTable.PropInfo.GetValue(container);

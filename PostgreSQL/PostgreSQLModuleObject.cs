@@ -452,10 +452,13 @@ WHERE {fullBaseTableName}.[DerivedDataTableName] = '{Dataset}' AND {fullBaseTabl
                     SiteSpecific: SiteIdentity > 0,
                     DerivedDataTableName: "DerivedDataTableName", DerivedDataTypeName: "DerivedDataType", DerivedAssemblyName: "DerivedAssemblyName"))
                 return false;
-            return sqlCreate.CreateTableFromModel(dbName, Schema, Dataset, Key1Name, null, SQLBase.IdentityColumn, GetPropertyData(), typeof(OBJTYPE), errorList, columns,
+            if (!sqlCreate.CreateTableFromModel(dbName, Schema, Dataset, Key1Name, null, SQLBase.IdentityColumn, GetPropertyData(), typeof(OBJTYPE), errorList, columns,
                 TopMost: true,
                 SiteSpecific: SiteIdentity > 0,
-                ForeignKeyTable: BaseDataset);
+                ForeignKeyTable: BaseDataset))
+                return false;
+            return sqlCreate.MakeProceduresAndFunctionsWithBaseType(dbName, Schema, BaseDataset, Dataset, Key1Name, IdentityName, GetBasePropertyData(), GetPropertyData(), baseType, typeof(OBJTYPE), columns,
+                    DerivedDataTableName: "DerivedDataTableName", DerivedDataTypeName: "DerivedDataType", DerivedAssemblyName: "DerivedAssemblyName");
         }
 
         /// <summary>

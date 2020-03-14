@@ -44,10 +44,6 @@ namespace YetaWF.DataProvider {
             Logging = logging;
         }
 
-        protected bool HasIdentity(string identityName) {
-            return !string.IsNullOrWhiteSpace(identityName);
-        }
-
         public bool CreateTableFromModel(string dbName, string dbOwner, string tableName, string key1Name, string key2Name, string identityName, List<PropertyData> propData, Type tpProps,
                 List<string> errorList, List<string> columns,
                 bool TopMost = false,

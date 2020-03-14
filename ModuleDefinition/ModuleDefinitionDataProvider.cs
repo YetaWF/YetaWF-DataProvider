@@ -207,6 +207,10 @@ namespace YetaWF.DataProvider {
                                 options.Add("WebConfigArea", ModuleDefinition.BaseFolderName);
                                 return new SQL.SQLDataProvider.ModuleDefinitionDataProvider<KEY, TYPE>(options);
                             }
+                        case "postgresql": {
+                                options.Add("WebConfigArea", ModuleDefinition.BaseFolderName);
+                                return new PostgreSQL.PostgreSQLDataProvider.ModuleDefinitionDataProvider<KEY, TYPE>(options);
+                            }
                         case "file":
                             return new File.FileDataProvider.ModuleDefinitionDataProvider<KEY, TYPE>(options);
                         default:

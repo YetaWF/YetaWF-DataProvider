@@ -1,8 +1,6 @@
 ﻿/* Copyright © 2020 Softel vdm, Inc. - https://yetawf.com/Documentation/YetaWF/Licensing */
 
-using System;
 using System.Collections.Generic;
-using System.Drawing;
 using System.Linq;
 
 namespace YetaWF.DataProvider.SQLGeneric {
@@ -114,5 +112,10 @@ namespace YetaWF.DataProvider.SQLGeneric {
             public string Column { get; set; }
             public string ReferencedColumn { get; set; }
         }
+
+        protected bool HasIdentity(string identityName) {
+            return !string.IsNullOrWhiteSpace(identityName);
+        }
+
     }
 }
