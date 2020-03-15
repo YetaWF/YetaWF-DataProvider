@@ -12,6 +12,7 @@ using YetaWF.Core.Modules;
 using YetaWF.Core.Packages;
 using YetaWF.Core.Serializers;
 using YetaWF.Core.Support;
+using YetaWF.DataProvider.SQLGeneric;
 #if MVC6
 using Microsoft.Data.SqlClient;
 #else
@@ -439,11 +440,10 @@ WHERE {fullBaseTableName}.[DerivedDataTableName] = '{Dataset}' AND {fullBaseTabl
         /// <remarks>
         /// While a package is installed, all data models are installed by calling the InstallModelAsync method.</remarks>
         public new async Task<bool> InstallModelAsync(List<string> errorList) {
-            SQLManager sqlManager = new SQLManager();
             await EnsureOpenAsync();
             if (Dataset == BaseDataset) throw new InternalError("Base dataset is not supported");
             bool success = CreateTableWithBaseType(Conn, Database, errorList);
-            sqlManager.ClearCache();
+            SQLGenericManagerCache.ClearCache();
             return success;
         }
         private bool CreateTableWithBaseType(SqlConnection conn, string dbName, List<string> errorList) {
@@ -470,7 +470,6 @@ WHERE {fullBaseTableName}.[DerivedDataTableName] = '{Dataset}' AND {fullBaseTabl
         /// <remarks>
         /// While a package is uninstalled, all data models are uninstalled by calling the UninstallModelAsync method.</remarks>
         public new async Task<bool> UninstallModelAsync(List<string> errorList) {
-            SQLManager sqlManager = new SQLManager();
             await EnsureOpenAsync();
             if (Dataset == BaseDataset) throw new InternalError("Base dataset is not supported");
             try {
@@ -480,7 +479,7 @@ WHERE {fullBaseTableName}.[DerivedDataTableName] = '{Dataset}' AND {fullBaseTabl
                 errorList.Add(string.Format("{0}: {1}", typeof(OBJTYPE).FullName, ErrorHandling.FormatExceptionMessage(exc)));
                 return false;
             } finally {
-                sqlManager.ClearCache();
+                SQLGenericManagerCache.ClearCache();
             }
         }
         private async Task<bool> DropTableWithBaseType(string dbName, List<string> errorList) {

@@ -1,6 +1,7 @@
 ﻿/* Copyright © 2020 Softel vdm, Inc. - https://yetawf.com/Documentation/YetaWF/Licensing */
 
 using System.Text;
+using YetaWF.Core.Extensions;
 
 namespace YetaWF.DataProvider.SQLGeneric {
 
@@ -26,6 +27,12 @@ namespace YetaWF.DataProvider.SQLGeneric {
         public void Add(string s) { _sb.Append(s); }
 
         /// <summary>
+        /// Appends a string.
+        /// </summary>
+        /// <param name="s">The string to append.</param>
+        public void Append(string s) { _sb.Append(s); }
+
+        /// <summary>
         /// Returns the complete SQL string built using this instance.
         /// </summary>
         /// <returns>Returns the complete SQL string.</returns>
@@ -38,6 +45,9 @@ namespace YetaWF.DataProvider.SQLGeneric {
         public void RemoveLastCharacter() {
             if (_sb.Length > 0)
                 _sb.Remove(_sb.Length - 1, 1);// remove last character
+        }
+        public void RemoveLastComma() {
+            _sb.RemoveLastComma();
         }
 
         // TABLE, COLUMN FORMATTING

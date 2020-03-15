@@ -13,6 +13,7 @@ using YetaWF.Core.Models;
 using YetaWF.Core.Packages;
 using YetaWF.Core.Serializers;
 using YetaWF.Core.Support;
+using YetaWF.DataProvider.SQLGeneric;
 #if MVC6
 using Microsoft.Data.SqlClient;
 #else
@@ -720,7 +721,6 @@ FROM {fullTableName} WITH(NOLOCK)
         /// <remarks>
         /// While a package is installed, all data models are installed by calling the InstallModelAsync method.</remarks>
         public async Task<bool> InstallModelAsync(List<string> errorList) {
-            SQLManager sqlManager = new SQLManager();
             await EnsureOpenAsync();
             List<string> columns = new List<string>();
             SQLGen sqlCreate = new SQLGen(Conn, Languages, IdentitySeed, Logging);
@@ -728,7 +728,7 @@ FROM {fullTableName} WITH(NOLOCK)
             bool success = sqlCreate.CreateTableFromModel(Database, Dbo, Dataset, Key1Name, HasKey2 ? Key2Name : null, IdentityName, GetPropertyData(), typeof(OBJTYPE), errorList, columns,
                 SiteSpecific: SiteIdentity > 0,
                 TopMost: true);
-            sqlManager.ClearCache();
+            SQLGenericManagerCache.ClearCache();
             return success;
         }
 
@@ -741,7 +741,6 @@ FROM {fullTableName} WITH(NOLOCK)
         /// <remarks>
         /// While a package is uninstalled, all data models are uninstalled by calling the UninstallModelAsync method.</remarks>
         public async Task<bool> UninstallModelAsync(List<string> errorList) {
-            SQLManager sqlManager = new SQLManager();
             await EnsureOpenAsync();
             try {
                 SQLGen sqlCreate = new SQLGen(Conn, Languages, IdentitySeed, Logging);
@@ -757,7 +756,7 @@ FROM {fullTableName} WITH(NOLOCK)
                 errorList.Add(string.Format("{0}: {1}", typeof(OBJTYPE).FullName, ErrorHandling.FormatExceptionMessage(exc)));
                 return false;
             } finally {
-                sqlManager.ClearCache();
+                SQLGenericManagerCache.ClearCache();
             }
         }
 

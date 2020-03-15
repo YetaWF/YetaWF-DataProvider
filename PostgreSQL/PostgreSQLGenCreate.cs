@@ -653,6 +653,33 @@ ELSE
                     throw new InternalError($"Column {col.Name} has unsupported type name {col.DataType.ToString()}");
             }
         }
+        private string GetDataTypeArgumentString(Column col) {
+            switch (col.DataType) {
+                case NpgsqlDbType.Bigint:
+                    return "bigint";
+                case NpgsqlDbType.Bit:
+                    return "boolean";
+                case NpgsqlDbType.Timestamp:
+                    return "timestamp without time zone";
+                case NpgsqlDbType.Money:
+                    return "money";
+                case NpgsqlDbType.Uuid:
+                    return "uuid";
+                case NpgsqlDbType.Bytea:
+                    return "bytea";
+                case NpgsqlDbType.Integer:
+                    return "integer";
+                case NpgsqlDbType.Double:
+                    return "double precision";
+                case NpgsqlDbType.Varchar:
+                    if (col.Length == 0)
+                        return "text";
+                    else
+                        return $"character varying({col.Length})";
+                default:
+                    throw new InternalError($"Column {col.Name} has unsupported type name {col.DataType.ToString()}");
+            }
+        }
         private string GetDataTypeDefault(string tableName, Column col) {
             if (col.Nullable)
                 return "";

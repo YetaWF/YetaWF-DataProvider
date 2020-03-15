@@ -295,7 +295,7 @@ namespace YetaWF.DataProvider.PostgreSQL {
             props = (from p in props where p.CalculatedProperty select p).ToList();
             foreach (PropertyData prop in props) {
                 string calcProp = await CalculatedPropertyCallbackAsync(prop.Name);
-                sb.Add($", ({calcProp}) AS [{prop.Name}]");
+                sb.Add($", ({calcProp}) AS {SQLBuilder.WrapIdentifier(prop.Name)}");
             }
             return sb.ToString();
         }

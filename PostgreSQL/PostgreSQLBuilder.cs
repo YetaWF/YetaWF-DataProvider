@@ -1,5 +1,6 @@
 ﻿/* Copyright © 2020 Softel vdm, Inc. - https://yetawf.com/Documentation/YetaWF/Licensing */
 
+using System;
 using System.Collections.Generic;
 using System.Text;
 using YetaWF.Core.DataProvider;
@@ -45,6 +46,7 @@ namespace YetaWF.DataProvider.PostgreSQL {
         internal void AddOrderBy(Dictionary<string, string> visibleColumns, List<DataProviderSortInfo> sorts, int Offset = 0, int Next = 0) {
             Add(GetOrderBy(visibleColumns, sorts, Offset:Offset, Next: Next));
         }
+
         /// <summary>
         /// Returns a fully formatted ORDER BY clause based on the provided sort criteria and paging info.
         /// </summary>

@@ -14,6 +14,7 @@ using YetaWF.Core.Modules;
 using YetaWF.Core.Packages;
 using YetaWF.Core.Serializers;
 using YetaWF.Core.Support;
+using YetaWF.DataProvider.SQLGeneric;
 
 namespace YetaWF.DataProvider.PostgreSQL {
 
@@ -436,11 +437,9 @@ WHERE {fullBaseTableName}.[DerivedDataTableName] = '{Dataset}' AND {fullBaseTabl
         /// <remarks>
         /// While a package is installed, all data models are installed by calling the InstallModelAsync method.</remarks>
         public new async Task<bool> InstallModelAsync(List<string> errorList) {
-            SQLManager sqlManager = new SQLManager();
             await EnsureOpenAsync();
             if (Dataset == BaseDataset) throw new InternalError("Base dataset is not supported");
             bool success = CreateTableWithBaseType(Conn, Database, errorList);
-            sqlManager.ClearCache();
             return success;
         }
         private bool CreateTableWithBaseType(NpgsqlConnection conn, string dbName, List<string> errorList) {
@@ -457,7 +456,14 @@ WHERE {fullBaseTableName}.[DerivedDataTableName] = '{Dataset}' AND {fullBaseTabl
                 SiteSpecific: SiteIdentity > 0,
                 ForeignKeyTable: BaseDataset))
                 return false;
-            return sqlCreate.MakeProceduresAndFunctionsWithBaseType(dbName, Schema, BaseDataset, Dataset, Key1Name, IdentityName, GetBasePropertyData(), GetPropertyData(), baseType, typeof(OBJTYPE), columns,
+
+            // update cache
+            SQLGenericManagerCache.ClearCache();
+            SQLManager sqlManager = new SQLManager();
+            sqlManager.GetColumns(conn, dbName, Schema, BaseDataset);
+            sqlManager.GetColumns(conn, dbName, Schema, Dataset);
+
+            return sqlCreate.MakeProceduresAndFunctionsWithBaseType(dbName, Schema, BaseDataset, Dataset, Key1Name, IdentityName, GetBasePropertyData(), GetPropertyData(), baseType, typeof(OBJTYPE),
                     DerivedDataTableName: "DerivedDataTableName", DerivedDataTypeName: "DerivedDataType", DerivedAssemblyName: "DerivedAssemblyName");
         }
 
@@ -470,7 +476,6 @@ WHERE {fullBaseTableName}.[DerivedDataTableName] = '{Dataset}' AND {fullBaseTabl
         /// <remarks>
         /// While a package is uninstalled, all data models are uninstalled by calling the UninstallModelAsync method.</remarks>
         public new async Task<bool> UninstallModelAsync(List<string> errorList) {
-            SQLManager sqlManager = new SQLManager();
             await EnsureOpenAsync();
             if (Dataset == BaseDataset) throw new InternalError("Base dataset is not supported");
             try {
@@ -480,7 +485,7 @@ WHERE {fullBaseTableName}.[DerivedDataTableName] = '{Dataset}' AND {fullBaseTabl
                 errorList.Add(string.Format("{0}: {1}", typeof(OBJTYPE).FullName, ErrorHandling.FormatExceptionMessage(exc)));
                 return false;
             } finally {
-                sqlManager.ClearCache();
+                SQLGenericManagerCache.ClearCache();
             }
         }
         private async Task<bool> DropTableWithBaseType(string dbName, List<string> errorList) {

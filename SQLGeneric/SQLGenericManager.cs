@@ -7,6 +7,35 @@ using YetaWF.Core.Support;
 
 namespace YetaWF.DataProvider.SQLGeneric {
 
+    public static class SQLGenericManagerCache {
+
+        // Cached database information
+        internal static List<SQLGenericGen.Database> Databases = new List<SQLGenericGen.Database>();
+        internal static readonly object DatabasesLockObject = new object();
+
+        public static SQLGenericGen.Column GetCachedColumn(string databaseName, string schema, string tableName, string columnName) {
+            SQLGenericGen.Database db = (from d in SQLGenericManagerCache.Databases where string.Compare(d.Name, databaseName, true) == 0 select d).FirstOrDefault();
+            if (db != null) {
+                SQLGenericGen.Table table = (from t in db.CachedTables where string.Compare(t.Name, tableName, true) == 0 select t).FirstOrDefault();
+                if (table != null) {
+                    SQLGenericGen.Column col = (from c in table.CachedColumns where string.Compare(c.Name, columnName, true) == 0 select c).FirstOrDefault();
+                    if (col != null)
+                        return col;
+                }
+            }
+            throw new InternalError($"Expected column {columnName} not found in {databaseName}, {schema}, {tableName}");
+        }
+
+        /// <summary>
+        /// Clear the cache.
+        /// </summary>
+        public static void ClearCache() {
+            lock (SQLGenericManagerCache.DatabasesLockObject) {
+                SQLGenericManagerCache.Databases = new List<SQLGenericGen.Database>();
+            }
+        }
+    }
+
     /// <summary>
     /// Used to retrieve information about databases, tables, columns.
     /// </summary>
@@ -22,10 +51,6 @@ namespace YetaWF.DataProvider.SQLGeneric {
         /// When using a "Database First" approach, any index or foreign key whose name starts with this prefix will be ignored and remain untouched/unaltered by model updates.
         /// </summary>
         public const string DBFIRST_PREFIX = "PREDEF_";
-
-        // Cached database information
-        private static List<SQLGenericGen.Database> Databases = new List<SQLGenericGen.Database>();
-        private static readonly object DatabasesLockObject = new object();
 
         public abstract string GetDataSource(TYPE connInfo);
         public abstract List<string> GetDataBaseNames(TYPE connInfo);
@@ -43,20 +68,20 @@ namespace YetaWF.DataProvider.SQLGeneric {
             string connDataSource = GetDataSource(connInfo);
             string connDataSourceLow = connDataSource.ToLower();
             SQLGenericGen.Database db;
-            lock (DatabasesLockObject) {
-                db = (from d in Databases where d.DataSource.ToLower() == connDataSourceLow && dbName == d.Name.ToLower() select d).FirstOrDefault();
+            lock (SQLGenericManagerCache.DatabasesLockObject) {
+                db = (from d in SQLGenericManagerCache.Databases where d.DataSource.ToLower() == connDataSourceLow && dbName == d.Name.ToLower() select d).FirstOrDefault();
                 if (db == null) {
                     List<string> dbNames = GetDataBaseNames(connInfo);
                     foreach (string dbn in dbNames) {
-                        SQLGenericGen.Database d = (from s in Databases where s.DataSource.ToLower() == connDataSourceLow && dbn == s.Name.ToLower() select s).FirstOrDefault();
+                        SQLGenericGen.Database d = (from s in SQLGenericManagerCache.Databases where s.DataSource.ToLower() == connDataSourceLow && dbn == s.Name.ToLower() select s).FirstOrDefault();
                         if (d == null) {
-                            Databases.Add(new SQLGenericGen.Database {
+                            SQLGenericManagerCache.Databases.Add(new SQLGenericGen.Database {
                                 Name = dbn,
                                 DataSource = connDataSource,
                             });
                         }
                     }
-                    db = (from d in Databases where d.DataSource.ToLower() == connDataSourceLow && dbName == d.Name.ToLower() select d).FirstOrDefault();
+                    db = (from d in SQLGenericManagerCache.Databases where d.DataSource.ToLower() == connDataSourceLow && dbName == d.Name.ToLower() select d).FirstOrDefault();
                 }
             }
             return db;
@@ -99,15 +124,6 @@ namespace YetaWF.DataProvider.SQLGeneric {
             if (table.CachedColumns.Count == 0)
                 table.CachedColumns = GetColumnNames(connInfo, databaseName, schema, tableName);
             return table.CachedColumns;
-        }
-
-        /// <summary>
-        /// Clear the cache.
-        /// </summary>
-        public void ClearCache() {
-            lock (DatabasesLockObject) {
-                Databases = new List<SQLGenericGen.Database>();
-            }
         }
     }
 }
