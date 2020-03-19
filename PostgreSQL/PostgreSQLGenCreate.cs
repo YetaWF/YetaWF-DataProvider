@@ -3,7 +3,6 @@
 using Npgsql;
 using NpgsqlTypes;
 using System;
-using System.Collections;
 using System.Collections.Generic;
 using System.Data;
 using System.Drawing;
@@ -45,12 +44,12 @@ namespace YetaWF.DataProvider.PostgreSQL {
                 bool TopMost = false,
                 bool SiteSpecific = false,
                 string ForeignKeyTable = null,
-                string DerivedDataTableName = null, string DerivedDataTypeName = null, string DerivedAssemblyName = null,
+                bool WithDerivedInfo = false,
                 bool SubTable = false) {
 
             TableInfo tableInfo = CreateSimpleTableFromModel(dbName, schema, tableName, key1Name, key2Name, identityName, propData, tpProps,
                 errorList, columns,
-                TopMost, SiteSpecific, ForeignKeyTable, DerivedDataTableName, DerivedDataTypeName, DerivedAssemblyName,
+                TopMost, SiteSpecific, ForeignKeyTable, WithDerivedInfo,
                 SubTable);
             if (tableInfo == null)
                 return false;
@@ -64,7 +63,7 @@ namespace YetaWF.DataProvider.PostgreSQL {
                 bool TopMost = false,
                 bool SiteSpecific = false,
                 string ForeignKeyTable = null,
-                string DerivedDataTableName = null, string DerivedDataTypeName = null, string DerivedAssemblyName = null,
+                bool WithDerivedInfo = false,
                 bool SubTable = false) {
             try {
 
@@ -87,34 +86,10 @@ namespace YetaWF.DataProvider.PostgreSQL {
                         Columns = sqlManager.GetColumns(Conn, dbName, schema, tableName),
                     };
                 }
-                bool hasSubTable = AddTableColumns(dbName, schema, tableInfo, key1Name, key2Name, identityName, propData, tpProps, "", true, columns, errorList, SubTable: SubTable);
 
-                // if this table (base class) has a derived type, add its table name and its derived type as a column
-                if (DerivedDataTableName != null) {
-                    newTable.Columns.Add(new Column {
-                        Name = DerivedDataTableName,
-                        DataType = NpgsqlDbType.Varchar,
-                        Length = 80,
-                    });
+                DropFunctionsAsync(dbName, schema, tableName);// drop functions so we can recreate types
 
-                    newTable.Columns.Add(new Column {
-                        Name = DerivedDataTypeName,
-                        DataType = NpgsqlDbType.Varchar,
-                        Length = 200,
-                    });
-
-                    newTable.Columns.Add(new Column {
-                        Name = DerivedAssemblyName,
-                        DataType = NpgsqlDbType.Varchar,
-                        Length = 200,
-                    });
-                }
-                if (SiteSpecific) {
-                    newTable.Columns.Add(new Column {
-                        Name = SQLBase.SiteColumn,
-                        DataType = NpgsqlDbType.Integer,
-                    });
-                }
+                bool hasSubTable = AddTableColumns(dbName, schema, tableInfo, key1Name, key2Name, identityName, propData, tpProps, "", true, columns, errorList, SiteSpecific: SiteSpecific, WithDerivedInfo: WithDerivedInfo, SubTable: SubTable);
 
                 // PK Index
                 if (!SubTable) {
@@ -244,13 +219,6 @@ namespace YetaWF.DataProvider.PostgreSQL {
                         if (!HasIdentity(identityName))
                             throw new InternalError("Identity required");
 
-                        Column newColumn = new Column {
-                            Name = SQLBase.SubTableKeyColumn,
-                            DataType = NpgsqlDbType.Integer,
-                            Nullable = false,
-                        };
-                        newTable.Columns.Add(newColumn);
-
                         Index newIndex = new Index {
                             Name = "K_" + tableName + "_" + SQLBase.SubTableKeyColumn,
                         };
@@ -290,122 +258,139 @@ namespace YetaWF.DataProvider.PostgreSQL {
         private bool AddTableColumns(string dbName, string schema, TableInfo tableInfo,
                 string key1Name, string key2Name, string identityName,
                 List<PropertyData> propData, Type tpContainer, string prefix, bool topMost, List<string> columns, List<string> errorList,
+                bool SiteSpecific = false,
+                bool WithDerivedInfo = false,
                 bool SubTable = false) {
 
             Table newTable = tableInfo.NewTable;
             Table currentTable = tableInfo.CurrentTable;
-            bool hasSubTable = false;
-
-            foreach (PropertyData prop in propData) {
-
-                PropertyInfo pi = prop.PropInfo;
-                if (pi.CanRead && pi.CanWrite && !prop.HasAttribute("DontSave") && !prop.CalculatedProperty && !prop.HasAttribute(Data_DontSave.AttributeName)) {
-
-                    string colName = prefix + prop.ColumnName;
-                    if (colName == key1Name || colName == key2Name || !columns.Contains(colName)) {
-
-                        columns.Add(colName);
-
-                        if (prop.Name == identityName) {
-                            if (SubTable)
-                                throw new InternalError("Subtables can't have an explicit identity");
-                            if (pi.PropertyType != typeof(int))
-                                throw new InternalError("Identity columns must be of type int");
-                            // done by caller
-                        } else if (prop.HasAttribute(Data_BinaryAttribute.AttributeName)) {
-                            if (topMost && (prop.Name == key1Name || prop.Name == key2Name))
-                                throw new InternalError("Binary data can't be a primary key - table {0}", newTable.Name);
-                            Column newColumn = new Column {
-                                Name = colName,
-                                DataType = NpgsqlDbType.Bytea,
-                                Nullable = true,
-                            };
-                            newTable.Columns.Add(newColumn);
-                        } else if (pi.PropertyType == typeof(MultiString)) {
-                            if (Languages.Count == 0)
-                                throw new InternalError("We need Languages for MultiString support");
-                            foreach (LanguageData lang in Languages) {
-                                colName = prefix + SQLBase.ColumnFromPropertyWithLanguage(lang.Id, prop.Name);
-                                Column newColumn = new Column {
-                                    Name = colName,
-                                    DataType = NpgsqlDbType.Varchar,
-                                };
-                                StringLengthAttribute attr = (StringLengthAttribute)pi.GetCustomAttribute(typeof(StringLengthAttribute));
-                                if (attr == null)
-                                    throw new InternalError("StringLength attribute missing for property {0}", prefix + prop.Name);
-                                if (attr.MaximumLength >= 4000)
-                                    newColumn.Length = 0;
-                                else
-                                    newColumn.Length = attr.MaximumLength;
-                                if (colName != key1Name && colName != key2Name)
-                                    newColumn.Nullable = true;
-                                newTable.Columns.Add(newColumn);
-                            }
-                        } else if (pi.PropertyType == typeof(Image)) {
-                            if (topMost && (prop.Name == key1Name || prop.Name == key2Name))
-                                throw new InternalError("Image can't be a primary key - table {0}", newTable.Name);
-                            Column newColumn = new Column {
-                                Name = colName,
-                                DataType = NpgsqlDbType.Bytea,
-                                Nullable = true,
-                            };
-                            newTable.Columns.Add(newColumn);
-                        } else if (SQLGenericBase.TryGetDataType(pi.PropertyType)) {
-                            Column newColumn = new Column {
-                                Name = colName,
-                                Nullable = true,
-                            };
-                            newColumn.DataType = GetDataType(pi);
-                            if (pi.PropertyType == typeof(string)) {
-                                StringLengthAttribute attr = (StringLengthAttribute)pi.GetCustomAttribute(typeof(StringLengthAttribute));
-                                if (attr == null)
-                                    throw new InternalError("StringLength attribute missing for property {0}", pi.Name);
-                                int len = attr.MaximumLength;
-                                if (len == 0 || len >= 4000)
-                                    newColumn.Length = 0;
-                                else
-                                    newColumn.Length = len;
-                            }
-                            bool nullable = false;
-                            if (colName != key1Name && colName != key2Name && (pi.PropertyType == typeof(string) || Nullable.GetUnderlyingType(pi.PropertyType) != null))
-                                nullable = true;
-                            newColumn.Nullable = nullable;
-                            Data_NewValue newValAttr = (Data_NewValue)pi.GetCustomAttribute(typeof(Data_NewValue));
-                            if (currentTable != null && !currentTable.HasColumn(colName)) {
-                                if (newValAttr == null)
-                                    throw new InternalError("Property {0} in table {1} doesn't have a Data_NewValue attribute, which is required when updating tables", prop.Name, newTable.Name);
-                            }
-                            newTable.Columns.Add(newColumn);
-                        } else if (pi.PropertyType.IsClass && typeof(IEnumerable).IsAssignableFrom(pi.PropertyType)) {
-                            // This is a enumerated type, so we have to create a separate table using this table's identity column as a link
-                            if (SubTable) throw new InternalError("Nested subtables not supported");
-                            // determine the enumerated type
-                            Type subType = pi.PropertyType.GetInterfaces().Where(t => t.IsGenericType == true && t.GetGenericTypeDefinition() == typeof(IEnumerable<>))
-                                    .Select(t => t.GetGenericArguments()[0]).FirstOrDefault();
-                            // create a table that links the main table and this enumerated type using the key of the table
-                            string subTableName = newTable.Name + "_" + pi.Name;
-                            List<PropertyData> subPropData = ObjectSupport.GetPropertyData(subType);
-
-                            TableInfo subTableInfo = CreateSimpleTableFromModel(dbName, schema, subTableName, SQLBase.SubTableKeyColumn, null,
-                                HasIdentity(identityName) ? identityName : SQLBase.IdentityColumn, subPropData, subType, errorList, columns,
-                                TopMost: false,
-                                ForeignKeyTable: newTable.Name,
-                                SubTable: true,
-                                SiteSpecific: false);
-                            if (subTableInfo == null)
-                                throw new InternalError($"Creation of subtable {subTableName} failed");
-                            tableInfo.SubTables.Add(subTableInfo);
-
-                            hasSubTable = true;
-                        } else if (pi.PropertyType.IsClass) {
-                            List<PropertyData> subPropData = ObjectSupport.GetPropertyData(pi.PropertyType);
-                            AddTableColumns(dbName, schema, tableInfo, null, null, identityName, subPropData, pi.PropertyType, prefix + prop.Name + "_", SubTable, columns, errorList);
-                        } else
-                            throw new InternalError("Unknown property type {2} used in class {0}, property {1}", tpContainer.FullName, prop.Name, pi.PropertyType.FullName);
+            string result = ProcessColumns(
+                (prefix, prop) => { // regular property
+                    PropertyInfo pi = prop.PropInfo;
+                    Column newColumn = new Column {
+                        Name = prop.ColumnName,
+                        Nullable = true,
+                    };
+                    newColumn.DataType = GetDataType(pi);
+                    if (pi.PropertyType == typeof(string)) {
+                        StringLengthAttribute attr = (StringLengthAttribute)pi.GetCustomAttribute(typeof(StringLengthAttribute));
+                        if (attr == null)
+                            throw new InternalError($"StringLength attribute missing for property {prop.Name}");
+                        int len = attr.MaximumLength;
+                        if (len == 0 || len >= 4000)
+                            newColumn.Length = 0;
+                        else
+                            newColumn.Length = len;
                     }
-                }
-            }
-            return hasSubTable;
+                    bool nullable = false;
+                    if (prop.ColumnName != key1Name && prop.ColumnName != key2Name && (pi.PropertyType == typeof(string) || Nullable.GetUnderlyingType(pi.PropertyType) != null))
+                        nullable = true;
+                    newColumn.Nullable = nullable;
+                    Data_NewValue newValAttr = (Data_NewValue)pi.GetCustomAttribute(typeof(Data_NewValue));
+                    if (currentTable != null && !currentTable.HasColumn(prop.ColumnName)) {
+                        if (newValAttr == null)
+                            throw new InternalError($"Property {prop.Name} in table {newTable.Name} doesn't have a Data_NewValue attribute, which is required when updating tables");
+                    }
+                    newTable.Columns.Add(newColumn);
+                    return null;
+                },
+                (prefix, prop) => { // Binary
+                    Column newColumn = new Column {
+                        Name = prop.ColumnName,
+                        DataType = NpgsqlDbType.Bytea,
+                        Nullable = true,
+                    };
+                    newTable.Columns.Add(newColumn);
+                    return null;
+                },
+                (prefix, prop) => { // Image
+                    Column newColumn = new Column {
+                        Name = prop.ColumnName,
+                        DataType = NpgsqlDbType.Bytea,
+                        Nullable = true,
+                    };
+                    newTable.Columns.Add(newColumn);
+                    return null;
+                },
+                (prefix, prop) => { // MultiString
+                    if (Languages.Count == 0) throw new InternalError("We need Languages for MultiString support");
+                    StringBuilder sb = new StringBuilder();
+                    foreach (LanguageData lang in Languages) {
+                        string colName = prefix + SQLBase.ColumnFromPropertyWithLanguage(lang.Id, prop.Name);
+                        Column newColumn = new Column {
+                            Name = colName,
+                            DataType = NpgsqlDbType.Varchar,
+                        };
+                        StringLengthAttribute attr = (StringLengthAttribute)prop.PropInfo.GetCustomAttribute(typeof(StringLengthAttribute));
+                        if (attr == null)
+                            throw new InternalError("StringLength attribute missing for property {0}", prefix + prop.Name);
+                        if (attr.MaximumLength >= 4000)
+                            newColumn.Length = 0;
+                        else
+                            newColumn.Length = attr.MaximumLength;
+                        if (colName != key1Name && colName != key2Name)
+                            newColumn.Nullable = true;
+                        newTable.Columns.Add(newColumn);
+                    }
+                    return sb.ToString();
+                },
+                (prefix, name) => { // Predefined property
+                    if (name == "DerivedDataTableName")
+                        newTable.Columns.Add(new Column {
+                            Name = name,
+                            DataType = NpgsqlDbType.Varchar,
+                            Length = 80,
+                        });
+                    else if (name == "DerivedDataType")
+                        newTable.Columns.Add(new Column {
+                            Name = name,
+                            DataType = NpgsqlDbType.Varchar,
+                            Length = 200,
+                        });
+                    else if (name == "DerivedAssemblyName")
+                        newTable.Columns.Add(new Column {
+                            Name = name,
+                            DataType = NpgsqlDbType.Varchar,
+                            Length = 200,
+                        });
+                    else if (name == SQLGenericBase.SubTableKeyColumn)
+                        newTable.Columns.Add(new Column {
+                            Name = SQLGenericBase.SubTableKeyColumn,
+                            DataType = NpgsqlDbType.Integer,
+                        });
+                    else if (name == SQLGenericBase.SiteColumn)
+                        newTable.Columns.Add(new Column {
+                            Name = SQLGenericBase.SiteColumn,
+                            DataType = NpgsqlDbType.Integer,
+                        });
+
+                    return null;
+                },
+                (prefix, prop, subtableName) => { // Subtable property
+                    PropertyInfo pi = prop.PropInfo;
+                    Type subType = pi.PropertyType.GetInterfaces().Where(t => t.IsGenericType == true && t.GetGenericTypeDefinition() == typeof(IEnumerable<>))
+                            .Select(t => t.GetGenericArguments()[0]).FirstOrDefault();
+                    // create a table that links the main table and this enumerated type using the key of the table
+                    string subTableName = newTable.Name + "_" + pi.Name;
+                    List<PropertyData> subPropData = ObjectSupport.GetPropertyData(subType);
+
+                    TableInfo subTableInfo = CreateSimpleTableFromModel(dbName, schema, subTableName, SQLBase.SubTableKeyColumn, null,
+                        HasIdentity(identityName) ? identityName : SQLBase.IdentityColumn, subPropData, subType, errorList, columns,
+                        TopMost: false,
+                        ForeignKeyTable: newTable.Name,
+                        SubTable: true,
+                        SiteSpecific: false);
+                    if (subTableInfo == null)
+                        throw new InternalError($"Creation of subtable {subTableName} failed");
+                    tableInfo.SubTables.Add(subTableInfo);
+
+                    MakeType(dbName, schema, subTableName, subPropData, subType);
+
+                    return "subtable";
+                },
+                dbName, schema, newTable.Name, propData, tpContainer, columns, prefix, topMost, SiteSpecific, WithDerivedInfo, SubTable);
+
+            return !string.IsNullOrEmpty(result);
         }
 
         private void MakeTables(string dbName, string schema, TableInfo tableInfo) {
@@ -771,6 +756,35 @@ ELSE
             sb.Append($"    ON DELETE CASCADE,\r\n");
 
             return sb.ToString();
+        }
+
+        private void MakeType(string dbName, string schema, string dataset, List<PropertyData> subPropData, Type subType) {
+
+            SQLBuilder sb = new SQLBuilder();
+            SQLHelper sqlHelper = new SQLHelper(Conn, null, Languages);
+
+            string typeName = $"{dataset}_TP";
+
+            sb.Append($@"
+DROP TYPE IF EXISTS ""{schema}"".""{typeName}"";
+CREATE TYPE ""{schema}"".""{typeName}"" AS
+(");
+            sb.Append($@"
+{GetTypeNameList(dbName, schema, dataset, subPropData, subType, Prefix: null, TopMost: false, SiteSpecific: false, WithDerivedInfo: false, SubTable: true)}");
+
+            sb.RemoveLastComma();
+
+            sb.Append($@"
+);");
+
+            // Add to database
+            using (NpgsqlCommand cmd = new NpgsqlCommand()) {
+                cmd.Connection = Conn;
+                cmd.CommandText = sb.ToString();
+                YetaWF.Core.Log.Logging.AddTraceLog(cmd.CommandText);
+                cmd.ExecuteNonQuery();
+            }
+
         }
     }
 }

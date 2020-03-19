@@ -475,7 +475,7 @@ namespace YetaWF.DataProvider.PostgreSQL {
                     parm = new NpgsqlParameter {
                         ParameterName = name,
                         Value = value,
-                        DataTypeName = DbType == NpgsqlDbType.Array ?  DataTypeName + "[]" : DataTypeName,
+                        DataTypeName = /*DbType == NpgsqlDbType.Array ?  DataTypeName + "[]" :*/ DataTypeName,
                     };
                     //if (DbType != NpgsqlDbType.Unknown)
                     //    parm.NpgsqlDbType |= NpgsqlDbType.Array;

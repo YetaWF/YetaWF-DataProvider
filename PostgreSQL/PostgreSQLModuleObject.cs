@@ -449,7 +449,7 @@ WHERE {fullBaseTableName}.[DerivedDataTableName] = '{Dataset}' AND {fullBaseTabl
             if (!sqlCreate.CreateTableFromModel(dbName, Schema, BaseDataset, Key1Name, null, IdentityName, GetBasePropertyData(), baseType, errorList, columns,
                     TopMost: true,
                     SiteSpecific: SiteIdentity > 0,
-                    DerivedDataTableName: "DerivedDataTableName", DerivedDataTypeName: "DerivedDataType", DerivedAssemblyName: "DerivedAssemblyName"))
+                    WithDerivedInfo: true))
                 return false;
             if (!sqlCreate.CreateTableFromModel(dbName, Schema, Dataset, Key1Name, null, SQLBase.IdentityColumn, GetPropertyData(), typeof(OBJTYPE), errorList, columns,
                 TopMost: true,

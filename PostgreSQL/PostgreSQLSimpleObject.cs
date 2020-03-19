@@ -106,6 +106,9 @@ namespace YetaWF.DataProvider.PostgreSQL {
         public async Task<bool> AddAsync(OBJTYPE obj) {
             await EnsureOpenAsync();
 
+            //Conn.TypeMapper.AddMapping(new Npgsql.TypeMapping.NpgsqlTypeMapping {
+             
+            //});
             using (NpgsqlTransaction trans = await Conn.BeginTransactionAsync()) {
 
                 SQLHelper sqlHelper = new SQLHelper(Conn, null, Languages);
@@ -687,7 +690,7 @@ FROM {fullTableName}
             sqlManager.GetColumns(Conn, Database, Schema, Dataset);
 
             if (success) {
-                if (!await sqlCreate.MakeProceduresAndFunctionsAsync(Database, Schema, Dataset, Key1Name, HasKey2 ? Key2Name : null, IdentityName, GetPropertyData(), typeof(OBJTYPE), SiteIdentity, CalculatedPropertyCallbackAsync))
+                if (!await sqlCreate.MakeFunctionsAsync(Database, Schema, Dataset, Key1Name, HasKey2 ? Key2Name : null, IdentityName, GetPropertyData(), typeof(OBJTYPE), SiteIdentity, CalculatedPropertyCallbackAsync))
                     success = false;
             }
             return success;
@@ -908,7 +911,19 @@ DELETE FROM {fullTableName} WHERE [{SiteColumn}] = {SiteIdentity}
                 (prefix, prop) => {
                     SQLGenericGen.Column col = SQLGenericManagerCache.GetCachedColumn(dbName, schema, dataset, prop.ColumnName);
                     object val = prop.PropInfo.GetValue(obj);
-                    sqlHelper.AddParam($"arg{prefix}{prop.Name}", val, DbType: (NpgsqlDbType) col.DataType);//$$$nested?
+                    sqlHelper.AddParam($"arg{prefix}{prop.Name}", val, DbType: (NpgsqlDbType)col.DataType);//$$$nested?
+                    return null;
+                },
+                (prefix, prop) => {
+                    SQLGenericGen.Column col = SQLGenericManagerCache.GetCachedColumn(dbName, schema, dataset, prop.ColumnName);
+                    object val = prop.PropInfo.GetValue(obj);
+                    sqlHelper.AddParam($"arg{prefix}{prop.Name}", val, DbType: (NpgsqlDbType)col.DataType);//$$$nested?
+                    return null;
+                },
+                (prefix, prop) => {
+                    SQLGenericGen.Column col = SQLGenericManagerCache.GetCachedColumn(dbName, schema, dataset, prop.ColumnName);
+                    object val = prop.PropInfo.GetValue(obj);
+                    sqlHelper.AddParam($"arg{prefix}{prop.Name}", val, DbType: (NpgsqlDbType)col.DataType);//$$$nested?
                     return null;
                 },
                 (prefix, prop) => {
@@ -923,12 +938,14 @@ DELETE FROM {fullTableName} WHERE [{SiteColumn}] = {SiteIdentity}
                     return null;
                 },
                 (prefix, prop, subtableName) => {
+                    // https://www.npgsql.org/doc/types/enums_and_composites.html
+                    // Reading and Writing Dynamically (without CLR types) DOES NOT WORK - END OF EXPERIMENT. DONE.
                     object val = prop.PropInfo.GetValue(obj);
                     List<object> list = new List<object>((IEnumerable<object>)val);
-                    sqlHelper.AddParam($"arg{prefix}{prop.Name}", list.ToArray(), DbType: NpgsqlDbType.Array, DataTypeName: subtableName);
+                    sqlHelper.AddParam($"arg{prefix}{prop.Name}", list.ToArray(), DbType: NpgsqlDbType.Array, DataTypeName: $"{subtableName}_TP[]");
                     return null;
                 },
-                dbName, schema, dataset, propData, obj.GetType(), Prefix, TopMost, SiteSpecific, WithDerivedInfo, SubTable);
+                dbName, schema, dataset, propData, obj.GetType(), new List<string>(), Prefix, TopMost, SiteSpecific, WithDerivedInfo, SubTable) ;
         }
     }
 }
