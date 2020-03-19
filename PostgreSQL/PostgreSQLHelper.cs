@@ -446,8 +446,8 @@ namespace YetaWF.DataProvider.PostgreSQL {
         /// </summary>
         /// <param name="name">The name of the parameter</param>
         /// <param name="value">The value of the parameter</param>
-        /// <param name="direction">The direction of the parameter (input or output).</param>
-        public void AddParam(string name, object value, ParameterDirection direction = ParameterDirection.Input)/*<<<*/ {
+        /// <param name="Direction">The direction of the parameter (input or output).</param>
+        public void AddParam(string name, object value, ParameterDirection Direction = ParameterDirection.Input, NpgsqlDbType DbType = NpgsqlDbType.Unknown, string DataTypeName = null)/*<<<*/ {
 
             if (name.StartsWith("@"))
                 name = name.Substring(1);
@@ -461,7 +461,8 @@ namespace YetaWF.DataProvider.PostgreSQL {
                 img.Save(ms, System.Drawing.Imaging.ImageFormat.Jpeg);
                 ms.Close();
                 value = ms.ToArray();
-                parm = new NpgsqlParameter(name, value);
+                parm = new NpgsqlParameter(name, DbType);
+                parm.Value = value;
             } else if (value is System.String) {
                 string s = (string)value ?? "";
                 parm = new NpgsqlParameter(name, NpgsqlDbType.Varchar, s.Length);
@@ -470,9 +471,20 @@ namespace YetaWF.DataProvider.PostgreSQL {
                 parm = new NpgsqlParameter(name, NpgsqlDbType.Timestamp);
                 parm.Value = value;
             } else {
-                parm = new NpgsqlParameter(name, value);
+                if (DataTypeName != null) {
+                    parm = new NpgsqlParameter {
+                        ParameterName = name,
+                        Value = value,
+                        DataTypeName = DbType == NpgsqlDbType.Array ?  DataTypeName + "[]" : DataTypeName,
+                    };
+                    //if (DbType != NpgsqlDbType.Unknown)
+                    //    parm.NpgsqlDbType |= NpgsqlDbType.Array;
+                } else {
+                    parm = new NpgsqlParameter(name, DbType);
+                    parm.Value = value;
+                }
             }
-            parm.Direction = direction;//<<<
+            parm.Direction = Direction;//<<<
             Params.Add(parm);
         }
     }

@@ -1,6 +1,7 @@
 ﻿/* Copyright © 2020 Softel vdm, Inc. - https://yetawf.com/Documentation/YetaWF/Licensing */
 
 using Npgsql;
+using NpgsqlTypes;
 using System;
 using System.Collections;
 using System.Collections.Generic;
@@ -75,7 +76,7 @@ namespace YetaWF.DataProvider.PostgreSQL {
         public async Task<OBJTYPE> GetAsync(KEYTYPE key, KEYTYPE2 key2) {
             await EnsureOpenAsync();
 
-            using (NpgsqlTransaction trans = Conn.BeginTransaction()) {
+            using (NpgsqlTransaction trans = await Conn.BeginTransactionAsync()) {
 
                 SQLHelper sqlHelper = new SQLHelper(Conn, null, Languages);
 
@@ -83,7 +84,7 @@ namespace YetaWF.DataProvider.PostgreSQL {
                 if (HasKey2)
                     sqlHelper.AddParam("Key2Val", key2);
                 if (SiteIdentity > 0)
-                    sqlHelper.AddParam("SiteIdentityVal", SiteIdentity);
+                    sqlHelper.AddParam(SQLGen.ValSiteIdentity, SiteIdentity);
 
                 using (DbDataReader reader = await sqlHelper.ExecuteReaderStoredProcAsync($"{SQLBuilder.WrapIdentifier(Schema)}.{SQLBuilder.WrapIdentifier($"{Dataset}__Get")}")) {
                     if (!(YetaWFManager.IsSync() ? reader.Read() : await reader.ReadAsync())) return default(OBJTYPE);
@@ -105,13 +106,11 @@ namespace YetaWF.DataProvider.PostgreSQL {
         public async Task<bool> AddAsync(OBJTYPE obj) {
             await EnsureOpenAsync();
 
-            using (NpgsqlTransaction trans = Conn.BeginTransaction()) {
+            using (NpgsqlTransaction trans = await Conn.BeginTransactionAsync()) {
 
                 SQLHelper sqlHelper = new SQLHelper(Conn, null, Languages);
 
                 GetParameterList(sqlHelper, obj, Database, Schema, Dataset, GetPropertyData(), Prefix: null, TopMost: true, SiteSpecific: SiteIdentity > 0, WithDerivedInfo: false, SubTable: false);
-                if (SiteIdentity > 0)
-                    sqlHelper.AddParam("SiteIdentityVal", SiteIdentity);
 
                 DbDataReader reader = null;
                 try {
@@ -130,8 +129,8 @@ namespace YetaWF.DataProvider.PostgreSQL {
                         if (piIdent.PropertyType != typeof(int)) throw new InternalError($"Object identities must be of type int in {typeof(OBJTYPE).FullName}");
                         piIdent.SetValue(obj, identity);
                     }
+                    await trans.CommitAsync();
                     return true;
-
                 }
             }
         }
@@ -905,18 +904,28 @@ DELETE FROM {fullTableName} WHERE [{SiteColumn}] = {SiteIdentity}
         }
 
         internal string GetParameterList(SQLHelper sqlHelper, OBJTYPE obj, string dbName, string schema, string dataset, List<PropertyData> propData, string Prefix = null, bool TopMost = true, bool SiteSpecific = false, bool WithDerivedInfo = false, bool SubTable = false) {
-            return SQLGen.GetColumnFormattedList(
+            return SQLGen.ProcessColumns(
                 (prefix, prop) => {
+                    SQLGenericGen.Column col = SQLGenericManagerCache.GetCachedColumn(dbName, schema, dataset, prop.ColumnName);
                     object val = prop.PropInfo.GetValue(obj);
-                    sqlHelper.AddParam($"arg{prefix}{prop.Name}", val);//$$$nested?
+                    sqlHelper.AddParam($"arg{prefix}{prop.Name}", val, DbType: (NpgsqlDbType) col.DataType);//$$$nested?
                     return null;
                 },
                 (prefix, prop) => {
+                    SQLGenericGen.Column col = SQLGenericManagerCache.GetCachedColumn(dbName, schema, dataset, prop.ColumnName);
                     object val = prop.PropInfo.GetValue(obj);
-                    sqlHelper.AddParam($"arg{prefix}{prop.Name}", val);//$$$nested?
+                    sqlHelper.AddParam($"arg{prefix}{prop.Name}", val, DbType: (NpgsqlDbType)col.DataType);//$$$nested?
                     return null;
                 },
                 (prefix, name) => {
+                    if (name == SQLGen.ValSiteIdentity)
+                        sqlHelper.AddParam(SQLGen.ValSiteIdentity, SiteIdentity, DbType: NpgsqlDbType.Integer);//$$$nested?
+                    return null;
+                },
+                (prefix, prop, subtableName) => {
+                    object val = prop.PropInfo.GetValue(obj);
+                    List<object> list = new List<object>((IEnumerable<object>)val);
+                    sqlHelper.AddParam($"arg{prefix}{prop.Name}", list.ToArray(), DbType: NpgsqlDbType.Array, DataTypeName: subtableName);
                     return null;
                 },
                 dbName, schema, dataset, propData, obj.GetType(), Prefix, TopMost, SiteSpecific, WithDerivedInfo, SubTable);
