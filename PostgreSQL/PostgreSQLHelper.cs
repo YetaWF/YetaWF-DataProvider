@@ -54,10 +54,7 @@ namespace YetaWF.DataProvider.PostgreSQL {
         // Create,Fill
         // Create,Fill
 
-        public T CreateObject<T>(IDataReader dr) {
-            return (T) CreateObject(dr, typeof(T));
-        }
-        public T CreateObject<T>(IDataReader dr, string dataType, string assemblyName) {
+        public T CreateObject<T>(NpgsqlDataReader dr, string dataType, string assemblyName) {
             Type t = null;
             try {
                 Assembly asm = Assemblies.Load(assemblyName);
@@ -65,20 +62,20 @@ namespace YetaWF.DataProvider.PostgreSQL {
             } catch (Exception exc) {
                 throw new InternalError($"Invalid Type {dataType}/{assemblyName} requested - {ErrorHandling.FormatExceptionMessage(exc)}");
             }
-            return (T)CreateObject(dr, t);
+            return CreateObject<T>(dr);
         }
-        public object CreateObject(IDataReader dr, Type tp) {
-            object obj = Activator.CreateInstance(tp);
-            FillObject(dr, obj);
+        public T CreateObject<T>(NpgsqlDataReader dr) {
+            T obj = Activator.CreateInstance<T>();
+            FillObject<T>(dr, obj);
             return obj;
         }
-        public void FillObject(IDataReader dr, object obj) {
+        public void FillObject<T>(NpgsqlDataReader dr, T obj) {
             List<string> columns = new List<string>();
             for (int ci = 0; ci < dr.FieldCount; ci++)
                 columns.Add(dr.GetName(ci));
-            FillObject(dr, obj, columns);
+            FillObject<T>(dr, obj, columns);
         }
-        private void FillObject(IDataReader dr, object container, List<string> columns, string prefix = "") {
+        private void FillObject<T>(NpgsqlDataReader dr, T container, List<string> columns, string prefix = "") {
             Type tpContainer = container.GetType();
             List<PropertyData> propData = ObjectSupport.GetPropertyData(tpContainer);
             foreach (PropertyData prop in propData) {
@@ -123,10 +120,10 @@ namespace YetaWF.DataProvider.PostgreSQL {
                             }
                         }
                     } else if (columns.Contains(colName)) {
-                        object value = dr[colName];
+                        object value = (dynamic)dr[colName];
                         pi.SetValue(container, GetValue(pi.PropertyType, value), BindingFlags.Default, null, null, null);
                     } else if (pi.PropertyType.IsClass && ComplexTypeInColumns(columns, colName + "_")) {// This is SLOW so it should be last
-                        object propVal = pi.GetValue(container);
+                        T propVal = (T)pi.GetValue(container);
                         if (propVal != null)
                             FillObject(dr, propVal, columns, colName + "_");
                     }
@@ -217,7 +214,7 @@ namespace YetaWF.DataProvider.PostgreSQL {
 
         // Execute...
 
-        public Task<DbDataReader> ExecuteReaderAsync(string text) {
+        public Task<NpgsqlDataReader> ExecuteReaderAsync(string text) {
             return ExecuteReaderAsync(NpqsqlConnection, NpgsqlTransaction, CommandType.Text, text, Params);
         }
         public Task<object> ExecuteScalarAsync(string text) {
@@ -226,11 +223,11 @@ namespace YetaWF.DataProvider.PostgreSQL {
         public Task ExecuteNonQueryAsync(string text) {
             return ExecuteNonQueryAsync(NpqsqlConnection, NpgsqlTransaction, CommandType.Text, text, Params);
         }
-        public Task<DbDataReader> ExecuteReaderStoredProcAsync(string sproc) {
+        public Task<NpgsqlDataReader> ExecuteReaderStoredProcAsync(string sproc) {
             return ExecuteReaderAsync(NpqsqlConnection, NpgsqlTransaction, CommandType.StoredProcedure, sproc, Params);
         }
 
-        private static async Task<DbDataReader> ExecuteReaderAsync(NpgsqlConnection connection, NpgsqlTransaction transaction, CommandType commandType, string commandText, List<NpgsqlParameter> sqlParms) {
+        private static async Task<NpgsqlDataReader> ExecuteReaderAsync(NpgsqlConnection connection, NpgsqlTransaction transaction, CommandType commandType, string commandText, List<NpgsqlParameter> sqlParms) {
             using (NpgsqlCommand cmd = new NpgsqlCommand()) {
                 YetaWF.Core.Log.Logging.AddTraceLog(commandText);
                 PrepareCommand(cmd, connection, transaction, commandType, commandText, sqlParms);

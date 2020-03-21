@@ -79,7 +79,7 @@ FETCH FIRST 1 ROWS ONLY
 
 {sqlHelper.DebugInfo}";
 
-            using (DbDataReader reader = await sqlHelper.ExecuteReaderAsync(script)) {
+            using (NpgsqlDataReader reader = await sqlHelper.ExecuteReaderAsync(script)) {
                 if (!(YetaWFManager.IsSync() ? reader.Read() : await reader.ReadAsync())) return default(OBJTYPE);
                 OBJTYPE obj = sqlHelper.CreateObject<OBJTYPE>(reader);
                 if (!string.IsNullOrWhiteSpace(subTablesSelects)) {

@@ -21,7 +21,7 @@ namespace YetaWF.DataProvider.PostgreSQL {
 
         public const string ValSiteIdentity = "valSiteIdentity"; // sproc argument with site identity
 
-        internal bool MakeProceduresAndFunctionsWithBaseType(string dbName, string schema, string baseDataset, string dataset, string key1Name, string identityName, List<PropertyData> basePropData, List<PropertyData> propData, Type baseType, Type type, string DerivedDataTableName, string DerivedDataTypeName, string DerivedAssemblyName) {
+        internal bool MakeFunctionsWithBaseTypeAsync(string dbName, string schema, string baseDataset, string dataset, string key1Name, string identityName, List<PropertyData> basePropData, List<PropertyData> propData, Type baseType, Type type, string DerivedDataTableName, string DerivedDataTypeName, string DerivedAssemblyName) {
             //$$$
             return true;
         }
@@ -61,48 +61,44 @@ CREATE OR REPLACE FUNCTION ""{schema}"".""{dataset}__Get""(""Key1Val"" {typeKey1
 
 
             sb.Append($@"
-    RETURNS SETOF refcursor
+    RETURNS ""{schema}"".""{dataset}_TP""
     LANGUAGE 'plpgsql'
 AS $$
-DECLARE");
-
-            for (int refcnt = 0; refcnt < subTables.Count + 1; ++refcnt)
-                sb.Append($@"
-        ref{refcnt} refcursor;");
-
-            sb.Append($@"
 BEGIN
-OPEN ref0 FOR
-    SELECT *");
+    RETURN (
+        SELECT *,");
             if (calculatedPropertyCallbackAsync != null) sb.Append(await CalculatedPropertiesAsync(objType, calculatedPropertyCallbackAsync));
 
-            sb.Append($@"
-    FROM {fullTableName}
-    WHERE {SQLBuilder.WrapIdentifier(key1Name)} = Key1Val");
-            if (!string.IsNullOrWhiteSpace(key2Name)) sb.Append($@" AND {SQLBuilder.WrapIdentifier(key2Name)} = Key2Val");
-            if (siteIdentity > 0) sb.Append($@" AND {SQLBuilder.WrapIdentifier(SQLGenericBase.SiteColumn)} = {SQLGen.ValSiteIdentity}");
-
-            sb.Append($@"
-    FETCH FIRST 1 ROWS ONLY;
-    RETURN NEXT ref0           --- result set
-;");
-
-            int refCount = 1;
             foreach (SubTableInfo subTable in subTables) {
-                sb.Add($@"
-OPEN ref{refCount} FOR
-    SELECT * FROM {sb.BuildFullTableName(dbName, schema, subTable.Name)}
-    INNER JOIN {sb.BuildFullTableName(dbName, schema, dataset)} ON {sb.BuildFullColumnName(dataset, identityName)} = {sb.BuildFullColumnName(subTable.Name, SQLGenericBase.SubTableKeyColumn)}
-    WHERE {SQLBuilder.WrapIdentifier(key1Name)} = Key1Val");
-                if (!string.IsNullOrWhiteSpace(key2Name)) sb.Append($@" AND {SQLBuilder.WrapIdentifier(key2Name)} = Key2Val");
-                if (siteIdentity > 0) sb.Append($@" AND {SQLBuilder.WrapIdentifier(SQLGenericBase.SiteColumn)} = {SQLGen.ValSiteIdentity}");
 
-                sb.Add($@";
-    RETURN NEXT ref{refCount}            --- result set
-;");
-                ++refCount;
+                List<PropertyData> subPropData = ObjectSupport.GetPropertyData(subTable.Type);
+
+                sb.Append($@"
+            (
+                SELECT ARRAY_AGG((");
+
+                sb.Append(GetValueNameList(dbName, schema, subTable.Name, subPropData, subTable.Type, Prefix: null, TopMost: false, SiteSpecific: false, WithDerivedInfo: false, SubTable: true));
+                sb.RemoveLastComma();
+
+                sb.Append($@")::""{subTable.Name}_TP"")
+                FROM ""{schema}"".""{subTable.Name}""
+                WHERE ""{schema}"".""{subTable.Name}"".""{SQLGenericBase.SubTableKeyColumn}"" = ""{schema}"".""{dataset}"".""{identityName}""
+            ) AS ""{subTable.PropInfo.Name}"",");
+
             }
+
+            sb.RemoveLastComma();
+
             sb.Append($@"
+        FROM {fullTableName}
+        WHERE {SQLBuilder.WrapIdentifier(key1Name)} = ""Key1Val""");
+            if (!string.IsNullOrWhiteSpace(key2Name)) sb.Append($@" AND ""{key2Name}"" = ""Key2Val""");
+            if (siteIdentity > 0) sb.Append($@" AND ""{SQLGenericBase.SiteColumn}"" = ""{SQLGen.ValSiteIdentity}""");
+
+            sb.Append($@"
+        LIMIT 1    --- result set
+    )
+;
 END;
 $$;");
 
@@ -160,21 +156,27 @@ BEGIN
                 List<PropertyData> subPropData = ObjectSupport.GetPropertyData(subTable.Type);
                 sb.Add($@"
     __TOTAL = ARRAY_LENGTH({SQLBuilder.WrapIdentifier($"arg{subTable.PropInfo.Name}")}, 1);
-    FOR ctr IN 1..__TOTAL LOOP
-        INSERT INTO {sb.BuildFullTableName(dbName, schema, subTable.Name)} ({GetColumnNameList(dbName, schema, subTable.Name, subPropData, subTable.Type, Prefix: null, TopMost: false, SiteSpecific: false, WithDerivedInfo: false, SubTable: true)}");
+    IF __TOTAL IS NOT NULL THEN
+        FOR ctr IN 1..__TOTAL LOOP
+            INSERT INTO {sb.BuildFullTableName(dbName, schema, subTable.Name)} ({GetColumnNameList(dbName, schema, subTable.Name, subPropData, subTable.Type, Prefix: null, TopMost: false, SiteSpecific: false, WithDerivedInfo: false, SubTable: true)}");
 
                 sb.RemoveLastComma();
                 sb.Append($@")
-        VALUES({GetValueNameList(dbName, schema, subTable.Name, subPropData, subTable.Type, Prefix: $"{SQLBuilder.WrapIdentifier($"arg{subTable.PropInfo.Name}")}[ctr].", TopMost: false, SiteSpecific: false, WithDerivedInfo: false, SubTable: true)}");
+            VALUES({GetValueNameList(dbName, schema, subTable.Name, subPropData, subTable.Type, Prefix: $"{SQLBuilder.WrapIdentifier($"arg{subTable.PropInfo.Name}")}[ctr].", TopMost: false, SiteSpecific: false, WithDerivedInfo: false, SubTable: true)}");
                 sb.RemoveLastComma();
                 sb.Append($@");
-    END LOOP
+        END LOOP;
+    END IF
 ;");
             }
 
-            sb.Append($@"
+            if (HasIdentity(identityName)) {
+                sb.Append($@"
 
-    SELECT __IDENTITY; --result set
+    RETURN (SELECT __IDENTITY); --result set");
+            }
+
+            sb.Append($@"
 END;
 $$;");
 
@@ -239,7 +241,7 @@ BEGIN
             sb.Append($@"
     GET DIAGNOSTICS __TOTAL = ROW_COUNT
 ;
-    SELECT __TOTAL; --- result set
+    RETURN (SELECT __TOTAL); --- result set
 END;
 $$;");
 
@@ -271,46 +273,6 @@ DROP FUNCTION IF EXISTS ""{schema}"".""{dataset}__Remove"";");
                 cmd.ExecuteNonQuery();
             }
             return Task.FromResult(true);
-        }
-
-        internal class SubTableInfo {
-            public string Name { get; set; }
-            public Type Type { get; set; }
-            public PropertyInfo PropInfo { get; set; } // the container's property that holds this subtable
-        }
-
-        internal List<SubTableInfo> GetSubTables(string tableName, List<PropertyData> propData) {
-            SQLBuilder sb = new SQLBuilder();
-            List<SubTableInfo> list = new List<SubTableInfo>();
-            foreach (PropertyData prop in propData) {
-                PropertyInfo pi = prop.PropInfo;
-                if (pi.CanRead && pi.CanWrite && !prop.HasAttribute("DontSave") && !prop.CalculatedProperty && !prop.HasAttribute(Data_DontSave.AttributeName)) {
-                    if (prop.HasAttribute(Data_Identity.AttributeName)) {
-                        ; // nothing
-                    } else if (prop.HasAttribute(Data_BinaryAttribute.AttributeName)) {
-                        ; // nothing
-                    } else if (pi.PropertyType == typeof(MultiString)) {
-                        ; // nothing
-                    } else if (pi.PropertyType == typeof(Image)) {
-                        ; // nothing
-                    } else if (pi.PropertyType == typeof(TimeSpan)) {
-                        ; // nothing
-                    } else if (SQLGenericBase.TryGetDataType(pi.PropertyType)) {
-                        ; // nothing
-                    } else if (pi.PropertyType.IsClass && typeof(IEnumerable).IsAssignableFrom(pi.PropertyType)) {
-                        // enumerated type -> subtable
-                        Type subType = pi.PropertyType.GetInterfaces().Where(t => t.IsGenericType == true && t.GetGenericTypeDefinition() == typeof(IEnumerable<>))
-                                .Select(t => t.GetGenericArguments()[0]).FirstOrDefault();
-                        string subTableName = sb.BuildFullTableName(tableName + "_" + pi.Name);
-                        list.Add(new SubTableInfo {
-                            Name = subTableName,
-                            Type = subType,
-                            PropInfo = pi,
-                        });
-                    }
-                }
-            }
-            return list;
         }
 
         internal async Task<string> CalculatedPropertiesAsync(Type objType, Func<string, Task<string>> calculatedPropertyCallbackAsync) {
@@ -352,6 +314,8 @@ DROP FUNCTION IF EXISTS ""{schema}"".""{dataset}__Remove"";");
                 },
                 (prefix, name) => {
                     if (name == SQLGenericBase.SubTableKeyColumn)
+                        return null;
+                    if (name == "Dummy")
                         return null;
                     string colType = "character varying";
                     if (name == SQLGenericBase.SiteColumn) {
@@ -395,6 +359,9 @@ DROP FUNCTION IF EXISTS ""{schema}"".""{dataset}__Remove"";");
                     string colType = "character varying";
                     if (name == SQLGenericBase.SiteColumn) {
                         name = SQLGen.ValSiteIdentity;
+                        colType = "integer";
+                    } else if (name == "Dummy") {
+                        name = "Dummy";
                         colType = "integer";
                     }
                     return $"{SQLBuilder.WrapIdentifier($"{prefix}{name}")} {colType},";
@@ -453,10 +420,12 @@ DROP FUNCTION IF EXISTS ""{schema}"".""{dataset}__Remove"";");
                     return sb.ToString();
                 },
                 (prefix, name) => {
+                    if (name == "Dummy")
+                        return $@"1,";
                     if (name == SQLGenericBase.SiteColumn)
                         return $"{SQLBuilder.WrapIdentifier(SQLGen.ValSiteIdentity)},";
                     if (name == SQLGenericBase.SubTableKeyColumn)
-                        return $"{SQLBuilder.WrapIdentifier($"__IDENTITY")},";
+                        return $"__IDENTITY,";
                     return $"{SQLBuilder.WrapIdentifier($"arg{prefix}{name}")},"; 
                 },
                 (prefix, prop, subtableName) => {
@@ -519,6 +488,10 @@ DROP FUNCTION IF EXISTS ""{schema}"".""{dataset}__Remove"";");
             }
             if (SubTable)
                 sb.Add(fmtPredef(Prefix, SQLGenericBase.SubTableKeyColumn));
+            if (SubTable && propData.Count == 1) {
+                // we need a dummy column so we have more than one column in a type
+                sb.Add(fmtPredef(Prefix, "Dummy"));
+            }
             return sb.ToString();
         }
     }

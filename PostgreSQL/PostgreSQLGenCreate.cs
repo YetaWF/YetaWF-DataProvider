@@ -54,7 +54,7 @@ namespace YetaWF.DataProvider.PostgreSQL {
             if (tableInfo == null)
                 return false;
 
-            MakeTables(dbName, schema, tableInfo);
+            MakeTables(dbName, schema, tableInfo, propData, tpProps);
             return true;
         }
 
@@ -88,6 +88,7 @@ namespace YetaWF.DataProvider.PostgreSQL {
                 }
 
                 DropFunctionsAsync(dbName, schema, tableName);// drop functions so we can recreate types
+                DropType(dbName, schema, tableInfo.NewTable.Name, propData, tpProps, SubTable: false);// drop this type so we can recreate types for subtables
 
                 bool hasSubTable = AddTableColumns(dbName, schema, tableInfo, key1Name, key2Name, identityName, propData, tpProps, "", true, columns, errorList, SiteSpecific: SiteSpecific, WithDerivedInfo: WithDerivedInfo, SubTable: SubTable);
 
@@ -245,6 +246,7 @@ namespace YetaWF.DataProvider.PostgreSQL {
                         newTable.ForeignKeys.Add(fk);
                     }
                 }
+
                 return tableInfo;
 
             } catch (Exception exc) {
@@ -384,8 +386,6 @@ namespace YetaWF.DataProvider.PostgreSQL {
                         throw new InternalError($"Creation of subtable {subTableName} failed");
                     tableInfo.SubTables.Add(subTableInfo);
 
-                    MakeType(dbName, schema, subTableName, subPropData, subType);
-
                     return "subtable";
                 },
                 dbName, schema, newTable.Name, propData, tpContainer, columns, prefix, topMost, SiteSpecific, WithDerivedInfo, SubTable);
@@ -393,20 +393,31 @@ namespace YetaWF.DataProvider.PostgreSQL {
             return !string.IsNullOrEmpty(result);
         }
 
-        private void MakeTables(string dbName, string schema, TableInfo tableInfo) {
+        private void MakeTables(string dbName, string schema, TableInfo tableInfo, List<PropertyData> propData, Type tpProps) {
             if (tableInfo.CurrentTable != null) {
                 RemoveIndexesAndForeignKeys(dbName, schema, tableInfo);
             }
-            MakeTable(dbName, schema, tableInfo);
+            MakeTable(dbName, schema, tableInfo, propData, tpProps);
         }
 
-        private void MakeTable(string dbName, string schema, TableInfo tableInfo) {
+        private void MakeTable(string dbName, string schema, TableInfo tableInfo, List<PropertyData> propData, Type tpProps) {
             if (tableInfo.CurrentTable != null)
                 UpdateTable(dbName, schema, tableInfo.CurrentTable, tableInfo.NewTable);
             else
                 CreateTable(dbName, schema, tableInfo.NewTable);
-            foreach (TableInfo subtableInfo in tableInfo.SubTables)
-                MakeTable(dbName, schema, subtableInfo);
+            foreach (TableInfo subtableInfo in tableInfo.SubTables) {
+                if (subtableInfo.CurrentTable != null)
+                    UpdateTable(dbName, schema, subtableInfo.CurrentTable, subtableInfo.NewTable);
+                else
+                    CreateTable(dbName, schema, subtableInfo.NewTable);
+            }
+
+            List<SubTableInfo> subTables = GetSubTables(tableInfo.NewTable.Name, propData);
+            foreach (SubTableInfo subtable in subTables) {
+                List<PropertyData> subPropData = ObjectSupport.GetPropertyData(subtable.Type);
+                MakeType(dbName, schema, subtable.Name, subPropData, subtable.Type, SubTable: true);
+            }
+            MakeType(dbName, schema, tableInfo.NewTable.Name, propData, tpProps, SubTable: false);
         }
 
         private void CreateTable(string dbName, string schema, Table newTable) {
@@ -758,7 +769,7 @@ ELSE
             return sb.ToString();
         }
 
-        private void MakeType(string dbName, string schema, string dataset, List<PropertyData> subPropData, Type subType) {
+        private void MakeType(string dbName, string schema, string dataset, List<PropertyData> propData, Type tpType, bool SubTable = false) {
 
             SQLBuilder sb = new SQLBuilder();
             SQLHelper sqlHelper = new SQLHelper(Conn, null, Languages);
@@ -770,12 +781,31 @@ DROP TYPE IF EXISTS ""{schema}"".""{typeName}"";
 CREATE TYPE ""{schema}"".""{typeName}"" AS
 (");
             sb.Append($@"
-{GetTypeNameList(dbName, schema, dataset, subPropData, subType, Prefix: null, TopMost: false, SiteSpecific: false, WithDerivedInfo: false, SubTable: true)}");
+{GetTypeNameList(dbName, schema, dataset, propData, tpType, Prefix: null, TopMost: false, SiteSpecific: false, WithDerivedInfo: false, SubTable: SubTable)}");
 
             sb.RemoveLastComma();
 
             sb.Append($@"
 );");
+
+            // Add to database
+            using (NpgsqlCommand cmd = new NpgsqlCommand()) {
+                cmd.Connection = Conn;
+                cmd.CommandText = sb.ToString();
+                YetaWF.Core.Log.Logging.AddTraceLog(cmd.CommandText);
+                cmd.ExecuteNonQuery();
+            }
+        }
+
+        private void DropType(string dbName, string schema, string dataset, List<PropertyData> propData, Type tpType, bool SubTable = false) {
+
+            SQLBuilder sb = new SQLBuilder();
+            SQLHelper sqlHelper = new SQLHelper(Conn, null, Languages);
+
+            string typeName = $"{dataset}_TP";
+
+            sb.Append($@"
+DROP TYPE IF EXISTS ""{schema}"".""{typeName}"";");
 
             // Add to database
             using (NpgsqlCommand cmd = new NpgsqlCommand()) {

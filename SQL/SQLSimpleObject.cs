@@ -502,52 +502,11 @@ FROM {fullTableName} WITH(NOLOCK)
             return recs;
         }
 
-        internal class SubTableInfo {
-            public string Name { get; set; }
-            public Type Type { get; set; }
-            public PropertyInfo PropInfo { get; set; } // the container's property that holds this subtable
-        }
-
-        // TODO: Could add caching
-        internal List<SubTableInfo> GetSubTables(string tableName, List<PropertyData> propData) {
-            SQLBuilder sb = new SQLBuilder();
-            List<SubTableInfo> list = new List<SubTableInfo>();
-            foreach (PropertyData prop in propData) {
-                PropertyInfo pi = prop.PropInfo;
-                if (pi.CanRead && pi.CanWrite && !prop.HasAttribute("DontSave") && !prop.CalculatedProperty && !prop.HasAttribute(Data_DontSave.AttributeName)) {
-                    if (prop.HasAttribute(Data_Identity.AttributeName)) {
-                        ; // nothing
-                    } else if (prop.HasAttribute(Data_BinaryAttribute.AttributeName)) {
-                        ; // nothing
-                    } else if (pi.PropertyType == typeof(MultiString)) {
-                        ; // nothing
-                    } else if (pi.PropertyType == typeof(Image)) {
-                        ; // nothing
-                    } else if (pi.PropertyType == typeof(TimeSpan)) {
-                        ; // nothing
-                    } else if (TryGetDataType(pi.PropertyType)) {
-                        ; // nothing
-                    } else if (pi.PropertyType.IsClass && typeof(IEnumerable).IsAssignableFrom(pi.PropertyType)) {
-                        // enumerated type -> subtable
-                        Type subType = pi.PropertyType.GetInterfaces().Where(t => t.IsGenericType == true && t.GetGenericTypeDefinition() == typeof(IEnumerable<>))
-                                .Select(t => t.GetGenericArguments()[0]).FirstOrDefault();
-                        string subTableName = sb.BuildFullTableName(tableName + "_" + pi.Name);
-                        list.Add(new SubTableInfo {
-                            Name = subTableName,
-                            Type = subType,
-                            PropInfo = pi,
-                        });
-                    }
-                }
-            }
-            return list;
-        }
-
         internal string SubTablesSelects(string tableName, List<PropertyData> propData, Type tpContainer) {
             SQLBuilder sb = new SQLBuilder();
-            List<SubTableInfo> subTables = GetSubTables(tableName, propData);
+            List<SQLGenericGen.SubTableInfo> subTables = SQLGen.GetSubTables(tableName, propData);
             if (subTables.Count > 0) {
-                foreach (SubTableInfo subTable in subTables) {
+                foreach (SQLGenericGen.SubTableInfo subTable in subTables) {
                     sb.Add($@"
     SELECT * FROM {sb.BuildFullTableName(Database, Dbo, subTable.Name)} WHERE {sb.BuildFullColumnName(subTable.Name, SubTableKeyColumn)} = @ident ; --- result set
 ");
@@ -558,12 +517,12 @@ FROM {fullTableName} WITH(NOLOCK)
 
         internal string SubTablesSelectsUsingJoin(SQLHelper sqlHelper, string tableName, KEYTYPE key, KEYTYPE2 key2, List<PropertyData> propData, Type tpContainer) {
             SQLBuilder sb = new SQLBuilder();
-            List<SubTableInfo> subTables = GetSubTables(tableName, propData);
+            List<SQLGenericGen.SubTableInfo> subTables = SQLGen.GetSubTables(tableName, propData);
             if (subTables.Count > 0) {
                 string keyExpr = (key == null || key.Equals(default(KEYTYPE)) ? "1=1" : $"{sb.BuildFullColumnName(Database, Dbo, tableName, Key1Name)} = {sqlHelper.AddTempParam(key)}");
                 string andKey2 = HasKey2 ? "AND " + sqlHelper.Expr(Key2Name, "=", key2) : null;
 
-                foreach (SubTableInfo subTable in subTables) {
+                foreach (SQLGenericGen.SubTableInfo subTable in subTables) {
                     sb.Add($@"
     SELECT * FROM {sb.BuildFullTableName(Database, Dbo, subTable.Name)}   --- result set
     INNER JOIN {sb.BuildFullTableName(Database, Dbo, tableName)} ON {sb.BuildFullColumnName(tableName, IdentityNameOrDefault)} = {sb.BuildFullColumnName(subTable.Name, SubTableKeyColumn)}
@@ -579,8 +538,8 @@ FROM {fullTableName} WITH(NOLOCK)
 
         internal async Task ReadSubTablesAsync(SQLHelper sqlHelper, SqlDataReader reader, string tableName, OBJTYPE container, List<PropertyData> propData, Type tpContainer) {
 
-            List<SubTableInfo> subTables = GetSubTables(tableName, propData);
-            foreach (SubTableInfo subTable in subTables) {
+            List<SQLGenericGen.SubTableInfo> subTables = SQLGen.GetSubTables(tableName, propData);
+            foreach (SQLGenericGen.SubTableInfo subTable in subTables) {
                 object subContainer = subTable.PropInfo.GetValue(container);
                 if (subContainer == null) throw new InternalError($"{nameof(ReadSubTablesAsync)} encountered a enumeration property that is null");
 
@@ -601,10 +560,10 @@ FROM {fullTableName} WITH(NOLOCK)
             // extract identities from container list so we can match sub-objects more easily
             List<int> identities = GetIdentities(containers);
 
-            List<SubTableInfo> subTables = GetSubTables(tableName, propData);
+            List<SQLGenericGen.SubTableInfo> subTables = SQLGen.GetSubTables(tableName, propData);
 
             for ( ; ; ) {
-                foreach (SubTableInfo subTable in subTables) {
+                foreach (SQLGenericGen.SubTableInfo subTable in subTables) {
 
                     while ((YetaWFManager.IsSync() ? reader.Read() : await reader.ReadAsync())) {
 
@@ -634,7 +593,7 @@ FROM {fullTableName} WITH(NOLOCK)
             return list;
         }
 
-        private void AddToContainer(List<OBJTYPE> containers, List<int> identities, SubTableInfo subTable, object obj, int key, MethodInfo addMethod) {
+        private void AddToContainer(List<OBJTYPE> containers, List<int> identities, SQLGenericGen.SubTableInfo subTable, object obj, int key, MethodInfo addMethod) {
 
             int index = identities.IndexOf(key); // find the index of the matching identity/container
             if (index < 0) throw new InternalError($"Subtable {subTable.Name} has key {key} that doesn't match any main record");
@@ -648,8 +607,8 @@ FROM {fullTableName} WITH(NOLOCK)
 
         internal string SubTablesInserts(SQLHelper sqlHelper, string tableName, object container, List<PropertyData> propData, Type tpContainer) {
             SQLBuilder sb = new SQLBuilder();
-            List<SubTableInfo> subTables = GetSubTables(tableName, propData);
-            foreach (SubTableInfo subTable in subTables) {
+            List<SQLGenericGen.SubTableInfo> subTables = SQLGen.GetSubTables(tableName, propData);
+            foreach (SQLGenericGen.SubTableInfo subTable in subTables) {
                 List<PropertyData> subPropData = ObjectSupport.GetPropertyData(subTable.Type);
                 IEnumerable ienum = (IEnumerable)subTable.PropInfo.GetValue(container);
                 foreach (object obj in ienum) {
@@ -665,10 +624,10 @@ FROM {fullTableName} WITH(NOLOCK)
         }
         internal string SubTablesUpdates(SQLHelper sqlHelper, string tableName, object container, List<PropertyData> propData, Type tpContainer) {
             SQLBuilder sb = new SQLBuilder();
-            List<SubTableInfo> subTables = GetSubTables(tableName, propData);
+            List<SQLGenericGen.SubTableInfo> subTables = SQLGen.GetSubTables(tableName, propData);
             if (subTables.Count == 0) return null;
             sb.Add("BEGIN TRANSACTION Upd;");
-            foreach (SubTableInfo subTable in subTables) {
+            foreach (SQLGenericGen.SubTableInfo subTable in subTables) {
                 sb.Add($@"
     DELETE FROM {subTable.Name} WITH(SERIALIZABLE) WHERE {SQLBase.SubTableKeyColumn} = @__IDENTITY ;
 ");
@@ -689,8 +648,8 @@ FROM {fullTableName} WITH(NOLOCK)
         }
         internal string SubTablesDeletes(string tableName, List<PropertyData> propData, Type tpContainer) {
             SQLBuilder sb = new SQLBuilder();
-            List<SubTableInfo> subTables = GetSubTables(tableName, propData);
-            foreach (SubTableInfo subTable in subTables) {
+            List<SQLGenericGen.SubTableInfo> subTables = SQLGen.GetSubTables(tableName, propData);
+            foreach (SQLGenericGen.SubTableInfo subTable in subTables) {
                 sb.Add($@"
     DELETE FROM {sb.BuildFullTableName(Database, Dbo, subTable.Name)} WHERE {sb.BuildFullColumnName(subTable.Name, SubTableKeyColumn)} = @ident ;
 ");
@@ -743,10 +702,11 @@ FROM {fullTableName} WITH(NOLOCK)
         public async Task<bool> UninstallModelAsync(List<string> errorList) {
             await EnsureOpenAsync();
             try {
+                SQLBuilder sb = new SQLBuilder();
                 SQLGen sqlCreate = new SQLGen(Conn, Languages, IdentitySeed, Logging);
                 List<PropertyData> propData = GetPropertyData();
-                List<SubTableInfo> subTables = GetSubTables(Dataset, propData);
-                foreach (SubTableInfo subTable in subTables) {
+                List<SQLGenericGen.SubTableInfo> subTables = SQLGen.GetSubTables(Dataset, propData);
+                foreach (SQLGenericGen.SubTableInfo subTable in subTables) {
                     //TODO: could asyncify but probably not worth it as this is used during install/startup only
                     sqlCreate.DropTable(Database, Dbo, subTable.Name, errorList);
                 }

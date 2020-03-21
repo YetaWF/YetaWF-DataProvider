@@ -1,6 +1,7 @@
 ﻿/* Copyright © 2020 Softel vdm, Inc. - https://yetawf.com/Documentation/YetaWF/Licensing */
 
 using Npgsql;
+using Npgsql.NameTranslation;
 using System;
 using System.Collections;
 using System.Collections.Generic;
@@ -62,6 +63,11 @@ namespace YetaWF.DataProvider.PostgreSQL {
         public NpgsqlConnection Conn { get; private set; }
 
         internal string AndSiteIdentity { get; private set; }
+
+        //$$$static SQLBase() {
+        //    NpgsqlConnection.GlobalTypeMapper = new 
+        //    .DefaultNameTranslator = new NpgsqlNullNameTranslator();
+        //}
 
         /// <summary>
         /// Constructor.
@@ -589,7 +595,7 @@ namespace YetaWF.DataProvider.PostgreSQL {
             if (SiteIdentity > 0)
                 sql = sql.Replace($"{{{SiteColumn}}}", $"[{SiteColumn}] = {SiteIdentity}");
             List<TYPE> list = new List<TYPE>();
-            using (DbDataReader reader = await sqlHelper.ExecuteReaderAsync(sql)) {
+            using (NpgsqlDataReader reader = await sqlHelper.ExecuteReaderAsync(sql)) {
                 if (YetaWFManager.IsSync() ? reader.Read() : await reader.ReadAsync())
                     return sqlHelper.CreateObject<TYPE>(reader);
                 else
@@ -627,7 +633,7 @@ namespace YetaWF.DataProvider.PostgreSQL {
             if (SiteIdentity > 0)
                 sql = sql.Replace($"{{{SiteColumn}}}", $"[{SiteColumn}] = {SiteIdentity}");
             List<TYPE> list = new List<TYPE>();
-            using (DbDataReader reader = await sqlHelper.ExecuteReaderAsync(sql)) {
+            using (NpgsqlDataReader reader = await sqlHelper.ExecuteReaderAsync(sql)) {
                 while (YetaWFManager.IsSync() ? reader.Read() : await reader.ReadAsync())
                     list.Add(sqlHelper.CreateObject<TYPE>(reader));
             }
@@ -676,7 +682,7 @@ namespace YetaWF.DataProvider.PostgreSQL {
 
             DataProviderGetRecords<TYPE> recs = new DataProviderGetRecords<TYPE>();
 
-            using (DbDataReader reader = await sqlHelper.ExecuteReaderAsync(sql)) {
+            using (NpgsqlDataReader reader = await sqlHelper.ExecuteReaderAsync(sql)) {
 
                 if (!(YetaWFManager.IsSync() ? reader.Read() : await reader.ReadAsync())) throw new InternalError("Expected # of records");
                 recs.Total = reader.GetInt32(0);
@@ -710,7 +716,7 @@ namespace YetaWF.DataProvider.PostgreSQL {
             }
 
             DataProviderGetRecords<TYPE> recs = new DataProviderGetRecords<TYPE>();
-            using (DbDataReader reader = await sqlHelper.ExecuteReaderStoredProcAsync(sqlProc)) {
+            using (NpgsqlDataReader reader = await sqlHelper.ExecuteReaderStoredProcAsync(sqlProc)) {
 
                 while ((YetaWFManager.IsSync() ? reader.Read() : await reader.ReadAsync())) {
                     TYPE o = sqlHelper.CreateObject<TYPE>(reader);

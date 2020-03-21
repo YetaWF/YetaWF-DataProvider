@@ -85,7 +85,7 @@ END
 
 {sqlHelper.DebugInfo}";
 
-                using (DbDataReader reader = await sqlHelper.ExecuteReaderAsync(script)) {
+                using (NpgsqlDataReader reader = await sqlHelper.ExecuteReaderAsync(script)) {
                     if (!(YetaWFManager.IsSync() ? reader.Read() : await reader.ReadAsync())) return default(OBJTYPE);
                     string derivedTableName = (string)reader[0];
                     string derivedDataType = (string)reader[1];
@@ -110,7 +110,7 @@ WHERE {sqlHelper.Expr($"A.[{Key1Name}]", " =", key)} AND A.[{SiteColumn}] = {Sit
 
 {sqlHelper.DebugInfo}";
 
-                using (DbDataReader reader = await sqlHelper.ExecuteReaderAsync(scriptMain)) {
+                using (NpgsqlDataReader reader = await sqlHelper.ExecuteReaderAsync(scriptMain)) {
                     if (!(YetaWFManager.IsSync() ? reader.Read() : await reader.ReadAsync())) return default(OBJTYPE);
                     OBJTYPE obj = sqlHelper.CreateObject<OBJTYPE>(reader);
                     return obj;
@@ -352,7 +352,7 @@ WHERE {fullBaseTableName}.[DerivedDataTableName] = '{Dataset}' AND {fullBaseTabl
 {sqlHelper.DebugInfo}
 ";
 
-                using (DbDataReader reader = await sqlHelper.ExecuteReaderAsync(script)) {
+                using (NpgsqlDataReader reader = await sqlHelper.ExecuteReaderAsync(script)) {
                     if (skip != 0 || take != 0) {
                         if (!(YetaWFManager.IsSync() ? reader.Read() : await reader.ReadAsync())) throw new InternalError("Expected # of records");
                         recs.Total = reader.GetInt32(0);
@@ -463,8 +463,11 @@ WHERE {fullBaseTableName}.[DerivedDataTableName] = '{Dataset}' AND {fullBaseTabl
             sqlManager.GetColumns(conn, dbName, Schema, BaseDataset);
             sqlManager.GetColumns(conn, dbName, Schema, Dataset);
 
-            return sqlCreate.MakeProceduresAndFunctionsWithBaseType(dbName, Schema, BaseDataset, Dataset, Key1Name, IdentityName, GetBasePropertyData(), GetPropertyData(), baseType, typeof(OBJTYPE),
+            bool success = sqlCreate.MakeFunctionsWithBaseTypeAsync(dbName, Schema, BaseDataset, Dataset, Key1Name, IdentityName, GetBasePropertyData(), GetPropertyData(), baseType, typeof(OBJTYPE),
                     DerivedDataTableName: "DerivedDataTableName", DerivedDataTypeName: "DerivedDataType", DerivedAssemblyName: "DerivedAssemblyName");
+
+            conn.ReloadTypes();
+            return success;
         }
 
         /// <summary>
@@ -485,6 +488,7 @@ WHERE {fullBaseTableName}.[DerivedDataTableName] = '{Dataset}' AND {fullBaseTabl
                 errorList.Add(string.Format("{0}: {1}", typeof(OBJTYPE).FullName, ErrorHandling.FormatExceptionMessage(exc)));
                 return false;
             } finally {
+                Conn.ReloadTypes();
                 SQLGenericManagerCache.ClearCache();
             }
         }

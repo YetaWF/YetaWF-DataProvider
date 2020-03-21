@@ -1,7 +1,13 @@
 ﻿/* Copyright © 2020 Softel vdm, Inc. - https://yetawf.com/Documentation/YetaWF/Licensing */
 
+using System;
+using System.Collections;
 using System.Collections.Generic;
+using System.Drawing;
 using System.Linq;
+using System.Reflection;
+using YetaWF.Core.DataProvider.Attributes;
+using YetaWF.Core.Models;
 
 namespace YetaWF.DataProvider.SQLGeneric {
 
@@ -34,6 +40,13 @@ namespace YetaWF.DataProvider.SQLGeneric {
                 return (from c in Columns where c.Name == name select c).FirstOrDefault() != null;
             }
         }
+        
+        public class SubTableInfo {
+            public string Name { get; set; }
+            public Type Type { get; set; }
+            public PropertyInfo PropInfo { get; set; } // the container's property that holds this subtable
+        }
+
         public class Column {
             public string Name { get; set; }
             public object DataType { get; set; }
@@ -115,6 +128,39 @@ namespace YetaWF.DataProvider.SQLGeneric {
 
         protected bool HasIdentity(string identityName) {
             return !string.IsNullOrWhiteSpace(identityName);
+        }
+
+        public static List<SubTableInfo> GetSubTables(string tableName, List<PropertyData> propData) {
+            List<SubTableInfo> list = new List<SubTableInfo>();
+            foreach (PropertyData prop in propData) {
+                PropertyInfo pi = prop.PropInfo;
+                if (pi.CanRead && pi.CanWrite && !prop.HasAttribute("DontSave") && !prop.CalculatedProperty && !prop.HasAttribute(Data_DontSave.AttributeName)) {
+                    if (prop.HasAttribute(Data_Identity.AttributeName)) {
+                        ; // nothing
+                    } else if (prop.HasAttribute(Data_BinaryAttribute.AttributeName)) {
+                        ; // nothing
+                    } else if (pi.PropertyType == typeof(MultiString)) {
+                        ; // nothing
+                    } else if (pi.PropertyType == typeof(Image)) {
+                        ; // nothing
+                    } else if (pi.PropertyType == typeof(TimeSpan)) {
+                        ; // nothing
+                    } else if (SQLGenericBase.TryGetDataType(pi.PropertyType)) {
+                        ; // nothing
+                    } else if (pi.PropertyType.IsClass && typeof(IEnumerable).IsAssignableFrom(pi.PropertyType)) {
+                        // enumerated type -> subtable
+                        Type subType = pi.PropertyType.GetInterfaces().Where(t => t.IsGenericType == true && t.GetGenericTypeDefinition() == typeof(IEnumerable<>))
+                                .Select(t => t.GetGenericArguments()[0]).FirstOrDefault();
+                        string subTableName = tableName + "_" + pi.Name;
+                        list.Add(new SubTableInfo {
+                            Name = subTableName,
+                            Type = subType,
+                            PropInfo = pi,
+                        });
+                    }
+                }
+            }
+            return list;
         }
 
     }
