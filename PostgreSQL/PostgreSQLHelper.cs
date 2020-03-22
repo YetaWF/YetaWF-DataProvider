@@ -14,6 +14,7 @@ using YetaWF.Core.DataProvider;
 using YetaWF.Core.DataProvider.Attributes;
 using YetaWF.Core.Language;
 using YetaWF.Core.Models;
+using YetaWF.Core.Serializers;
 using YetaWF.Core.Support;
 using YetaWF.Core.Support.Serializers;
 
@@ -187,7 +188,7 @@ namespace YetaWF.DataProvider.PostgreSQL {
                     throw new InternalError($"Unsupported type {fieldType.FullName}");
             } else if (fieldType == typeof(Guid)) {
                 newValue = new Guid(value.ToString());
-            } else if (fieldType  == typeof(TimeSpan)) {
+            } else if (fieldType == typeof(TimeSpan)) {
                 newValue = new TimeSpan(Convert.ToInt64(value));
             } else if (baseType != null && fieldType.BaseType == typeof(Enum)) {
                 int intEnum;
@@ -200,6 +201,8 @@ namespace YetaWF.DataProvider.PostgreSQL {
                         newValue = Enum.ToObject(fieldType, value);
                     }
                 }
+            } else if (fieldType.Name == "SerializableList`1") {
+                return Activator.CreateInstance(fieldType, value);
             } else {
                 try {
                     newValue = Convert.ChangeType(value, fieldType);
@@ -469,6 +472,7 @@ namespace YetaWF.DataProvider.PostgreSQL {
                 parm.Value = value;
             } else {
                 if (DataTypeName != null) {
+                    //$$$$ Conn.TypeMapper.MapComposite(subTable.Type, $"{DataTypeName}_TP", new NpgsqlNullNameTranslator());
                     parm = new NpgsqlParameter {
                         ParameterName = name,
                         Value = value,

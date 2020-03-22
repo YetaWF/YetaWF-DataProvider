@@ -59,14 +59,13 @@ CREATE OR REPLACE FUNCTION ""{schema}"".""{dataset}__Get""(""Key1Val"" {typeKey1
             sb.RemoveLastComma();
             sb.Append($@")");
 
-
             sb.Append($@"
-    RETURNS ""{schema}"".""{dataset}_TP""
+    RETURNS SETOF ""{schema}"".""{dataset}_TP""
     LANGUAGE 'plpgsql'
 AS $$
 BEGIN
-    RETURN (
-        SELECT *,");
+    RETURN QUERY (
+        SELECT {GetColumnNameList(dbName, schema, dataset, propData, objType, Add: false, Prefix: null, TopMost: false, SiteSpecific: siteIdentity > 0, WithDerivedInfo: false, SubTable: false)}");
             if (calculatedPropertyCallbackAsync != null) sb.Append(await CalculatedPropertiesAsync(objType, calculatedPropertyCallbackAsync));
 
             foreach (SubTableInfo subTable in subTables) {
@@ -77,7 +76,7 @@ BEGIN
             (
                 SELECT ARRAY_AGG((");
 
-                sb.Append(GetValueNameList(dbName, schema, subTable.Name, subPropData, subTable.Type, Prefix: null, TopMost: false, SiteSpecific: false, WithDerivedInfo: false, SubTable: true));
+                sb.Append(GetColumnNameList(dbName, schema, subTable.Name, subPropData, subTable.Type, Add: false, Prefix: null, TopMost: false, SiteSpecific: false, WithDerivedInfo: false, SubTable: true));
                 sb.RemoveLastComma();
 
                 sb.Append($@")::""{subTable.Name}_TP"")
@@ -135,7 +134,7 @@ DECLARE
 
             sb.Append($@"
 BEGIN
-    INSERT INTO {fullTableName} ({GetColumnNameList(dbName, schema, dataset, propData, objType, Prefix: null, TopMost: true, SiteSpecific: siteIdentity > 0, WithDerivedInfo: false, SubTable: false)}");
+    INSERT INTO {fullTableName} ({GetColumnNameList(dbName, schema, dataset, propData, objType, Add: true, Prefix: null, TopMost: true, SiteSpecific: siteIdentity > 0, WithDerivedInfo: false, SubTable: false)}");
 
             sb.RemoveLastComma();
             sb.Append($@")
@@ -158,7 +157,7 @@ BEGIN
     __TOTAL = ARRAY_LENGTH({SQLBuilder.WrapIdentifier($"arg{subTable.PropInfo.Name}")}, 1);
     IF __TOTAL IS NOT NULL THEN
         FOR ctr IN 1..__TOTAL LOOP
-            INSERT INTO {sb.BuildFullTableName(dbName, schema, subTable.Name)} ({GetColumnNameList(dbName, schema, subTable.Name, subPropData, subTable.Type, Prefix: null, TopMost: false, SiteSpecific: false, WithDerivedInfo: false, SubTable: true)}");
+            INSERT INTO {sb.BuildFullTableName(dbName, schema, subTable.Name)} ({GetColumnNameList(dbName, schema, subTable.Name, subPropData, subTable.Type, Add: true, Prefix: null, TopMost: false, SiteSpecific: false, WithDerivedInfo: false, SubTable: true)}");
 
                 sb.RemoveLastComma();
                 sb.Append($@")
@@ -173,7 +172,7 @@ BEGIN
             if (HasIdentity(identityName)) {
                 sb.Append($@"
 
-    RETURN (SELECT __IDENTITY); --result set");
+    RETURN (SELECT __IDENTITY); --- result set");
             }
 
             sb.Append($@"
@@ -371,7 +370,7 @@ DROP FUNCTION IF EXISTS ""{schema}"".""{dataset}__Remove"";");
                 },
                 dbName, schema, dataset, propData, tpContainer, new List<string>(), Prefix, TopMost, SiteSpecific, WithDerivedInfo, SubTable);
         }
-        internal string GetColumnNameList(string dbName, string schema, string dataset, List<PropertyData> propData, Type tpContainer, string Prefix = null, bool TopMost = true, bool SiteSpecific = false, bool WithDerivedInfo = false, bool SubTable = false) {
+        internal string GetColumnNameList(string dbName, string schema, string dataset, List<PropertyData> propData, Type tpContainer, bool Add = false, string Prefix = null, bool TopMost = true, bool SiteSpecific = false, bool WithDerivedInfo = false, bool SubTable = false) {
             return ProcessColumns(
                 (prefix, prop) => { return $"{SQLBuilder.WrapIdentifier($"{prefix}{prop.ColumnName}")},"; },
                 (prefix, prop) => { return $"{SQLBuilder.WrapIdentifier($"{prefix}{prop.ColumnName}")},"; },
@@ -384,7 +383,15 @@ DROP FUNCTION IF EXISTS ""{schema}"".""{dataset}__Remove"";");
                     return sb.ToString();
                 },
                 (prefix, name) => {
-                    return $"{SQLBuilder.WrapIdentifier($"{prefix}{name}")},"; 
+                    if (Add) {
+                        if (name == "Dummy")
+                            return null;
+                        return $"{SQLBuilder.WrapIdentifier($"{prefix}{name}")},";
+                    } else {
+                        if (name == "Dummy")
+                            return $@"1,";
+                        return null;
+                    }
                 },
                 (prefix, prop, subtableName) => {
                     return null;
@@ -421,7 +428,7 @@ DROP FUNCTION IF EXISTS ""{schema}"".""{dataset}__Remove"";");
                 },
                 (prefix, name) => {
                     if (name == "Dummy")
-                        return $@"1,";
+                        return null;
                     if (name == SQLGenericBase.SiteColumn)
                         return $"{SQLBuilder.WrapIdentifier(SQLGen.ValSiteIdentity)},";
                     if (name == SQLGenericBase.SubTableKeyColumn)

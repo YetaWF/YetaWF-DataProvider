@@ -3,7 +3,6 @@
 using Npgsql;
 using System;
 using System.Collections.Generic;
-using System.Data.Common;
 using System.Threading.Tasks;
 using YetaWF.Core.DataProvider;
 using YetaWF.Core.Models;
@@ -83,7 +82,7 @@ FETCH FIRST 1 ROWS ONLY
                 if (!(YetaWFManager.IsSync() ? reader.Read() : await reader.ReadAsync())) return default(OBJTYPE);
                 OBJTYPE obj = sqlHelper.CreateObject<OBJTYPE>(reader);
                 if (!string.IsNullOrWhiteSpace(subTablesSelects)) {
-                    await ReadSubTablesAsync(sqlHelper, reader, Dataset, obj, propData);
+                    //$$$await ReadSubTablesAsync(sqlHelper, reader, Dataset, obj, propData);
                 }
                 return obj;
             }
