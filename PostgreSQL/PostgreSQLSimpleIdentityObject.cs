@@ -1,12 +1,14 @@
 ﻿/* Copyright © 2020 Softel vdm, Inc. - https://yetawf.com/Documentation/YetaWF/Licensing */
 
 using Npgsql;
+using Npgsql.NameTranslation;
 using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 using YetaWF.Core.DataProvider;
 using YetaWF.Core.Models;
 using YetaWF.Core.Support;
+using YetaWF.DataProvider.SQLGeneric;
 
 namespace YetaWF.DataProvider.PostgreSQL {
 
@@ -54,38 +56,70 @@ namespace YetaWF.DataProvider.PostgreSQL {
         /// <param name="identity">The identity value.</param>
         /// <returns>Returns the record that satisfies the specified identity value. If no record exists null is returned.</returns>
         public async Task<OBJTYPE> GetByIdentityAsync(int identity) {
-            SQLBuilder sb = new SQLBuilder();
+
             await EnsureOpenAsync();
 
             SQLHelper sqlHelper = new SQLHelper(Conn, null, Languages);
 
-            string joins = null;// RFFU
-            string fullTableName = sb.GetTable(Database, Schema, Dataset);
-            string calcProps = await CalculatedPropertiesAsync(typeof(OBJTYPE));
+            List<PropertyData> propData = GetPropertyData();
+            List<SQLGenericGen.SubTableInfo> subTables = SQLGen.GetSubTables(Dataset, propData);
+            foreach (SQLGenericGen.SubTableInfo subTable in subTables) {
+                List<PropertyData> subPropData = ObjectSupport.GetPropertyData(subTable.Type);
+                if (subPropData.Count > 1)
+                    Conn.TypeMapper.MapComposite(subTable.Type, $"{subTable.Name}_TP", new NpgsqlNullNameTranslator());
+            }
+
+            sqlHelper.AddParam("valIdentity", identity);
+
+            using (NpgsqlDataReader reader = await sqlHelper.ExecuteReaderStoredProcAsync($"{SQLBuilder.WrapIdentifier(Schema)}.{SQLBuilder.WrapIdentifier($"{Dataset}__GetByIdentity")}")) {
+                if (!(YetaWFManager.IsSync() ? reader.Read() : await reader.ReadAsync())) return default(OBJTYPE);
+                return sqlHelper.CreateObject<OBJTYPE>(reader);
+            }
+        }
+
+        /// <summary>
+        /// Updates an existing record with the specified existing identity value <paramref name="identity"/> in the database table.
+        /// The primary/secondary keys can be changed in the object.
+        /// </summary>
+        /// <param name="identity">The identity value of the record.</param>
+        /// <param name="obj">The object being updated.</param>
+        /// <returns>Returns a status indicator.</returns>
+        public async Task<UpdateStatusEnum> UpdateByIdentityAsync(int identity, OBJTYPE obj) {
+
+            await EnsureOpenAsync();
+
+            SQLHelper sqlHelper = new SQLHelper(Conn, null, Languages);
 
             List<PropertyData> propData = GetPropertyData();
-            string subTablesSelects = SubTablesSelects(Dataset, propData, typeof(OBJTYPE), identity);
-
-            string script = $@"
-SELECT *
-    {calcProps}
-FROM {fullTableName} {joins}
-WHERE {sqlHelper.Expr(IdentityName, "=", identity)} {AndSiteIdentity}  -- result set
-FETCH FIRST 1 ROWS ONLY
-;
-
-{subTablesSelects}
-
-{sqlHelper.DebugInfo}";
-
-            using (NpgsqlDataReader reader = await sqlHelper.ExecuteReaderAsync(script)) {
-                if (!(YetaWFManager.IsSync() ? reader.Read() : await reader.ReadAsync())) return default(OBJTYPE);
-                OBJTYPE obj = sqlHelper.CreateObject<OBJTYPE>(reader);
-                if (!string.IsNullOrWhiteSpace(subTablesSelects)) {
-                    //$$$await ReadSubTablesAsync(sqlHelper, reader, Dataset, obj, propData);
-                }
-                return obj;
+            List<SQLGenericGen.SubTableInfo> subTables = SQLGen.GetSubTables(Dataset, propData);
+            foreach (SQLGenericGen.SubTableInfo subTable in subTables) {
+                List<PropertyData> subPropData = ObjectSupport.GetPropertyData(subTable.Type);
+                if (subPropData.Count > 1)
+                    Conn.TypeMapper.MapComposite(subTable.Type, $"{subTable.Name}_TP", new NpgsqlNullNameTranslator());
             }
+
+            GetParameterList(sqlHelper, obj, Database, Schema, Dataset, GetPropertyData(), Prefix: null, TopMost: true, SiteSpecific: false, WithDerivedInfo: false, SubTable: false);
+            sqlHelper.AddParam("valIdentity", identity);
+
+            try {
+                using (NpgsqlDataReader reader = await sqlHelper.ExecuteReaderStoredProcAsync($"{SQLBuilder.WrapIdentifier(Schema)}.{SQLBuilder.WrapIdentifier($"{Dataset}__UpdateByIdentity")}")) {
+                    if (!(YetaWFManager.IsSync() ? reader.Read() : await reader.ReadAsync()))
+                        throw new InternalError($"No result set received from {Dataset}__UpdateByIdentity");
+                    int changed = Convert.ToInt32(reader[0]);
+                    if (changed == 0)
+                        return UpdateStatusEnum.RecordDeleted;
+                    if (changed > 1)
+                        throw new InternalError($"Update failed - {changed} records updated");
+                }
+            } catch (Exception exc) {
+                NpgsqlException sqlExc = exc as NpgsqlException;
+                if (sqlExc != null && sqlExc.ErrorCode == 2627) { //$$$$
+                    // duplicate key violation, meaning the new key already exists
+                    return UpdateStatusEnum.NewKeyExists;
+                }
+                throw new InternalError($"Update failed for type {typeof(OBJTYPE).FullName} - {ErrorHandling.FormatExceptionMessage(exc)}");
+            }
+            return UpdateStatusEnum.OK;
         }
 
         /// <summary>
@@ -141,67 +175,6 @@ SELECT @@ROWCOUNT --- result set
             if (deleted > 1)
                 throw new InternalError($"More than 1 record deleted by {nameof(RemoveByIdentityAsync)} method");
             return deleted > 0;
-        }
-
-        /// <summary>
-        /// Updates an existing record with the specified existing identity value <paramref name="identity"/> in the database table.
-        /// The primary/secondary keys can be changed in the object.
-        /// </summary>
-        /// <param name="identity">The identity value of the record.</param>
-        /// <param name="obj">The object being updated.</param>
-        /// <returns>Returns a status indicator.</returns>
-        public async Task<UpdateStatusEnum> UpdateByIdentityAsync(int identity, OBJTYPE obj) {
-            SQLBuilder sb = new SQLBuilder();
-            await EnsureOpenAsync();
-
-            SQLHelper sqlHelper = new SQLHelper(Conn, null, Languages);
-
-            string fullTableName = sb.GetTable(Database, Schema, Dataset);
-            List<PropertyData> propData = GetPropertyData();
-            string setColumns = SetColumns(sqlHelper, Dataset, propData, obj, typeof(OBJTYPE));
-
-            string subTablesUpdates = SubTablesUpdates(sqlHelper, Dataset, obj, propData, typeof(OBJTYPE));
-
-            string scriptMain = $@"
-UPDATE {fullTableName}
-SET {setColumns}
-WHERE {sqlHelper.Expr(IdentityName, "=", identity)} {AndSiteIdentity}
-;
-SELECT @@ROWCOUNT --- result set
-
-{sqlHelper.DebugInfo}";
-
-            string scriptWithSub = $@"
-DECLARE @__IDENTITY int = {identity};
-
-UPDATE {fullTableName}
-SET {setColumns}
-WHERE [{IdentityName}] = @__IDENTITY
-;
-SELECT @@ROWCOUNT --- result set
-
-{subTablesUpdates}
-
-{sqlHelper.DebugInfo}";
-
-            string script = (string.IsNullOrWhiteSpace(subTablesUpdates)) ? scriptMain : scriptWithSub;
-
-            try {
-                object val = await sqlHelper.ExecuteScalarAsync(script);
-                int changed = Convert.ToInt32(val);
-                if (changed == 0)
-                    return UpdateStatusEnum.RecordDeleted;
-                if (changed > 1)
-                    throw new InternalError($"Update failed - {changed} records updated");
-            } catch (Exception exc) {
-                NpgsqlException sqlExc = exc as NpgsqlException;
-                if (sqlExc != null && sqlExc.ErrorCode == 2627) { //$$$$
-                    // duplicate key violation, meaning the new key already exists
-                    return UpdateStatusEnum.NewKeyExists;
-                }
-                throw new InternalError($"Update failed for type {typeof(OBJTYPE).FullName} - {ErrorHandling.FormatExceptionMessage(exc)}");
-            }
-            return UpdateStatusEnum.OK;
         }
     }
 }

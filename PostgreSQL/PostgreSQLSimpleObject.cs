@@ -79,7 +79,9 @@ namespace YetaWF.DataProvider.PostgreSQL {
             List<PropertyData> propData = GetPropertyData();
             List<SQLGenericGen.SubTableInfo> subTables = SQLGen.GetSubTables(Dataset, propData);
             foreach (SQLGenericGen.SubTableInfo subTable in subTables) {
-                Conn.TypeMapper.MapComposite(subTable.Type, $"{subTable.Name}_TP", new NpgsqlNullNameTranslator());
+                List<PropertyData> subPropData = ObjectSupport.GetPropertyData(subTable.Type);
+                if (subPropData.Count > 1)
+                    Conn.TypeMapper.MapComposite(subTable.Type, $"{subTable.Name}_TP", new NpgsqlNullNameTranslator());
             }
 
             sqlHelper.AddParam("Key1Val", key);
@@ -107,6 +109,13 @@ namespace YetaWF.DataProvider.PostgreSQL {
 
             SQLHelper sqlHelper = new SQLHelper(Conn, null, Languages);
 
+            List<PropertyData> propData = GetPropertyData();
+            List<SQLGenericGen.SubTableInfo> subTables = SQLGen.GetSubTables(Dataset, propData);
+            foreach (SQLGenericGen.SubTableInfo subTable in subTables) {
+                List<PropertyData> subPropData = ObjectSupport.GetPropertyData(subTable.Type);
+                if (subPropData.Count > 1)
+                    Conn.TypeMapper.MapComposite(subTable.Type, $"{subTable.Name}_TP", new NpgsqlNullNameTranslator());
+            }
             GetParameterList(sqlHelper, obj, Database, Schema, Dataset, GetPropertyData(), Prefix: null, TopMost: true, SiteSpecific: SiteIdentity > 0, WithDerivedInfo: false, SubTable: false);
 
             NpgsqlDataReader reader = null;
@@ -826,45 +835,65 @@ DELETE FROM {fullTableName} WHERE [{SiteColumn}] = {SiteIdentity}
         }
 
         internal string GetParameterList(SQLHelper sqlHelper, OBJTYPE obj, string dbName, string schema, string dataset, List<PropertyData> propData, string Prefix = null, bool TopMost = true, bool SiteSpecific = false, bool WithDerivedInfo = false, bool SubTable = false) {
+            SQLManager sqlManager = new SQLManager();
             return SQLGen.ProcessColumns(
                 (prefix, prop) => {
-                    SQLGenericGen.Column col = SQLGenericManagerCache.GetCachedColumn(dbName, schema, dataset, prop.ColumnName);
+                    SQLGenericGen.Column col = sqlManager.GetColumn(Conn, dbName, schema, dataset, prop.ColumnName);
+                    object val = prop.PropInfo.GetValue(obj);
+                    sqlHelper.AddParam($"arg{prefix}{prop.Name}", val, DbType: (NpgsqlDbType)col.DataType);//$$$nested?
+                    return null;
+                },
+                (prefix, prop) => { // Identity
+                    return null;
+                },
+                (prefix, prop) => {
+                    SQLGenericGen.Column col = sqlManager.GetColumn(Conn, dbName, schema, dataset, prop.ColumnName);
                     object val = prop.PropInfo.GetValue(obj);
                     sqlHelper.AddParam($"arg{prefix}{prop.Name}", val, DbType: (NpgsqlDbType)col.DataType);//$$$nested?
                     return null;
                 },
                 (prefix, prop) => {
-                    SQLGenericGen.Column col = SQLGenericManagerCache.GetCachedColumn(dbName, schema, dataset, prop.ColumnName);
+                    SQLGenericGen.Column col = sqlManager.GetColumn(Conn, dbName, schema, dataset, prop.ColumnName);
                     object val = prop.PropInfo.GetValue(obj);
                     sqlHelper.AddParam($"arg{prefix}{prop.Name}", val, DbType: (NpgsqlDbType)col.DataType);//$$$nested?
                     return null;
                 },
                 (prefix, prop) => {
-                    SQLGenericGen.Column col = SQLGenericManagerCache.GetCachedColumn(dbName, schema, dataset, prop.ColumnName);
+                    SQLGenericGen.Column col = sqlManager.GetColumn(Conn, dbName, schema, dataset, prop.ColumnName);
                     object val = prop.PropInfo.GetValue(obj);
                     sqlHelper.AddParam($"arg{prefix}{prop.Name}", val, DbType: (NpgsqlDbType)col.DataType);//$$$nested?
                     return null;
                 },
-                (prefix, prop) => {
-                    SQLGenericGen.Column col = SQLGenericManagerCache.GetCachedColumn(dbName, schema, dataset, prop.ColumnName);
-                    object val = prop.PropInfo.GetValue(obj);
-                    sqlHelper.AddParam($"arg{prefix}{prop.Name}", val, DbType: (NpgsqlDbType)col.DataType);//$$$nested?
-                    return null;
-                },
-                (prefix, name) => {
-                    if (name == "Dummy")
-                        return null;
+                (prefix, name) => { // predef
                     if (name == SQLGenericBase.SiteColumn)
                         sqlHelper.AddParam(SQLGen.ValSiteIdentity, SiteIdentity, DbType: NpgsqlDbType.Integer);
                     return null;
                 },
-                (prefix, prop, subtableName) => {
-                    NpgsqlConnection.GlobalTypeMapper.MapComposite(prop.PropInfo.PropertyType, $"{subtableName}_TP", new NpgsqlNullNameTranslator());
-                    List<object> list = new List<object>();
-                    object val = prop.PropInfo.GetValue(obj);
-                    if (val != null)
-                        list = new List<object>((IEnumerable<object>)val);
-                    sqlHelper.AddParam($"arg{prefix}{prop.Name}", list.ToArray(), DbType: NpgsqlDbType.Array, DataTypeName: $"{subtableName}_TP[]");
+                (prefix, prop, subPropData, subType, subtableName) => { // Subtable
+                    if (subPropData.Count == 1) {
+                        // a subtable with a single column doesn't ahve a PG Type so we have to pass the column as an array instead
+                        // get the list of objects.
+                        List<object> list = new List<object>();
+                        object val = prop.PropInfo.GetValue(obj);
+                        if (val != null)
+                            list = new List<object>((IEnumerable<object>)val);
+                        // get the list of property values we need 
+                        // and add them with their native type
+                        PropertyData subProp = subPropData[0];
+                        List<object> sublist = new List<object>();
+                        foreach (object v in list) {
+                            sublist.Add(subProp.PropInfo.GetValue(v));
+                        }
+                        NpgsqlDbType dbType = SQLGen.GetDataType(subProp.PropInfo);
+                        sqlHelper.AddParam($"arg{prefix}{prop.Name}", sublist.ToArray(), DbType: dbType | NpgsqlDbType.Array);
+                    } else {
+                        NpgsqlConnection.GlobalTypeMapper.MapComposite(prop.PropInfo.PropertyType, $"{subtableName}_TP", new NpgsqlNullNameTranslator());
+                        List<object> list = new List<object>();
+                        object val = prop.PropInfo.GetValue(obj);
+                        if (val != null)
+                            list = new List<object>((IEnumerable<object>)val);
+                        sqlHelper.AddParam($"arg{prefix}{prop.Name}", list.ToArray(), DbType: NpgsqlDbType.Array, DataTypeName: $"{subtableName}_TP[]");
+                    }
                     return null;
                 },
                 dbName, schema, dataset, propData, obj.GetType(), new List<string>(), Prefix, TopMost, SiteSpecific, WithDerivedInfo, SubTable) ;

@@ -3,6 +3,7 @@
 using Npgsql;
 using NpgsqlTypes;
 using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.Data;
 using System.Data.Common;
@@ -121,7 +122,7 @@ namespace YetaWF.DataProvider.PostgreSQL {
                             }
                         }
                     } else if (columns.Contains(colName)) {
-                        object value = (dynamic)dr[colName];
+                        object value = dr[colName];
                         pi.SetValue(container, GetValue(pi.PropertyType, value), BindingFlags.Default, null, null, null);
                     } else if (pi.PropertyType.IsClass && ComplexTypeInColumns(columns, colName + "_")) {// This is SLOW so it should be last
                         T propVal = (T)pi.GetValue(container);
@@ -202,7 +203,36 @@ namespace YetaWF.DataProvider.PostgreSQL {
                     }
                 }
             } else if (fieldType.Name == "SerializableList`1") {
-                return Activator.CreateInstance(fieldType, value);
+                Type valueType = value.GetType();
+                Type elemType = valueType.GetElementType();
+                if (!valueType.IsArray || fieldType.GenericTypeArguments.Length != 1)
+                    throw new InternalError($"Unexpected generic type {fieldType.FullName}");
+                Type genType = fieldType.GenericTypeArguments[0];// get the target type 
+                if (genType == elemType) {
+                    return Activator.CreateInstance(fieldType, value);
+                } else {
+                    // single array of native type, used for subtables which have only one column (PG doesn't support TYPEs with just one column)
+                    // get the property to set on the type instance
+                    List<PropertyInfo> genProps = ObjectSupport.GetProperties(genType);
+                    if (genProps.Count != 1)
+                        throw new InternalError($"Expected 1 property on type {genType.FullName} while processing {fieldType.FullName}");
+                    // create serializablelist and find add method for serializablelist
+                    object list = Activator.CreateInstance(fieldType);
+                    MethodInfo addMethod = fieldType.GetMethod("Add", new Type[] { typeof(object) });
+                    if (addMethod == null)
+                        throw new InternalError($"Add method not found on type {fieldType.FullName}");
+                    // build list of instances
+                    IEnumerable ienumerable = value as IEnumerable;
+                    if (ienumerable == null)
+                        throw new InternalError($"IEnumerable expected in {fieldType.FullName}");
+                    IEnumerator ienum = ienumerable.GetEnumerator();
+                    while (ienum.MoveNext()) {
+                        object vObj = Activator.CreateInstance(genType);// create the target instance
+                        genProps[0].SetValue(vObj, ienum.Current); // we're setting the native value via property name because we don't know/care what constructors are available
+                        addMethod.Invoke(list, new object[] { vObj });
+                    }
+                    return Activator.CreateInstance(fieldType, list);
+                }
             } else {
                 try {
                     newValue = Convert.ChangeType(value, fieldType);

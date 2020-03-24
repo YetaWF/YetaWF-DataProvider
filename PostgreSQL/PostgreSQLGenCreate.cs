@@ -87,8 +87,10 @@ namespace YetaWF.DataProvider.PostgreSQL {
                     };
                 }
 
-                DropFunctionsAsync(dbName, schema, tableName);// drop functions so we can recreate types
-                DropType(dbName, schema, tableInfo.NewTable.Name, propData, tpProps, SubTable: false);// drop this type so we can recreate types for subtables
+                if (!SubTable) {
+                    DropFunctionsAsync(dbName, schema, tableName);// drop functions so we can recreate types
+                    DropType(dbName, schema, tableInfo.NewTable.Name, propData, tpProps, SubTable: false);// drop this type so we can recreate types for subtables
+                }
 
                 bool hasSubTable = AddTableColumns(dbName, schema, tableInfo, key1Name, key2Name, identityName, propData, tpProps, "", true, columns, errorList, SiteSpecific: SiteSpecific, WithDerivedInfo: WithDerivedInfo, SubTable: SubTable);
 
@@ -296,6 +298,9 @@ namespace YetaWF.DataProvider.PostgreSQL {
                     newTable.Columns.Add(newColumn);
                     return null;
                 },
+                (prefix, prop) => { // Identity
+                    return null;
+                },
                 (prefix, prop) => { // Binary
                     Column newColumn = new Column {
                         Name = prop.ColumnName,
@@ -368,14 +373,8 @@ namespace YetaWF.DataProvider.PostgreSQL {
 
                     return null;
                 },
-                (prefix, prop, subtableName) => { // Subtable property
-                    PropertyInfo pi = prop.PropInfo;
-                    Type subType = pi.PropertyType.GetInterfaces().Where(t => t.IsGenericType == true && t.GetGenericTypeDefinition() == typeof(IEnumerable<>))
-                            .Select(t => t.GetGenericArguments()[0]).FirstOrDefault();
+                (prefix, prop, subPropData, subType, subTableName) => { // Subtable property
                     // create a table that links the main table and this enumerated type using the key of the table
-                    string subTableName = newTable.Name + "_" + pi.Name;
-                    List<PropertyData> subPropData = ObjectSupport.GetPropertyData(subType);
-
                     TableInfo subTableInfo = CreateSimpleTableFromModel(dbName, schema, subTableName, SQLBase.SubTableKeyColumn, null,
                         HasIdentity(identityName) ? identityName : SQLBase.IdentityColumn, subPropData, subType, errorList, columns,
                         TopMost: false,
@@ -413,10 +412,21 @@ namespace YetaWF.DataProvider.PostgreSQL {
             }
 
             List<SubTableInfo> subTables = GetSubTables(tableInfo.NewTable.Name, propData);
+
+            // Update cached info for new table and subtables
+            SQLManager sqlManager = new SQLManager();
+            SQLGenericManagerCache.ClearCache();
+            sqlManager.GetColumns(Conn, dbName, schema, tableInfo.NewTable.Name);
+            foreach (SubTableInfo subtable in subTables) {
+                sqlManager.GetColumns(Conn, dbName, schema, subtable.Name);
+            }
+
+            // Make all types for subtables and table
             foreach (SubTableInfo subtable in subTables) {
                 List<PropertyData> subPropData = ObjectSupport.GetPropertyData(subtable.Type);
                 MakeType(dbName, schema, subtable.Name, subPropData, subtable.Type, SubTable: true);
             }
+
             MakeType(dbName, schema, tableInfo.NewTable.Name, propData, tpProps, SubTable: false);
         }
 
@@ -596,7 +606,7 @@ ELSE
             }
         }
 
-        private NpgsqlDbType GetDataType(PropertyInfo pi) {
+        public static NpgsqlDbType GetDataType(PropertyInfo pi) {
             Type tp = pi.PropertyType;
             if (tp == typeof(DateTime) || tp == typeof(DateTime?))
                 return NpgsqlDbType.Timestamp;
@@ -773,6 +783,9 @@ ELSE
 
             SQLBuilder sb = new SQLBuilder();
             SQLHelper sqlHelper = new SQLHelper(Conn, null, Languages);
+
+            if (propData.Count <= 1)
+                return;
 
             string typeName = $"{dataset}_TP";
 

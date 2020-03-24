@@ -13,19 +13,6 @@ namespace YetaWF.DataProvider.SQLGeneric {
         internal static List<SQLGenericGen.Database> Databases = new List<SQLGenericGen.Database>();
         internal static readonly object DatabasesLockObject = new object();
 
-        public static SQLGenericGen.Column GetCachedColumn(string databaseName, string schema, string tableName, string columnName) {
-            SQLGenericGen.Database db = (from d in SQLGenericManagerCache.Databases where string.Compare(d.Name, databaseName, true) == 0 select d).FirstOrDefault();
-            if (db != null) {
-                SQLGenericGen.Table table = (from t in db.CachedTables where string.Compare(t.Name, tableName, true) == 0 select t).FirstOrDefault();
-                if (table != null) {
-                    SQLGenericGen.Column col = (from c in table.CachedColumns where string.Compare(c.Name, columnName, true) == 0 select c).FirstOrDefault();
-                    if (col != null)
-                        return col;
-                }
-            }
-            throw new InternalError($"Expected column {columnName} not found in {databaseName}, {schema}, {tableName}");
-        }
-
         /// <summary>
         /// Clear the cache.
         /// </summary>
@@ -124,6 +111,14 @@ namespace YetaWF.DataProvider.SQLGeneric {
             if (table.CachedColumns.Count == 0)
                 table.CachedColumns = GetColumnNames(connInfo, databaseName, schema, tableName);
             return table.CachedColumns;
+        }
+
+        public SQLGenericGen.Column GetColumn(TYPE connInfo, string databaseName, string schema, string tableName, string columnName) {
+            List<SQLGenericGen.Column> columns = GetColumns(connInfo, databaseName, schema, tableName);
+            SQLGenericGen.Column col = (from c in columns where string.Compare(c.Name, columnName, true) == 0 select c).FirstOrDefault();
+            if (col == null)
+                throw new InternalError($"Expected column {columnName} not found in {databaseName}, {schema}, {tableName}");
+            return col;
         }
     }
 }
