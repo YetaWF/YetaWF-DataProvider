@@ -41,6 +41,13 @@ namespace YetaWF.DataProvider.PostgreSQL {
             Column colKey1 = sqlManager.GetColumn(Conn, dbName, schema, dataset, key1Name);
             string typeKey1 = GetDataTypeArgumentString(colKey1);
 
+            Column colKey2 = null;
+            string typeKey2 = null;
+            if (!string.IsNullOrWhiteSpace(key2Name)) {
+                colKey2 = sqlManager.GetColumn(Conn, dbName, schema, dataset, key2Name);
+                typeKey2 = GetDataTypeArgumentString(colKey2);
+            }
+
             // GET
             // GET
             // GET
@@ -48,12 +55,8 @@ namespace YetaWF.DataProvider.PostgreSQL {
             sb.Append($@"
 DROP FUNCTION IF EXISTS ""{schema}"".""{dataset}__Get"";
 CREATE OR REPLACE FUNCTION ""{schema}"".""{dataset}__Get""(""Key1Val"" {typeKey1},");
-
-            if (!string.IsNullOrWhiteSpace(key2Name)) {
-                Column colKey2 = sqlManager.GetColumn(Conn, dbName, schema, dataset, key2Name);
-                string typeKey2 = GetDataTypeArgumentString(colKey2);
+            if (!string.IsNullOrWhiteSpace(key2Name))
                 sb.Append($@"""Key2Val"" {typeKey2},");
-            }
             if (siteIdentity > 0)
                 sb.Append($@"{SQLBuilder.WrapIdentifier(SQLGen.ValSiteIdentity)} integer,");
 
@@ -250,7 +253,10 @@ $$;");
 
             sb.Append($@"
 DROP FUNCTION IF EXISTS ""{schema}"".""{dataset}__Update"";
-CREATE OR REPLACE FUNCTION ""{schema}"".""{dataset}__Update""({GetArgumentNameList(dbName, schema, dataset, propData, objType, Prefix: null, TopMost: true, SiteSpecific: siteIdentity > 0, WithDerivedInfo: false, SubTable: false)}");
+CREATE OR REPLACE FUNCTION ""{schema}"".""{dataset}__Update""(""Key1Val"" {typeKey1},");
+            if (!string.IsNullOrWhiteSpace(key2Name))
+                sb.Append($@"""Key2Val"" {typeKey2},");
+            sb.Append($@"{GetArgumentNameList(dbName, schema, dataset, propData, objType, Prefix: null, TopMost: true, SiteSpecific: siteIdentity > 0, WithDerivedInfo: false, SubTable: false)}");
 
             sb.RemoveLastComma();
 
@@ -389,12 +395,8 @@ $$;");
             sb.Append($@"
 DROP FUNCTION IF EXISTS ""{schema}"".""{dataset}__Remove"";
 CREATE OR REPLACE FUNCTION ""{schema}"".""{dataset}__Remove""(""Key1Val"" {typeKey1},");
-
-            if (!string.IsNullOrWhiteSpace(key2Name)) {
-                Column colKey2 = sqlManager.GetColumn(Conn, dbName, schema, dataset, key2Name);
-                string typeKey2 = GetDataTypeArgumentString(colKey2);
+            if (!string.IsNullOrWhiteSpace(key2Name))
                 sb.Append($@"""Key2Val"" {typeKey2},");
-            }
             if (siteIdentity > 0)
                 sb.Append($@"{SQLBuilder.WrapIdentifier(SQLGen.ValSiteIdentity)} integer,");
 
@@ -670,7 +672,7 @@ DROP FUNCTION IF EXISTS ""{schema}"".""{dataset}__RemoveByIdentity"";");
                         return $"{SQLBuilder.WrapIdentifier($"arg{prefix}{prop.Name}")},";
                 },
                 (prefix, prop) => { return null; }, // Identity
-                (prefix, prop) => {
+                (prefix, prop) => { // Binary
                     if (SubTable) {
                         if (propData.Count == 1)
                             return $"{Prefix},";
@@ -678,7 +680,7 @@ DROP FUNCTION IF EXISTS ""{schema}"".""{dataset}__RemoveByIdentity"";");
                     } else
                         return $"{SQLBuilder.WrapIdentifier($"arg{prefix}{prop.Name}")},";
                 },
-                (prefix, prop) => {
+                (prefix, prop) => { // Image
                     if (SubTable) {
                         if (propData.Count == 1)
                             return $"{Prefix},";
@@ -686,7 +688,7 @@ DROP FUNCTION IF EXISTS ""{schema}"".""{dataset}__RemoveByIdentity"";");
                     } else
                         return $"{SQLBuilder.WrapIdentifier($"arg{prefix}{prop.Name}")},";
                 },
-                (prefix, prop) => {
+                (prefix, prop) => { // Language
                     if (Languages.Count == 0) throw new InternalError("We need Languages for MultiString support");
                     StringBuilder sb = new StringBuilder();
                     foreach (LanguageData lang in Languages) {

@@ -502,14 +502,11 @@ namespace YetaWF.DataProvider.PostgreSQL {
                 parm.Value = value;
             } else {
                 if (DataTypeName != null) {
-                    //$$$$ Conn.TypeMapper.MapComposite(subTable.Type, $"{DataTypeName}_TP", new NpgsqlNullNameTranslator());
                     parm = new NpgsqlParameter {
                         ParameterName = name,
                         Value = value,
-                        DataTypeName = /*DbType == NpgsqlDbType.Array ?  DataTypeName + "[]" :*/ DataTypeName,
+                        DataTypeName = DataTypeName,
                     };
-                    //if (DbType != NpgsqlDbType.Unknown)
-                    //    parm.NpgsqlDbType |= NpgsqlDbType.Array;
                 } else {
                     parm = new NpgsqlParameter(name, DbType);
                     parm.Value = value;

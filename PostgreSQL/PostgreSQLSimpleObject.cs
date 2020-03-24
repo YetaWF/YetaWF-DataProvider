@@ -4,7 +4,6 @@ using Npgsql;
 using Npgsql.NameTranslation;
 using NpgsqlTypes;
 using System;
-using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
@@ -14,6 +13,7 @@ using YetaWF.Core.Models;
 using YetaWF.Core.Packages;
 using YetaWF.Core.Serializers;
 using YetaWF.Core.Support;
+using YetaWF.Core.Support.Serializers;
 using YetaWF.DataProvider.SQLGeneric;
 
 namespace YetaWF.DataProvider.PostgreSQL {
@@ -72,17 +72,12 @@ namespace YetaWF.DataProvider.PostgreSQL {
         /// <param name="key2">The secondary key value.</param>
         /// <returns>Returns the record that satisfies the specified primary and secondary keys. If no record exists null is returned.</returns>
         public async Task<OBJTYPE> GetAsync(KEYTYPE key, KEYTYPE2 key2) {
+
             await EnsureOpenAsync();
 
             SQLHelper sqlHelper = new SQLHelper(Conn, null, Languages);
 
-            List<PropertyData> propData = GetPropertyData();
-            List<SQLGenericGen.SubTableInfo> subTables = SQLGen.GetSubTables(Dataset, propData);
-            foreach (SQLGenericGen.SubTableInfo subTable in subTables) {
-                List<PropertyData> subPropData = ObjectSupport.GetPropertyData(subTable.Type);
-                if (subPropData.Count > 1)
-                    Conn.TypeMapper.MapComposite(subTable.Type, $"{subTable.Name}_TP", new NpgsqlNullNameTranslator());
-            }
+            AddSubtableMapping();
 
             sqlHelper.AddParam("Key1Val", key);
             if (HasKey2)
@@ -105,36 +100,29 @@ namespace YetaWF.DataProvider.PostgreSQL {
         /// For all other errors, an exception occurs.
         /// </returns>
         public async Task<bool> AddAsync(OBJTYPE obj) {
+
             await EnsureOpenAsync();
 
             SQLHelper sqlHelper = new SQLHelper(Conn, null, Languages);
 
-            List<PropertyData> propData = GetPropertyData();
-            List<SQLGenericGen.SubTableInfo> subTables = SQLGen.GetSubTables(Dataset, propData);
-            foreach (SQLGenericGen.SubTableInfo subTable in subTables) {
-                List<PropertyData> subPropData = ObjectSupport.GetPropertyData(subTable.Type);
-                if (subPropData.Count > 1)
-                    Conn.TypeMapper.MapComposite(subTable.Type, $"{subTable.Name}_TP", new NpgsqlNullNameTranslator());
-            }
+            AddSubtableMapping();
             GetParameterList(sqlHelper, obj, Database, Schema, Dataset, GetPropertyData(), Prefix: null, TopMost: true, SiteSpecific: SiteIdentity > 0, WithDerivedInfo: false, SubTable: false);
 
-            NpgsqlDataReader reader = null;
             try {
-                reader = await sqlHelper.ExecuteReaderStoredProcAsync($"{SQLBuilder.WrapIdentifier(Schema)}.{SQLBuilder.WrapIdentifier($"{Dataset}__Add")}");
+                using (NpgsqlDataReader reader = await sqlHelper.ExecuteReaderStoredProcAsync($"{SQLBuilder.WrapIdentifier(Schema)}.{SQLBuilder.WrapIdentifier($"{Dataset}__Add")}")) {
+                    if (HasIdentity(IdentityName)) {
+                        if (!(YetaWFManager.IsSync() ? reader.Read() : await reader.ReadAsync())) return false;
+                        int identity = Convert.ToInt32(reader[0]);
+                        PropertyInfo piIdent = ObjectSupport.GetProperty(typeof(OBJTYPE), IdentityName);
+                        if (piIdent.PropertyType != typeof(int)) throw new InternalError($"Object identities must be of type int in {typeof(OBJTYPE).FullName}");
+                        piIdent.SetValue(obj, identity);
+                    }
+                }
             } catch (Exception exc) {
-                NpgsqlException sqlExc = exc as NpgsqlException;
-                if (sqlExc != null && sqlExc.ErrorCode == 2627) // already exists //$$$verify
+                Npgsql.PostgresException sqlExc = exc as Npgsql.PostgresException;
+                if (sqlExc != null && sqlExc.SqlState == PostgresErrorCodes.UniqueViolation) // already exists
                     return false;
                 throw new InternalError("Add failed for type {0} - {1}", typeof(OBJTYPE).FullName, ErrorHandling.FormatExceptionMessage(exc));
-            }
-            using (reader) {
-                if (HasIdentity(IdentityName)) {
-                    if (!(YetaWFManager.IsSync() ? reader.Read() : await reader.ReadAsync())) return false;
-                    int identity = Convert.ToInt32(reader[0]);
-                    PropertyInfo piIdent = ObjectSupport.GetProperty(typeof(OBJTYPE), IdentityName);
-                    if (piIdent.PropertyType != typeof(int)) throw new InternalError($"Object identities must be of type int in {typeof(OBJTYPE).FullName}");
-                    piIdent.SetValue(obj, identity);
-                }
             }
             return true;
         }
@@ -162,68 +150,35 @@ namespace YetaWF.DataProvider.PostgreSQL {
         /// <param name="obj">The object being updated.</param>
         /// <returns>Returns a status indicator.</returns>
         public async Task<UpdateStatusEnum> UpdateAsync(KEYTYPE origKey, KEYTYPE2 origKey2, KEYTYPE newKey, KEYTYPE2 newKey2, OBJTYPE obj) {
-            SQLBuilder sb = new SQLBuilder();
+
             await EnsureOpenAsync();
-            
+
             SQLHelper sqlHelper = new SQLHelper(Conn, null, Languages);
 
-            string fullTableName = sb.GetTable(Database, Schema, Dataset);
-            List<PropertyData> propData = GetPropertyData();
-            string setColumns = SetColumns(sqlHelper, Dataset, propData, obj, typeof(OBJTYPE));
-            string andKey2 = HasKey2 ? "AND " + sqlHelper.Expr(Key2Name, "=", origKey2) : null;
-
-            string subTablesUpdates = SubTablesUpdates(sqlHelper, Dataset, obj, propData, typeof(OBJTYPE));
-
-            string warningsOff = !Warnings ? " SET ANSI_WARNINGS OFF" : null;
-            string warningsOn = !Warnings ? " SET ANSI_WARNINGS ON" : null;
-
-            string scriptMain = $@"
-{warningsOff}
-
-UPDATE {fullTableName}
-SET {setColumns}
-WHERE {sqlHelper.Expr(Key1Name, "=", origKey)} {andKey2} {AndSiteIdentity}
-RETURNING 1; -- result set
-
-{warningsOn}
-
-{sqlHelper.DebugInfo}";
-
-            string scriptWithSub = $@"
-{warningsOff}
-
-DECLARE @__IDENTITY int;
-SELECT @__IDENTITY = [{IdentityNameOrDefault}] FROM {fullTableName}
-WHERE {sqlHelper.Expr(Key1Name, "=", origKey)} {andKey2} {AndSiteIdentity}
-
-UPDATE {fullTableName}
-SET {setColumns}
-WHERE [{IdentityNameOrDefault}] = @__IDENTITY
-RETURNING 1; -- result set
-
-{subTablesUpdates}
-
-{warningsOn}
-{sqlHelper.DebugInfo}";
-
-            string script = (string.IsNullOrWhiteSpace(subTablesUpdates)) ? scriptMain : scriptWithSub;
+            AddSubtableMapping();
+            GetParameterList(sqlHelper, obj, Database, Schema, Dataset, GetPropertyData(), Prefix: null, TopMost: true, SiteSpecific: SiteIdentity > 0, WithDerivedInfo: false, SubTable: false);
+            sqlHelper.AddParam("Key1Val", origKey);
+            if (HasKey2)
+                sqlHelper.AddParam("Key2Val", origKey2);
 
             try {
-                using (NpgsqlDataReader reader = await sqlHelper.ExecuteReaderAsync(script)) {
-                    if (!reader.HasRows)
+                using (NpgsqlDataReader reader = await sqlHelper.ExecuteReaderStoredProcAsync($"{SQLBuilder.WrapIdentifier(Schema)}.{SQLBuilder.WrapIdentifier($"{Dataset}__Update")}")) {
+                    if (!(YetaWFManager.IsSync() ? reader.Read() : await reader.ReadAsync()))
+                        throw new InternalError($"No result set received from {Dataset}__Update");
+                    int changed = Convert.ToInt32(reader[0]);
+                    if (changed == 0)
                         return UpdateStatusEnum.RecordDeleted;
+                    if (changed > 1)
+                        throw new InternalError($"Update failed - {changed} records updated");
                 }
             } catch (Exception exc) {
-                if (!newKey.Equals(origKey)) {
-                    NpgsqlException sqlExc = exc as NpgsqlException;
-                    if (sqlExc != null && sqlExc.ErrorCode == 2627) { //$$$verify
-                        // duplicate key violation, meaning the new key already exists
-                        return UpdateStatusEnum.NewKeyExists;
-                    }
-                }
+                Npgsql.PostgresException sqlExc = exc as Npgsql.PostgresException;
+                if (sqlExc != null && sqlExc.SqlState == PostgresErrorCodes.UniqueViolation) // already exists
+                    return UpdateStatusEnum.NewKeyExists;
                 throw new InternalError($"Update failed for type {typeof(OBJTYPE).FullName} - {ErrorHandling.FormatExceptionMessage(exc)}");
             }
             return UpdateStatusEnum.OK;
+
         }
 
         /// <summary>
@@ -241,42 +196,25 @@ RETURNING 1; -- result set
         /// <param name="key2">The secondary key value of the record to remove.</param>
         /// <returns>Returns true if the record was removed, or false if the record was not found. Other errors cause an exception.</returns>
         public async Task<bool> RemoveAsync(KEYTYPE key, KEYTYPE2 key2) {
-            SQLBuilder sb = new SQLBuilder();
+
             await EnsureOpenAsync();
 
             SQLHelper sqlHelper = new SQLHelper(Conn, null, Languages);
 
-            string fullTableName = sb.GetTable(Database, Schema, Dataset);
-            string andKey2 = HasKey2 ? "AND " + sqlHelper.Expr(Key2Name, "=", key2) : null;
+            sqlHelper.AddParam("Key1Val", key);
+            if (HasKey2)
+                sqlHelper.AddParam("Key2Val", key2);
+            if (SiteIdentity > 0)
+                sqlHelper.AddParam(SQLGen.ValSiteIdentity, SiteIdentity);
 
-            List<PropertyData> propData = GetPropertyData();
-            string subTablesDeletes = SubTablesDeletes(Dataset, propData, typeof(OBJTYPE));
-
-            string scriptMain = $@"
-DELETE
-FROM {fullTableName}
-WHERE {sqlHelper.Expr(Key1Name, "=", key)} {andKey2} {AndSiteIdentity}
-RETURNING 1; -- result set
-
-{sqlHelper.DebugInfo}";
-
-            string scriptWithSub = $@"
-DECLARE @ident int;
-SELECT @ident = [{IdentityNameOrDefault}] FROM {fullTableName}
-WHERE {sqlHelper.Expr(Key1Name, "=", key)} {andKey2} {AndSiteIdentity}
-RETURNING 1; -- result set
-{subTablesDeletes}
-
-DELETE
-FROM {fullTableName}
-WHERE [{IdentityNameOrDefault}] = @ident;
-
-{sqlHelper.DebugInfo}";
-
-            string script = (string.IsNullOrWhiteSpace(subTablesDeletes)) ? scriptMain : scriptWithSub;
-
-            using (NpgsqlDataReader reader = await sqlHelper.ExecuteReaderAsync(script)) {
-                return reader.HasRows;
+            try {
+                using (NpgsqlDataReader reader = await sqlHelper.ExecuteReaderStoredProcAsync($"{SQLBuilder.WrapIdentifier(Schema)}.{SQLBuilder.WrapIdentifier($"{Dataset}__Remove")}")) {
+                    if (!(YetaWFManager.IsSync() ? reader.Read() : await reader.ReadAsync())) return false;
+                    int removed = Convert.ToInt32(reader[0]);
+                    return removed > 0;
+                }
+            } catch (Exception exc) {
+                throw new InternalError($"Remove failed for type {typeof(OBJTYPE).FullName} - {ErrorHandling.FormatExceptionMessage(exc)}");
             }
         }
 
@@ -290,9 +228,7 @@ WHERE [{IdentityNameOrDefault}] = @ident;
         /// <remarks>
         /// </remarks>
         public async Task<OBJTYPE> GetOneRecordAsync(List<DataProviderFilterInfo> filters, List<JoinData> Joins = null) {
-            await EnsureOpenAsync();
-            filters = NormalizeFilter(typeof(OBJTYPE), filters);
-            DataProviderGetRecords<OBJTYPE> recs = await GetMainTableRecordsAsync(0, 1, null, filters, Joins: Joins);
+            DataProviderGetRecords<OBJTYPE> recs = await GetRecordsAsync(0, 1, null, filters, Joins: Joins);
             return recs.Data.FirstOrDefault();
         }
 
@@ -306,10 +242,108 @@ WHERE [{IdentityNameOrDefault}] = @ident;
         /// <param name="Joins">A collection describing the dataset joins.</param>
         /// <returns>Returns a YetaWF.Core.DataProvider.DataProviderGetRecords object describing the data returned.</returns>
         public async Task<DataProviderGetRecords<OBJTYPE>> GetRecordsAsync(int skip, int take, List<DataProviderSortInfo> sorts, List<DataProviderFilterInfo> filters, List<JoinData> Joins = null) {
+
             await EnsureOpenAsync();
+
             filters = NormalizeFilter(typeof(OBJTYPE), filters);
             sorts = NormalizeSort(typeof(OBJTYPE), sorts);
-            return await GetMainTableRecordsAsync(skip, take, sorts, filters, Joins: Joins);
+
+            SQLManager sqlManager = new SQLManager();
+            SQLHelper sqlHelper = new SQLHelper(Conn, null, Languages);
+            SQLGen sqlCreate = new SQLGen(Conn, Languages, IdentitySeed, Logging);
+
+            SQLBuilder sb;
+
+            sb = new SQLBuilder();
+            string fullTableName = sb.GetTable(Database, Schema, Dataset);
+            Dictionary<string, string> visibleColumns = await GetVisibleColumnsAsync(Database, Schema, Dataset, typeof(OBJTYPE), Joins);
+            int total = 0;
+
+            string orderByExpr = null;
+            {
+                sb = new SQLBuilder();
+                if (sorts == null || sorts.Count == 0)
+                    sorts = new List<DataProviderSortInfo> { new DataProviderSortInfo { Field = Key1Name, Order = DataProviderSortInfo.SortDirection.Ascending } };
+                sb.AddOrderBy(visibleColumns, sorts, skip, take);
+                orderByExpr = sb.ToString();
+            }
+            string joinExpr = await MakeJoinsAsync(sqlHelper, Joins);
+            string filterExpr = MakeFilter(sqlHelper, filters, visibleColumns);
+
+            // get total # of records (only if a subset is requested)
+            if (skip != 0 || take != 0) {
+                sb = new SQLBuilder();
+                sb.Append($@"
+        SELECT COUNT(*)
+        FROM {fullTableName}
+        {joinExpr}
+        {filterExpr}
+; --- result set");
+
+                object scalar = await sqlHelper.ExecuteScalarAsync(sb.ToString());
+                total = Convert.ToInt32(scalar);
+            }
+
+            // Get records
+
+            AddSubtableMapping();
+
+            sb = new SQLBuilder();
+            sb.Append($@"
+        SELECT {sqlCreate.GetColumnNameList(Database, Schema, Dataset, GetPropertyData(), typeof(OBJTYPE), Add: false, Prefix: null, TopMost: true, SiteSpecific: SiteIdentity > 0, WithDerivedInfo: false, SubTable: false)}");
+            if (CalculatedPropertyCallbackAsync != null) sb.Append(await CalculatedPropertiesAsync(typeof(OBJTYPE)));
+
+            List<PropertyData> propData = GetPropertyData();
+            List<SQLGenericGen.SubTableInfo> subTables = SQLGen.GetSubTables(Dataset, propData);
+
+            foreach (SQLGenericGen.SubTableInfo subTable in subTables) {
+
+                List<PropertyData> subPropData = ObjectSupport.GetPropertyData(subTable.Type);
+
+                sb.Append($@"
+            (
+                SELECT ARRAY_AGG((");
+
+                sb.Append(sqlCreate.GetColumnNameList(Database, Schema, subTable.Name, subPropData, subTable.Type, Add: false, Prefix: null, TopMost: false, SiteSpecific: false, WithDerivedInfo: false, SubTable: true));
+                sb.RemoveLastComma();
+                sb.Append($@")::");
+
+                if (subPropData.Count == 1) {
+                    SQLGenericGen.Column col = sqlManager.GetColumn(Conn, Database, Schema, subTable.Name, subPropData[0].ColumnName);
+                    string colType = sqlCreate.GetDataTypeArgumentString(col);
+                    sb.Append(colType);
+                } else {
+                    sb.Append($@"""{subTable.Name}_TP""");
+                }
+
+                sb.Append($@")
+                FROM ""{Schema}"".""{subTable.Name}""
+                WHERE ""{Schema}"".""{subTable.Name}"".""{SQLGenericBase.SubTableKeyColumn}"" = ""{Schema}"".""{Dataset}"".""{IdentityName}""
+            ) AS ""{subTable.PropInfo.Name}"",");
+
+            }
+
+            sb.RemoveLastComma();
+
+            sb.Append($@"
+        FROM {fullTableName}
+        {joinExpr}
+        {filterExpr}
+        {orderByExpr}
+; --- result set");
+
+            DataProviderGetRecords<OBJTYPE> recs = new DataProviderGetRecords<OBJTYPE>();
+            using (NpgsqlDataReader reader = await sqlHelper.ExecuteReaderAsync(sb.ToString())) {
+                while (YetaWFManager.IsSync() ? reader.Read() : await reader.ReadAsync()) {
+                    OBJTYPE val = sqlHelper.CreateObject<OBJTYPE>(reader);
+                    recs.Data.Add(val);
+                }
+                if (skip == 0 && take == 0)
+                    recs.Total = recs.Data.Count;
+                else
+                    recs.Total = total;
+                return recs;
+            }
         }
 
         /// <summary>
@@ -318,265 +352,53 @@ WHERE [{IdentityNameOrDefault}] = @ident;
         /// <param name="filters">A collection describing the filtering criteria.</param>
         /// <returns>Returns the number of records removed.</returns>
         public async Task<int> RemoveRecordsAsync(List<DataProviderFilterInfo> filters) {
-            SQLBuilder sb = new SQLBuilder();
+
             await EnsureOpenAsync();
+
+            SQLHelper sqlHelper = new SQLHelper(Conn, null, Languages);
+            SQLBuilder sb = new SQLBuilder();
+
             filters = NormalizeFilter(typeof(OBJTYPE), filters);
 
-            SQLHelper sqlHelper = new SQLHelper(Conn, null, Languages);
-
             string fullTableName = sb.GetTable(Database, Schema, Dataset);
             List<PropertyData> propData = GetPropertyData();
-            string filter = MakeFilter(sqlHelper, filters);
+            string filterExpr = MakeFilter(sqlHelper, filters);
 
-            string subTablesDeletes = SubTablesDeletes(Dataset, propData, typeof(OBJTYPE));
-
-            string scriptMain = $@"
-DELETE
-FROM {fullTableName}
-{filter}
-
-{sqlHelper.DebugInfo}";
-
-            string scriptWithSub = $@"
-SELECT [{IdentityNameOrDefault}]
-INTO #TEMPTABLE
-FROM {fullTableName}
-{filter}
-;
-DELETE
-FROM {fullTableName}
-{filter}
-;
-SELECT ROW_COUNT --- result set
-;
-SELECT * FROM #TEMPTABLE --- result set
-;
-DECLARE @MyCursor CURSOR;
-DECLARE @ident int;
-
-SET @MyCursor = CURSOR FOR
-SELECT [{IdentityNameOrDefault}] FROM #TEMPTABLE
-
-OPEN @MyCursor
-FETCH NEXT FROM @MyCursor
-INTO @ident
-
-WHILE @@FETCH_STATUS = 0
-BEGIN
-    {subTablesDeletes}
-    FETCH NEXT FROM @MyCursor INTO @ident
-END;
-
-CLOSE @MyCursor ;
-DEALLOCATE @MyCursor;
-DROP TABLE #TEMPTABLE
-
-{sqlHelper.DebugInfo}";
-
-            string script = (string.IsNullOrWhiteSpace(subTablesDeletes)) ? scriptMain : scriptWithSub;
-
-            object val = await sqlHelper.ExecuteScalarAsync(script);
-            int deleted = Convert.ToInt32(val);
-            return deleted;
-        }
-
-        internal async Task<DataProviderGetRecords<OBJTYPE>> GetMainTableRecordsAsync(int skip, int take, List<DataProviderSortInfo> sorts, List<DataProviderFilterInfo> filters, List<JoinData> Joins = null) {
-            SQLBuilder sb = new SQLBuilder();
-            SQLHelper sqlHelper = new SQLHelper(Conn, null, Languages);
-
-            DataProviderGetRecords<OBJTYPE> recs = new DataProviderGetRecords<OBJTYPE>();
-
-            string fullTableName = sb.GetTable(Database, Schema, Dataset);
-            List<PropertyData> propData = GetPropertyData();
-            Dictionary<string, string> visibleColumns = await GetVisibleColumnsAsync(Database, Schema, Dataset, typeof(OBJTYPE), Joins);
-            string columnList = MakeColumnList(sqlHelper, visibleColumns, Joins);
-            string joins = await MakeJoinsAsync(sqlHelper, Joins);
-            string filter = MakeFilter(sqlHelper, filters, visibleColumns);
-            string calcProps = await CalculatedPropertiesAsync(typeof(OBJTYPE));
-            // get total # of records (only if a subset is requested)
-            string selectCount = null;
-            if (skip != 0 || take != 0) {
-                sb = new SQLBuilder();
-                sb.Add($"SELECT COUNT(*) FROM {fullTableName} {joins} {filter}");
-                selectCount = sb.ToString();
-            }
-
-            string orderBy = null;
-            {
-                sb = new SQLBuilder();
-                if (sorts == null || sorts.Count == 0)
-                    sorts = new List<DataProviderSortInfo> { new DataProviderSortInfo { Field = Key1Name, Order = DataProviderSortInfo.SortDirection.Ascending } };
-                sb.AddOrderBy(visibleColumns, sorts, skip, take);
-                orderBy = sb.ToString();
-            }
-
-            string script = $@"
-{selectCount}; --- result set
-
-SELECT {columnList}
-    {calcProps}
-FROM {fullTableName}
-{joins}
-{filter}
-{orderBy}; --- result set
-
-{sqlHelper.DebugInfo}";
-
-            string subTablesSelects = "";
-            SQLHelper subSqlHelper = new SQLHelper(Conn, null, Languages);
-
-            using (NpgsqlDataReader reader = await sqlHelper.ExecuteReaderAsync(script)) {
-                if (skip != 0 || take != 0) {
-                    if (!(YetaWFManager.IsSync() ? reader.Read() : await reader.ReadAsync())) throw new InternalError("Expected # of records");
-                    recs.Total = reader.GetInt32(0);
-                    if (!(YetaWFManager.IsSync() ? reader.NextResult() : await reader.NextResultAsync())) throw new InternalError("Expected next result set (main table)");
-                }
-                while ((YetaWFManager.IsSync() ? reader.Read() : await reader.ReadAsync())) {
-                    OBJTYPE o = sqlHelper.CreateObject<OBJTYPE>(reader);
-                    recs.Data.Add(o);
-
-                    PropertyInfo piIdent = ObjectSupport.GetProperty(typeof(OBJTYPE), Key1Name);
-                    KEYTYPE keyVal = (KEYTYPE)piIdent.GetValue(o);
-                    KEYTYPE2 key2Val = default(KEYTYPE2);
-                    if (HasKey2) {
-                        PropertyInfo piIdent2 = ObjectSupport.GetProperty(typeof(OBJTYPE), Key2Name);
-                        key2Val = (KEYTYPE2)piIdent2.GetValue(o);
-                    }
-                    subTablesSelects += SubTablesSelectsUsingJoin(subSqlHelper, Dataset, keyVal, key2Val, propData, typeof(OBJTYPE));
-                }
-            }
-            if (!string.IsNullOrWhiteSpace(subTablesSelects)) {
-                subTablesSelects += $@"
-
-{subSqlHelper.DebugInfo}";
-                using (NpgsqlDataReader reader = await subSqlHelper.ExecuteReaderAsync(subTablesSelects)) {
-                    await ReadSubTablesMatchupAsync(subSqlHelper, reader, Dataset, recs.Data, propData, typeof(OBJTYPE));
-                }
-            }
-            if (skip == 0 && take == 0)
-                recs.Total = recs.Data.Count;
-            return recs;
-        }
-
-        internal string SubTablesSelects(string tableName, List<PropertyData> propData, Type tpContainer, int identity) {
-            SQLBuilder sb = new SQLBuilder();
-            List<SQLGenericGen.SubTableInfo> subTables = SQLGen.GetSubTables(tableName, propData);
-            if (subTables.Count > 0) {
-                foreach (SQLGenericGen.SubTableInfo subTable in subTables) {
-                    sb.Add($@"
-    SELECT * FROM {sb.BuildFullTableName(Database, Schema, subTable.Name)} WHERE {sb.BuildFullColumnName(subTable.Name, SubTableKeyColumn)} = {identity} ; --- result set
-");
-                }
-            }
-            return sb.ToString();
-        }
-
-        internal string SubTablesSelectsUsingJoin(SQLHelper sqlHelper, string tableName, KEYTYPE key, KEYTYPE2 key2, List<PropertyData> propData, Type tpContainer, List<DataProviderFilterInfo> filters = null, Dictionary<string, string> visibleColumns = null) {
-            SQLBuilder sb = new SQLBuilder();
-            List<SQLGenericGen.SubTableInfo> subTables = SQLGen.GetSubTables(tableName, propData);
-            if (subTables.Count > 0) {
-                string keyExpr = (key == null || key.Equals(default(KEYTYPE)) ? "1=1" : $"{sb.BuildFullColumnName(Database, Schema, tableName, Key1Name)} = {sqlHelper.AddTempParam(key)}");
-                string andKey2 = HasKey2 ? "AND " + sqlHelper.Expr(Key2Name, "=", key2) : null;
-
-                foreach (SQLGenericGen.SubTableInfo subTable in subTables) {
-                    sb.Add($@"
-    SELECT * FROM {sb.BuildFullTableName(Database, Schema, subTable.Name)}   --- result set
-    INNER JOIN {sb.BuildFullTableName(Database, Schema, tableName)} ON {sb.BuildFullColumnName(tableName, IdentityNameOrDefault)} = {sb.BuildFullColumnName(subTable.Name, SubTableKeyColumn)}
-    WHERE {keyExpr} {andKey2} {AndSiteIdentity}
-");
-                    sb.Add(@"
-;
-                        ");
-                }
-            }
-            return sb.ToString();
-        }
-
-        internal Task ReadSubTablesMatchupAsync(SQLHelper sqlHelper, NpgsqlDataReader reader, string tableName, List<OBJTYPE> containers, List<PropertyData> propData, Type tpContainer) {
-
-            //$$$$$ 
-            //// extract identities from container list so we can match sub-objects more easily
-            //List<int> identities = GetIdentities(containers);
-
-            //List<SQLGenericGen.SubTableInfo> subTables = SQLGen.GetSubTables(tableName, propData);
-
-            //for ( ; ; ) {
-            //    foreach (SQLGenericGen.SubTableInfo subTable in subTables) {
-
-            //        while ((YetaWFManager.IsSync() ? reader.Read() : await reader.ReadAsync())) {
-
-            //            // find the Add method for the collection so we can add each item as its read
-            //            MethodInfo addMethod = subTable.PropInfo.PropertyType.GetMethod("Add", new Type[] { subTable.Type });
-            //            if (addMethod == null) throw new InternalError($"{nameof(ReadSubTablesMatchupAsync)} encountered a enumeration property that doesn't have an Add method");
-
-            //            int key = (int)reader[SubTableKeyColumn];
-            //            object obj = sqlHelper.CreateObject(reader, subTable.Type);
-            //            // find the container this subtable entry matches
-            //            AddToContainer(containers, identities, subTable, obj, key, addMethod);
-            //        }
-            //        if (!(YetaWFManager.IsSync() ? reader.NextResult() : await reader.NextResultAsync()))
-            //            return;
-            //    }
-            //}
-            return Task.CompletedTask;
-        }
-
-        private List<int> GetIdentities(List<OBJTYPE> containers) {
-            List<int> list = new List<int>();
-            PropertyInfo piIdent = ObjectSupport.GetProperty(typeof(OBJTYPE), IdentityNameOrDefault);
-            if (piIdent.PropertyType != typeof(int)) throw new InternalError($"Object identities must be of type int in {typeof(OBJTYPE).FullName}");
-            foreach (OBJTYPE c in containers) {
-                int identity = (int)piIdent.GetValue(c);
-                list.Add(identity);
-            }
-            return list;
-        }
-
-        private void AddToContainer(List<OBJTYPE> containers, List<int> identities, SQLGenericGen.SubTableInfo subTable, object obj, int key, MethodInfo addMethod) {
-
-            int index = identities.IndexOf(key); // find the index of the matching identity/container
-            if (index < 0) throw new InternalError($"Subtable {subTable.Name} has key {key} that doesn't match any main record");
-
-            OBJTYPE container = containers[index];
-            object subContainer = subTable.PropInfo.GetValue(container);
-            if (subContainer == null) throw new InternalError($"{nameof(AddToContainer)} encountered a enumeration property that is null");
-
-            addMethod.Invoke(subContainer, new object[] { obj });
-        }
-
-        internal string SubTablesUpdates(SQLHelper sqlHelper, string tableName, object container, List<PropertyData> propData, Type tpContainer) {
-            SQLBuilder sb = new SQLBuilder();
-            List<SQLGenericGen.SubTableInfo> subTables = SQLGen.GetSubTables(tableName, propData);
-            if (subTables.Count == 0) return null;
-            sb.Add("BEGIN TRANSACTION Upd;");
+            List<SQLGenericGen.SubTableInfo> subTables = SQLGen.GetSubTables(Dataset, propData);
             foreach (SQLGenericGen.SubTableInfo subTable in subTables) {
-                sb.Add($@"
-    DELETE FROM {subTable.Name} WITH(SERIALIZABLE) WHERE {SQLBase.SubTableKeyColumn} = __IDENTITY ;
+                string subFilters;
+                if (string.IsNullOrWhiteSpace(filterExpr))
+                    subFilters = $@"WHERE {sb.GetTable(Database, Schema, subTable.Name)}.""{SQLGenericBase.SubTableKeyColumn}"" = {fullTableName}.""{IdentityName}""";
+                else 
+                    subFilters = $@"{filterExpr} AND {sb.GetTable(Database, Schema, subTable.Name)}.""{SQLGenericBase.SubTableKeyColumn}"" = {fullTableName}.""{IdentityName}""";
+
+                sb.Append($@"
+DELETE FROM {sb.GetTable(Database, Schema, subTable.Name)} USING {fullTableName} 
+{subFilters}
+;
 ");
+
+            }
+
+            sb.Append($@"
+DELETE
+FROM {fullTableName}
+{filterExpr}
+;
+");
+
+            await sqlHelper.ExecuteNonQueryAsync(sb.ToString());
+            return 1;// because Postgres...
+        }
+
+        protected void AddSubtableMapping() {
+            List<PropertyData> propData = GetPropertyData();
+            List<SQLGenericGen.SubTableInfo> subTables = SQLGen.GetSubTables(Dataset, propData);
+            foreach (SQLGenericGen.SubTableInfo subTable in subTables) {
                 List<PropertyData> subPropData = ObjectSupport.GetPropertyData(subTable.Type);
-                IEnumerable ienum = (IEnumerable)subTable.PropInfo.GetValue(container);
-                foreach (object obj in ienum) {
-                    string columns = GetColumnList(subPropData, subTable.Type, "", false, SubTable: true);
-                    string values = GetValueList(sqlHelper, Dataset, obj, subPropData, subTable.Type, "", false, SubTable: true);
-                    sb.Add($@"
-    INSERT INTO {subTable.Name}
-        ({columns})
-        VALUES ({values}) ;
-");
-                }
+                if (subPropData.Count > 1)
+                    Conn.TypeMapper.MapComposite(subTable.Type, $"{subTable.Name}_TP", new NpgsqlNullNameTranslator());
             }
-            sb.Add("COMMIT TRANSACTION Upd;");
-            return sb.ToString();
-        }
-        internal string SubTablesDeletes(string tableName, List<PropertyData> propData, Type tpContainer) {
-            SQLBuilder sb = new SQLBuilder();
-            List<SQLGenericGen.SubTableInfo> subTables = SQLGen.GetSubTables(tableName, propData);
-            foreach (SQLGenericGen.SubTableInfo subTable in subTables) {
-                sb.Add($@"
-    DELETE FROM {sb.BuildFullTableName(Database, Schema, subTable.Name)} WHERE {sb.BuildFullColumnName(subTable.Name, SubTableKeyColumn)} = @ident ;
-");
-            }
-            return sb.ToString();
         }
 
         // IINSTALLMODEL
@@ -672,7 +494,7 @@ FROM {fullTableName}
                 string fullTableName = sb.GetTable(Database, Schema, Dataset);
                 SQLHelper sqlHelper = new SQLHelper(Conn, null, Languages);
                 sb.Add($@"
-DELETE FROM {fullTableName} WHERE [{SiteColumn}] = {SiteIdentity}
+DELETE FROM {fullTableName} WHERE ""{SiteColumn}"" = {SiteIdentity}
 ;
 ");
                 // subtable data is removed by delete cascade
@@ -840,28 +662,37 @@ DELETE FROM {fullTableName} WHERE [{SiteColumn}] = {SiteIdentity}
                 (prefix, prop) => {
                     SQLGenericGen.Column col = sqlManager.GetColumn(Conn, dbName, schema, dataset, prop.ColumnName);
                     object val = prop.PropInfo.GetValue(obj);
-                    sqlHelper.AddParam($"arg{prefix}{prop.Name}", val, DbType: (NpgsqlDbType)col.DataType);//$$$nested?
+                    sqlHelper.AddParam($"arg{prefix}{prop.Name}", val, DbType: (NpgsqlDbType)col.DataType);
                     return null;
                 },
                 (prefix, prop) => { // Identity
                     return null;
                 },
-                (prefix, prop) => {
+                (prefix, prop) => { // Binary
                     SQLGenericGen.Column col = sqlManager.GetColumn(Conn, dbName, schema, dataset, prop.ColumnName);
                     object val = prop.PropInfo.GetValue(obj);
-                    sqlHelper.AddParam($"arg{prefix}{prop.Name}", val, DbType: (NpgsqlDbType)col.DataType);//$$$nested?
+                    byte[] data = null;
+                    if (val != null) {
+                        PropertyInfo pi = prop.PropInfo;
+                        if (pi.PropertyType == typeof(byte[])) {
+                            data = (byte[]) val;
+                        } else {
+                            data = new GeneralFormatter().Serialize(val);
+                        }
+                    }
+                    sqlHelper.AddParam($"arg{prefix}{prop.Name}", data, DbType: NpgsqlDbType.Bytea);
+                    return null;
+                },
+                (prefix, prop) => { // Image
+                    SQLGenericGen.Column col = sqlManager.GetColumn(Conn, dbName, schema, dataset, prop.ColumnName);
+                    object val = prop.PropInfo.GetValue(obj);
+                    sqlHelper.AddParam($"arg{prefix}{prop.Name}", val, DbType: (NpgsqlDbType)col.DataType);
                     return null;
                 },
                 (prefix, prop) => {
                     SQLGenericGen.Column col = sqlManager.GetColumn(Conn, dbName, schema, dataset, prop.ColumnName);
                     object val = prop.PropInfo.GetValue(obj);
-                    sqlHelper.AddParam($"arg{prefix}{prop.Name}", val, DbType: (NpgsqlDbType)col.DataType);//$$$nested?
-                    return null;
-                },
-                (prefix, prop) => {
-                    SQLGenericGen.Column col = sqlManager.GetColumn(Conn, dbName, schema, dataset, prop.ColumnName);
-                    object val = prop.PropInfo.GetValue(obj);
-                    sqlHelper.AddParam($"arg{prefix}{prop.Name}", val, DbType: (NpgsqlDbType)col.DataType);//$$$nested?
+                    sqlHelper.AddParam($"arg{prefix}{prop.Name}", val, DbType: (NpgsqlDbType)col.DataType);
                     return null;
                 },
                 (prefix, name) => { // predef

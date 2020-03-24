@@ -1,14 +1,11 @@
 ﻿/* Copyright © 2020 Softel vdm, Inc. - https://yetawf.com/Documentation/YetaWF/Licensing */
 
 using Npgsql;
-using Npgsql.NameTranslation;
 using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 using YetaWF.Core.DataProvider;
-using YetaWF.Core.Models;
 using YetaWF.Core.Support;
-using YetaWF.DataProvider.SQLGeneric;
 
 namespace YetaWF.DataProvider.PostgreSQL {
 
@@ -61,14 +58,7 @@ namespace YetaWF.DataProvider.PostgreSQL {
 
             SQLHelper sqlHelper = new SQLHelper(Conn, null, Languages);
 
-            List<PropertyData> propData = GetPropertyData();
-            List<SQLGenericGen.SubTableInfo> subTables = SQLGen.GetSubTables(Dataset, propData);
-            foreach (SQLGenericGen.SubTableInfo subTable in subTables) {
-                List<PropertyData> subPropData = ObjectSupport.GetPropertyData(subTable.Type);
-                if (subPropData.Count > 1)
-                    Conn.TypeMapper.MapComposite(subTable.Type, $"{subTable.Name}_TP", new NpgsqlNullNameTranslator());
-            }
-
+            AddSubtableMapping();
             sqlHelper.AddParam("valIdentity", identity);
 
             using (NpgsqlDataReader reader = await sqlHelper.ExecuteReaderStoredProcAsync($"{SQLBuilder.WrapIdentifier(Schema)}.{SQLBuilder.WrapIdentifier($"{Dataset}__GetByIdentity")}")) {
@@ -90,14 +80,7 @@ namespace YetaWF.DataProvider.PostgreSQL {
 
             SQLHelper sqlHelper = new SQLHelper(Conn, null, Languages);
 
-            List<PropertyData> propData = GetPropertyData();
-            List<SQLGenericGen.SubTableInfo> subTables = SQLGen.GetSubTables(Dataset, propData);
-            foreach (SQLGenericGen.SubTableInfo subTable in subTables) {
-                List<PropertyData> subPropData = ObjectSupport.GetPropertyData(subTable.Type);
-                if (subPropData.Count > 1)
-                    Conn.TypeMapper.MapComposite(subTable.Type, $"{subTable.Name}_TP", new NpgsqlNullNameTranslator());
-            }
-
+            AddSubtableMapping();
             GetParameterList(sqlHelper, obj, Database, Schema, Dataset, GetPropertyData(), Prefix: null, TopMost: true, SiteSpecific: false, WithDerivedInfo: false, SubTable: false);
             sqlHelper.AddParam("valIdentity", identity);
 
@@ -112,11 +95,9 @@ namespace YetaWF.DataProvider.PostgreSQL {
                         throw new InternalError($"Update failed - {changed} records updated");
                 }
             } catch (Exception exc) {
-                NpgsqlException sqlExc = exc as NpgsqlException;
-                if (sqlExc != null && sqlExc.ErrorCode == 2627) { //$$$$
-                    // duplicate key violation, meaning the new key already exists
+                Npgsql.PostgresException sqlExc = exc as Npgsql.PostgresException;
+                if (sqlExc != null && sqlExc.SqlState == PostgresErrorCodes.UniqueViolation) // already exists
                     return UpdateStatusEnum.NewKeyExists;
-                }
                 throw new InternalError($"Update failed for type {typeof(OBJTYPE).FullName} - {ErrorHandling.FormatExceptionMessage(exc)}");
             }
             return UpdateStatusEnum.OK;
@@ -128,53 +109,27 @@ namespace YetaWF.DataProvider.PostgreSQL {
         /// <param name="identity">The identity value of the record to remove.</param>
         /// <returns>Returns true if the record was removed, or false if the record was not found. Other errors cause an exception.</returns>
         public async Task<bool> RemoveByIdentityAsync(int identity) {
-            SQLBuilder sb = new SQLBuilder();
+
             await EnsureOpenAsync();
 
             SQLHelper sqlHelper = new SQLHelper(Conn, null, Languages);
+            sqlHelper.AddParam("valIdentity", identity);
 
-            string fullTableName = sb.GetTable(Database, Schema, Dataset);
-            List<PropertyData> propData = GetPropertyData();
-
-            string subTablesDeletes = SubTablesDeletes(Dataset, propData, typeof(OBJTYPE));
-
-            string scriptMain = $@"
-DELETE
-FROM {fullTableName}
-WHERE {sqlHelper.Expr(IdentityName, "=", identity)} {AndSiteIdentity}
-;
-SELECT @@ROWCOUNT --- result set
-
-{sqlHelper.DebugInfo}";
-
-            string scriptWithSub = $@"
-DECLARE @ident int = {identity};
-
-DELETE
-FROM {fullTableName}
-WHERE [{IdentityName}] = @ident
-;
-SELECT @@ROWCOUNT --- result set
-
-{subTablesDeletes}
-
-{sqlHelper.DebugInfo}";
-
-            string script = (string.IsNullOrWhiteSpace(subTablesDeletes)) ? scriptMain : scriptWithSub;
-
-            object val;
             try {
-                val = await sqlHelper.ExecuteScalarAsync(script);
+                using (NpgsqlDataReader reader = await sqlHelper.ExecuteReaderStoredProcAsync($"{SQLBuilder.WrapIdentifier(Schema)}.{SQLBuilder.WrapIdentifier($"{Dataset}__RemoveByIdentity")}")) {
+                    if (!(YetaWFManager.IsSync() ? reader.Read() : await reader.ReadAsync()))
+                        throw new InternalError($"No result set received from {Dataset}__RemoveByIdentity");
+                    int deleted = Convert.ToInt32(reader[0]);
+                    if (deleted > 1)
+                        throw new InternalError($"More than 1 record deleted by {nameof(RemoveByIdentityAsync)} method");
+                    return deleted > 0;
+                }
             } catch (Exception exc) {
-                NpgsqlException sqlExc = exc as NpgsqlException;
-                if (sqlExc != null && sqlExc.ErrorCode == 547) //$$$$$ ref integrity
+                Npgsql.PostgresException sqlExc = exc as Npgsql.PostgresException;
+                if (sqlExc != null && sqlExc.SqlState == PostgresErrorCodes.UniqueViolation) //$$$$$ ref integrity
                     return false;
                 throw new InternalError("Delete failed for type {0} - {1}", typeof(OBJTYPE).FullName, ErrorHandling.FormatExceptionMessage(exc));
             }
-            int deleted = Convert.ToInt32(val);
-            if (deleted > 1)
-                throw new InternalError($"More than 1 record deleted by {nameof(RemoveByIdentityAsync)} method");
-            return deleted > 0;
         }
     }
 }

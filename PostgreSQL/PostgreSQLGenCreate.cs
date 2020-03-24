@@ -659,7 +659,7 @@ ELSE
                     throw new InternalError($"Column {col.Name} has unsupported type name {col.DataType.ToString()}");
             }
         }
-        private string GetDataTypeArgumentString(Column col) {
+        internal string GetDataTypeArgumentString(Column col) {
             switch (col.DataType) {
                 case NpgsqlDbType.Bigint:
                     return "bigint";
