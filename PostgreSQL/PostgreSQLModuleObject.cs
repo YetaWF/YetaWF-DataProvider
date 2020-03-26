@@ -65,7 +65,7 @@ namespace YetaWF.DataProvider.PostgreSQL {
                 // we're reading the base and have to find the derived table
                 // TODO: Improve by moving into proc
 
-                SQLHelper sqlHelper = new SQLHelper(Conn, null, Languages);
+                SQLHelper sqlHelper;
                 sqlHelper = new SQLHelper(Conn, null, Languages);
                 sqlHelper.AddParam("Key1Val", key);
                 sqlHelper.AddParam(SQLGen.ValSiteIdentity, SiteIdentity);
@@ -79,7 +79,7 @@ namespace YetaWF.DataProvider.PostgreSQL {
                 sqlHelper = new SQLHelper(Conn, null, Languages);
                 sqlHelper.AddParam("Key1Val", key);
                 sqlHelper.AddParam(SQLGen.ValSiteIdentity, SiteIdentity);
-                Conn.TypeMapper.MapComposite(sqlHelper.GetDerivedType(info.DerivedDataType, info.DerivedAssemblyName), $"Y.....", new NpgsqlNullNameTranslator());
+                Conn.TypeMapper.MapComposite(sqlHelper.GetDerivedType(info.DerivedDataType, info.DerivedAssemblyName), info.DerivedDataTableName, new NpgsqlNullNameTranslator());
                 using (NpgsqlDataReader reader = await sqlHelper.ExecuteReaderStoredProcAsync($@"""Schema"".""{info.DerivedDataTableName}__Get""")) {
                     if (!(YetaWFManager.IsSync() ? reader.Read() : await reader.ReadAsync())) return default(OBJTYPE);
                     return sqlHelper.CreateObject<OBJTYPE>(reader, info.DerivedDataType, info.DerivedAssemblyName);
@@ -118,8 +118,6 @@ namespace YetaWF.DataProvider.PostgreSQL {
             SQLHelper sqlHelper = new SQLHelper(Conn, null, Languages);
 
             AddSubtableMapping();
-            GetParameterList(sqlHelper, obj, Database, Schema, Dataset, GetPropertyData(), Prefix: null, TopMost: true, SiteSpecific: SiteIdentity > 0, WithDerivedInfo: false, SubTable: false);
-
             GetParameterList(sqlHelper, obj, Database, Schema, BaseDataset, GetBasePropertyData(), Prefix: null, TopMost: false, SiteSpecific: true, WithDerivedInfo: true, SubTable: false);
             GetParameterList(sqlHelper, obj, Database, Schema, Dataset, GetPropertyData(), Prefix: null, TopMost: false, SiteSpecific: false, WithDerivedInfo: false, SubTable: false);
 
@@ -133,7 +131,7 @@ namespace YetaWF.DataProvider.PostgreSQL {
                 Npgsql.PostgresException sqlExc = exc as Npgsql.PostgresException;
                 if (sqlExc != null && sqlExc.SqlState == PostgresErrorCodes.UniqueViolation) // already exists
                     return false;
-                throw new InternalError("Add failed for type {0} - {1}", typeof(OBJTYPE).FullName, ErrorHandling.FormatExceptionMessage(exc));
+                throw new InternalError($"Add failed for type {typeof(OBJTYPE).FullName} - {ErrorHandling.FormatExceptionMessage(exc)}");
             }
         }
 
@@ -146,53 +144,31 @@ namespace YetaWF.DataProvider.PostgreSQL {
         /// <param name="obj">The object being updated.</param>
         /// <returns>Returns a status indicator.</returns>
         public new async Task<UpdateStatusEnum> UpdateAsync(KEY origKey, KEY newKey, OBJTYPE obj) {
-            SQLBuilder sb = new SQLBuilder();
-            await EnsureOpenAsync();
-            if (Dataset == BaseDataset) throw new InternalError("Only derived types are supported");
 
+            if (Dataset == BaseDataset) throw new InternalError("Only derived types are supported");
             if (!origKey.Equals(newKey)) throw new InternalError("Can't change key");
+
+            await EnsureOpenAsync();
 
             SQLHelper sqlHelper = new SQLHelper(Conn, null, Languages);
 
-            string fullBaseTableName = sb.GetTable(Database, Schema, BaseDataset);
-            string fullTableName = sb.GetTable(Database, Schema, Dataset);
-
-            List<PropertyData> propBaseData = GetBasePropertyData();
-            string setBaseColumns = SetColumns(sqlHelper, Dataset, propBaseData, obj, typeof(ModuleDefinition));
-            List<PropertyData> propData = GetPropertyData();
-            string setColumns = SetColumns(sqlHelper, Dataset, propData, obj, typeof(OBJTYPE));
-
-            string scriptMain = $@"
-UPDATE {fullBaseTableName}
-SET {setBaseColumns}
-WHERE {sqlHelper.Expr(Key1Name, "=", origKey)} {AndSiteIdentity}
-;
-SELECT @@ROWCOUNT --- result set
-;
-UPDATE {fullTableName}
-SET {setColumns}
-WHERE {sqlHelper.Expr(Key1Name, "=", origKey)} {AndSiteIdentity}
-;
-{sqlHelper.DebugInfo}";
+            AddSubtableMapping();
+            sqlHelper.AddParam("Key1Val", origKey);
+            GetParameterList(sqlHelper, obj, Database, Schema, BaseDataset, GetBasePropertyData(), Prefix: null, TopMost: false, SiteSpecific: true, WithDerivedInfo: true, SubTable: false);
+            GetParameterList(sqlHelper, obj, Database, Schema, Dataset, GetPropertyData(), Prefix: null, TopMost: false, SiteSpecific: false, WithDerivedInfo: false, SubTable: false);
 
             try {
-                object val = await sqlHelper.ExecuteScalarAsync(scriptMain);
-                int changed = Convert.ToInt32(val);
-                if (changed == 0)
-                    return UpdateStatusEnum.RecordDeleted;
-                if (changed > 1)
-                    throw new InternalError($"Update failed - {changed} records updated");
-            } catch (Exception exc) {
-                if (!newKey.Equals(origKey)) {
-                    NpgsqlException sqlExc = exc as NpgsqlException;
-                    if (sqlExc != null && sqlExc.ErrorCode == 2627) { //$$$
-                        // duplicate key violation, meaning the new key already exists
-                        return UpdateStatusEnum.NewKeyExists;
-                    }
+                using (NpgsqlDataReader reader = await sqlHelper.ExecuteReaderStoredProcAsync($@"""{Schema}"".""{Dataset}__Add""")) {
+                    if (!(YetaWFManager.IsSync() ? reader.Read() : await reader.ReadAsync())) return UpdateStatusEnum.RecordDeleted;
+                    int updated = Convert.ToInt32(reader[0]);
+                    return updated > 0 ? UpdateStatusEnum.OK : UpdateStatusEnum.NewKeyExists;
                 }
+            } catch (Exception exc) {
+                Npgsql.PostgresException sqlExc = exc as Npgsql.PostgresException;
+                if (sqlExc != null && sqlExc.SqlState == PostgresErrorCodes.UniqueViolation) // already exists
+                    return UpdateStatusEnum.NewKeyExists;
                 throw new InternalError($"Update failed for type {typeof(OBJTYPE).FullName} - {ErrorHandling.FormatExceptionMessage(exc)}");
             }
-            return UpdateStatusEnum.OK;
         }
 
         /// <summary>
@@ -201,49 +177,35 @@ WHERE {sqlHelper.Expr(Key1Name, "=", origKey)} {AndSiteIdentity}
         /// <param name="key">The primary key value of the record to remove.</param>
         /// <returns>Returns true if the record was removed, or false if the record was not found. Other errors cause an exception.</returns>
         public new async Task<bool> RemoveAsync(KEY key) {
-            SQLBuilder sb = new SQLBuilder();
-            await EnsureOpenAsync();
+
             if (Dataset != BaseDataset) throw new InternalError("Only base types are supported");
 
-            SQLHelper sqlHelper = new SQLHelper(Conn, null, Languages);
+            await EnsureOpenAsync();
 
-            string fullBaseTableName = sb.GetTable(Database, Schema, BaseDataset);
+            SQLHelper sqlHelper;
 
-            List<PropertyData> propData = GetPropertyData();
+            // we're reading the base and have to find the derived table
+            // TODO: Improve by moving into proc
 
-            string scriptMain = $@"
-SELECT *
-INTO #BASETABLE
-FROM {fullBaseTableName} WITH(NOLOCK)
-WHERE {sqlHelper.Expr(Key1Name, "=", key)} {AndSiteIdentity}
+            sqlHelper = new SQLHelper(Conn, null, Languages);
+            sqlHelper = new SQLHelper(Conn, null, Languages);
+            sqlHelper.AddParam("Key1Val", key);
+            sqlHelper.AddParam(SQLGen.ValSiteIdentity, SiteIdentity);
+            Conn.TypeMapper.MapComposite<DerivedInfo>("Y_Derived_Info_T");//$$don't hard-code
+            DerivedInfo info = null;
+            using (NpgsqlDataReader reader = await sqlHelper.ExecuteReaderStoredProcAsync($@"""Schema"".""{BaseDataset}__GetBase""")) {
+                if (!(YetaWFManager.IsSync() ? reader.Read() : await reader.ReadAsync())) return false;
+                info = sqlHelper.CreateObject<DerivedInfo>(reader);
+            }
 
-SELECT @@ROWCOUNT --- result set
-;
-
-IF @@ROWCOUNT > 0
-BEGIN
-
-DECLARE @Table nvarchar(80);
-
-SELECT @Table=[DerivedDataTableName] FROM #BASETABLE
-;
-EXEC ('DELETE FROM [' + @Table + '] B WHERE B.[{Key1Name}] = ''{key}'' {AndSiteIdentity}')
-;
-DELETE
-FROM {fullBaseTableName}
-WHERE {sqlHelper.Expr(Key1Name, "=", key)} {AndSiteIdentity}
-;
-END
-
-DROP TABLE #BASETABLE
-
-{sqlHelper.DebugInfo}
-";
-            object val = await sqlHelper.ExecuteScalarAsync(scriptMain);
-            int deleted = Convert.ToInt32(val);
-            if (deleted > 1)
-                throw new InternalError($"More than 1 record deleted by {nameof(RemoveAsync)} method");
-            return deleted > 0;
+            sqlHelper = new SQLHelper(Conn, null, Languages);
+            sqlHelper.AddParam("Key1Val", key);
+            sqlHelper.AddParam(SQLGen.ValSiteIdentity, SiteIdentity);
+            using (NpgsqlDataReader reader = await sqlHelper.ExecuteReaderStoredProcAsync($@"""Schema"".""{info.DerivedDataTableName}__Remove""")) {
+                if (!(YetaWFManager.IsSync() ? reader.Read() : await reader.ReadAsync())) return false;
+                int removed = Convert.ToInt32(reader[0]);
+                return removed > 0;
+            }
         }
 
         /// <summary>
@@ -273,9 +235,14 @@ DROP TABLE #BASETABLE
             SQLBuilder sb = new SQLBuilder();
             await EnsureOpenAsync();
             if (Dataset == BaseDataset) {
+
                 // we're reading the base table
                 return await base.GetRecordsAsync(skip, take, sorts, filters, Joins: Joins);
+
             } else {
+
+                throw new NotImplementedException();//$$$ need use case, probably export
+
                 // an explicit type is requested
                 SQLHelper sqlHelper = new SQLHelper(Conn, null, Languages);
 
@@ -508,17 +475,19 @@ SELECT COUNT(*) FROM  {BaseDataset}
         /// When a site is deleted, the RemoveSiteDataAsync method is called for all data providers.
         /// Data providers can then remove site-specific data as the site is removed.</remarks>
         public new async Task RemoveSiteDataAsync() { // remove site-specific data
+
             await EnsureOpenAsync();
+
             if (Dataset == BaseDataset) throw new InternalError("Base dataset is not supported");
-            if (SiteIdentity > 0) {
-                SQLHelper sqlHelper = new SQLHelper(Conn, null, Languages);
-                SQLBuilder sb = new SQLBuilder();
-                sb.Add($@"
-DELETE FROM {Dataset} WHERE [{SiteColumn}] = {SiteIdentity}
-DELETE FROM {BaseDataset} WHERE [DerivedDataTableName] = '{Dataset}' AND [{SiteColumn}] = {SiteIdentity}
+
+            SQLHelper sqlHelper = new SQLHelper(Conn, null, Languages);
+            SQLBuilder sb = new SQLBuilder();
+
+            sb.Add($@"
+DELETE FROM {Dataset} WHERE ""{SiteColumn}"" = {SiteIdentity}
+DELETE FROM {BaseDataset} WHERE ""DerivedDataTableName"" = '{Dataset}' AND ""{SiteColumn}"" = {SiteIdentity}
 ");
-                await sqlHelper.ExecuteNonQueryAsync(sb.ToString());
-            }
+            await sqlHelper.ExecuteNonQueryAsync(sb.ToString());
         }
 
         /// <summary>
@@ -538,9 +507,11 @@ DELETE FROM {BaseDataset} WHERE [DerivedDataTableName] = '{Dataset}' AND [{SiteC
         /// YetaWF.Core.Serializers.SerializableList&lt;OBJTYPE&gt; as it is a collection of records to import. All records in the collection must be imported.
         /// </remarks>
         public new async Task ImportChunkAsync(int chunk, SerializableList<SerializableFile> fileList, object obj) {
+
             await EnsureOpenAsync();
+
             if (Dataset == BaseDataset) throw new InternalError("Base dataset is not supported");
-            if (SiteIdentity > 0 || YetaWFManager.Manager.ImportChunksNonSiteSpecifics) {
+            if (YetaWFManager.Manager.ImportChunksNonSiteSpecifics) {
                 SerializableList<OBJTYPE> serList = (SerializableList<OBJTYPE>)obj;
                 int total = serList.Count();
                 if (total > 0) {
@@ -572,7 +543,9 @@ DELETE FROM {BaseDataset} WHERE [DerivedDataTableName] = '{Dataset}' AND [{SiteC
         /// Only data records need to be added to the returned YetaWF.Core.DataProvider.DataProviderExportChunk object.
         /// </remarks>
         public new async Task<DataProviderExportChunk> ExportChunkAsync(int chunk, SerializableList<SerializableFile> fileList) {
+
             await EnsureOpenAsync();
+
             if (Dataset == BaseDataset) throw new InternalError("Base dataset is not supported");
 
             List<DataProviderSortInfo> sorts = new List<DataProviderSortInfo> { new DataProviderSortInfo { Field = Key1Name, Order = DataProviderSortInfo.SortDirection.Ascending } };
@@ -608,7 +581,9 @@ DELETE FROM {BaseDataset} WHERE [DerivedDataTableName] = '{Dataset}' AND [{SiteC
         /// Using the <paramref name="language"/> parameter, a different folder should be used to store the translated data.
         /// </remarks>
         public new async Task LocalizeModelAsync(string language, Func<string, bool> isHtml, Func<List<string>, Task<List<string>>> translateStringsAsync, Func<string, Task<string>> translateComplexStringAsync) {
+
             await EnsureOpenAsync();
+
             await LocalizeModelAsync(language, isHtml, translateStringsAsync, translateComplexStringAsync,
                 async (int offset, int skip) => {
                     return await GetRecordsAsync(offset, skip, null, null);
