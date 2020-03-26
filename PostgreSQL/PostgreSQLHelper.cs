@@ -57,6 +57,10 @@ namespace YetaWF.DataProvider.PostgreSQL {
         // Create,Fill
 
         public T CreateObject<T>(NpgsqlDataReader dr, string dataType, string assemblyName) {
+            Type t = GetDerivedType(dataType, assemblyName);
+            return CreateObject<T>(dr);
+        }
+        public Type GetDerivedType(string dataType, string assemblyName) {
             Type t = null;
             try {
                 Assembly asm = Assemblies.Load(assemblyName);
@@ -64,7 +68,7 @@ namespace YetaWF.DataProvider.PostgreSQL {
             } catch (Exception exc) {
                 throw new InternalError($"Invalid Type {dataType}/{assemblyName} requested - {ErrorHandling.FormatExceptionMessage(exc)}");
             }
-            return CreateObject<T>(dr);
+            return t;
         }
         public T CreateObject<T>(NpgsqlDataReader dr) {
             T obj = Activator.CreateInstance<T>();

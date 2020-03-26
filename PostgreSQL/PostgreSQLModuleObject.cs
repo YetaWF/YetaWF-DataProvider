@@ -1,9 +1,9 @@
 ﻿/* Copyright © 2020 Softel vdm, Inc. - https://yetawf.com/Documentation/YetaWF/Licensing */
 
 using Npgsql;
+using Npgsql.NameTranslation;
 using System;
 using System.Collections.Generic;
-using System.Data.Common;
 using System.Linq;
 using System.Reflection;
 using System.Threading.Tasks;
@@ -33,9 +33,9 @@ namespace YetaWF.DataProvider.PostgreSQL {
         /// </remarks>
         public SQLModuleObject(Dictionary<string, object> options) : base(options) {
             if (typeof(KEY) != typeof(Guid)) throw new InternalError("Only Guid is supported as Key");
-            BaseDataset = ModuleDefinition.BaseFolderName;
+            BaseDataset = "Y";// use a short name due to length limitations in PG
             if (typeof(OBJTYPE) != typeof(ModuleDefinition))
-                Dataset = ModuleDefinition.BaseFolderName + "_" + Package.AreaName + "_" + typeof(OBJTYPE).Name;
+                Dataset = "Y" + Package.AreaName + "_" + typeof(OBJTYPE).Name;
         }
 
         /// <summary>
@@ -45,75 +45,58 @@ namespace YetaWF.DataProvider.PostgreSQL {
         /// data provider's dataset defined by BaseDataset. All data for the derived class is stored in the data provider's dataset defined by Dataset.</remarks>
         public string BaseDataset { get; protected set; }
 
+        public class DerivedInfo {
+            public string DerivedDataTableName { get; set; }
+            public string DerivedDataType { get; set; }
+            public string DerivedAssemblyName { get; set; }
+        }
+
         /// <summary>
         /// Retrieves one record from the database table that satisfies the specified primary key <paramref name="key"/>.
         /// </summary>
         /// <param name="key">The primary key value.</param>
         /// <returns>Returns the record that satisfies the specified primary key. If no record exists null is returned.</returns>
         public new async Task<OBJTYPE> GetAsync(KEY key) {
+
             await EnsureOpenAsync();
 
-            SQLHelper sqlHelper = new SQLHelper(Conn, null, Languages);
-            SQLBuilder sb = new SQLBuilder();
-
-            string fullBaseTableName = sb.GetTable(Database, Schema, BaseDataset);
-
             if (Dataset == BaseDataset) {
+
                 // we're reading the base and have to find the derived table
+                // TODO: Improve by moving into proc
 
-                string script = $@"
-DECLARE @Table nvarchar(80);
-DECLARE @Type nvarchar(200);
-DECLARE @Asm nvarchar(200);
-
-SELECT TOP 1 @Table=[DerivedDataTableName], @Type=[DerivedDataType], @Asm=[DerivedAssemblyName]
-FROM {fullBaseTableName} WITH(NOLOCK)
-WHERE {sqlHelper.Expr(Key1Name, "=", key)} {AndSiteIdentity}
-
-IF @@ROWCOUNT > 0
-BEGIN
-
-SELECT @Table, @Type, @Asm  --- result set
-;
-
-EXEC ('SELECT TOP 1 * FROM {fullBaseTableName} AS A WITH(NOLOCK)
-        LEFT JOIN [' + @Table + '] AS B ON
-        A.[{Key1Name}] = B.[{Key1Name}] AND A.[{SiteColumn}] = B.[{SiteColumn}]
-        WHERE A.[{Key1Name}] = ''{key}'' AND A.[{SiteColumn}] = {SiteIdentity}')   --- result set
-
-END
-
-{sqlHelper.DebugInfo}";
-
-                using (NpgsqlDataReader reader = await sqlHelper.ExecuteReaderAsync(script)) {
+                SQLHelper sqlHelper = new SQLHelper(Conn, null, Languages);
+                sqlHelper = new SQLHelper(Conn, null, Languages);
+                sqlHelper.AddParam("Key1Val", key);
+                sqlHelper.AddParam(SQLGen.ValSiteIdentity, SiteIdentity);
+                Conn.TypeMapper.MapComposite<DerivedInfo>("Y_Derived_Info_T");//$$don't hard-code
+                DerivedInfo info = null;
+                using (NpgsqlDataReader reader = await sqlHelper.ExecuteReaderStoredProcAsync($@"""Schema"".""{BaseDataset}__GetBase""")) {
                     if (!(YetaWFManager.IsSync() ? reader.Read() : await reader.ReadAsync())) return default(OBJTYPE);
-                    string derivedTableName = (string)reader[0];
-                    string derivedDataType = (string)reader[1];
-                    string derivedAssemblyName = (string)reader[2];
-                    if (string.IsNullOrWhiteSpace(derivedTableName))
-                        return default(OBJTYPE);
-                    if (!(YetaWFManager.IsSync() ? reader.NextResult() : await reader.NextResultAsync()))
-                        return default(OBJTYPE);
+                    info = sqlHelper.CreateObject<DerivedInfo>(reader);
+                }
+
+                sqlHelper = new SQLHelper(Conn, null, Languages);
+                sqlHelper.AddParam("Key1Val", key);
+                sqlHelper.AddParam(SQLGen.ValSiteIdentity, SiteIdentity);
+                Conn.TypeMapper.MapComposite(sqlHelper.GetDerivedType(info.DerivedDataType, info.DerivedAssemblyName), $"Y.....", new NpgsqlNullNameTranslator());
+                using (NpgsqlDataReader reader = await sqlHelper.ExecuteReaderStoredProcAsync($@"""Schema"".""{info.DerivedDataTableName}__Get""")) {
                     if (!(YetaWFManager.IsSync() ? reader.Read() : await reader.ReadAsync())) return default(OBJTYPE);
-                    OBJTYPE obj = sqlHelper.CreateObject<OBJTYPE>(reader, derivedDataType, derivedAssemblyName);
-                    return obj;
+                    return sqlHelper.CreateObject<OBJTYPE>(reader, info.DerivedDataType, info.DerivedAssemblyName);
                 }
 
             } else {
+
                 // we're reading the derived table
-                string fullTableName = sb.GetTable(Database, Schema, Dataset);
-                string scriptMain = $@"
-SELECT TOP 1 * FROM {fullBaseTableName} AS A WITH(NOLOCK)
-LEFT JOIN {fullTableName} AS B ON
-    A.[{Key1Name}] = B.[{Key1Name}] AND A.[{SiteColumn}] = B.[{SiteColumn}]
-WHERE {sqlHelper.Expr($"A.[{Key1Name}]", " =", key)} AND A.[{SiteColumn}] = {SiteIdentity}
 
-{sqlHelper.DebugInfo}";
+                SQLHelper sqlHelper = new SQLHelper(Conn, null, Languages);
 
-                using (NpgsqlDataReader reader = await sqlHelper.ExecuteReaderAsync(scriptMain)) {
+                sqlHelper.AddParam("Key1Val", key);
+                sqlHelper.AddParam(SQLGen.ValSiteIdentity, SiteIdentity);
+                Conn.TypeMapper.MapComposite(typeof(OBJTYPE), $"Y{Dataset}", new NpgsqlNullNameTranslator());
+                using (NpgsqlDataReader reader = await sqlHelper.ExecuteReaderStoredProcAsync($@"""Schema"".""{Dataset}__Get""")) {
                     if (!(YetaWFManager.IsSync() ? reader.Read() : await reader.ReadAsync())) return default(OBJTYPE);
-                    OBJTYPE obj = sqlHelper.CreateObject<OBJTYPE>(reader);
-                    return obj;
+                    return sqlHelper.CreateObject<OBJTYPE>(reader);
                 }
             }
         }
@@ -127,46 +110,31 @@ WHERE {sqlHelper.Expr($"A.[{Key1Name}]", " =", key)} AND A.[{SiteColumn}] = {Sit
         /// For all other errors, an exception occurs.
         /// </returns>
         public new async Task<bool> AddAsync(OBJTYPE obj) {
-            SQLBuilder sb = new SQLBuilder();
-            await EnsureOpenAsync();
+
             if (Dataset == BaseDataset) throw new InternalError("Only derived types are supported");
+
+            await EnsureOpenAsync();
 
             SQLHelper sqlHelper = new SQLHelper(Conn, null, Languages);
 
-            string fullBaseTableName = sb.GetTable(Database, Schema, BaseDataset);
-            List<PropertyData> propBaseData = GetBasePropertyData();
-            string baseColumns = GetColumnList(propBaseData, typeof(ModuleDefinition), "", true, SiteSpecific: SiteIdentity > 0, WithDerivedInfo: true);
-            string baseValues = GetValueList(sqlHelper, Dataset, obj, propBaseData, typeof(ModuleDefinition), SiteSpecific: SiteIdentity > 0, DerivedType: typeof(OBJTYPE), DerivedTableName: Dataset);
-            string fullTableName = sb.GetTable(Database, Schema, Dataset);
-            List<PropertyData> propData = GetPropertyData();
-            string columns = GetColumnList(propData, obj.GetType(), "", true, SiteSpecific: SiteIdentity > 0);
-            string values = GetValueList(sqlHelper, Dataset, obj, propData, typeof(OBJTYPE), SiteSpecific: SiteIdentity > 0);
+            AddSubtableMapping();
+            GetParameterList(sqlHelper, obj, Database, Schema, Dataset, GetPropertyData(), Prefix: null, TopMost: true, SiteSpecific: SiteIdentity > 0, WithDerivedInfo: false, SubTable: false);
 
-            string scriptMain = $@"
-INSERT INTO {fullBaseTableName} ({baseColumns})
-VALUES ({baseValues})
-;
-INSERT INTO {fullTableName} ({columns})
-VALUES ({values})
-;
-{sqlHelper.DebugInfo}";
+            GetParameterList(sqlHelper, obj, Database, Schema, BaseDataset, GetBasePropertyData(), Prefix: null, TopMost: false, SiteSpecific: true, WithDerivedInfo: true, SubTable: false);
+            GetParameterList(sqlHelper, obj, Database, Schema, Dataset, GetPropertyData(), Prefix: null, TopMost: false, SiteSpecific: false, WithDerivedInfo: false, SubTable: false);
 
-            int identity = 0;
             try {
-                await sqlHelper.ExecuteNonQueryAsync(scriptMain);
+                using (NpgsqlDataReader reader = await sqlHelper.ExecuteReaderStoredProcAsync($@"""{Schema}"".""{Dataset}__Add""")) {
+                    if (!(YetaWFManager.IsSync() ? reader.Read() : await reader.ReadAsync())) return false;
+                    int added = Convert.ToInt32(reader[0]);
+                    return added > 0;
+                }
             } catch (Exception exc) {
-                NpgsqlException sqlExc = exc as NpgsqlException;
-                if (sqlExc != null && sqlExc.ErrorCode == 2627) // already exists //$$$
+                Npgsql.PostgresException sqlExc = exc as Npgsql.PostgresException;
+                if (sqlExc != null && sqlExc.SqlState == PostgresErrorCodes.UniqueViolation) // already exists
                     return false;
                 throw new InternalError("Add failed for type {0} - {1}", typeof(OBJTYPE).FullName, ErrorHandling.FormatExceptionMessage(exc));
             }
-
-            if (HasIdentity(IdentityName)) {
-                PropertyInfo piIdent = ObjectSupport.GetProperty(typeof(OBJTYPE), IdentityName);
-                if (piIdent.PropertyType != typeof(int)) throw new InternalError($"Object identities must be of type int in {typeof(OBJTYPE).FullName}");
-                piIdent.SetValue(obj, identity);
-            }
-            return true;
         }
 
         /// <summary>
@@ -444,14 +412,17 @@ WHERE {fullBaseTableName}.[DerivedDataTableName] = '{Dataset}' AND {fullBaseTabl
         }
         private bool CreateTableWithBaseType(NpgsqlConnection conn, string dbName, List<string> errorList) {
             Type baseType = typeof(ModuleDefinition);
-            List<string> columns = new List<string>();
             SQLGen sqlCreate = new SQLGen(conn, Languages, IdentitySeed, Logging);
-            if (!sqlCreate.CreateTableFromModel(dbName, Schema, BaseDataset, Key1Name, null, IdentityName, GetBasePropertyData(), baseType, errorList, columns,
+
+            List<PropertyData> propData = GetPropertyData();
+            List<PropertyData> basePropData = GetBasePropertyData();
+
+            if (!sqlCreate.CreateTableFromModel(dbName, Schema, BaseDataset, Key1Name, null, IdentityName, basePropData, baseType, errorList,
                     TopMost: true,
                     SiteSpecific: SiteIdentity > 0,
                     WithDerivedInfo: true))
                 return false;
-            if (!sqlCreate.CreateTableFromModel(dbName, Schema, Dataset, Key1Name, null, SQLBase.IdentityColumn, GetPropertyData(), typeof(OBJTYPE), errorList, columns,
+            if (!sqlCreate.CreateTableFromModel(dbName, Schema, Dataset, Key1Name, null, SQLBase.IdentityColumn, propData, typeof(OBJTYPE), errorList,
                 TopMost: true,
                 SiteSpecific: SiteIdentity > 0,
                 ForeignKeyTable: BaseDataset))
@@ -463,7 +434,12 @@ WHERE {fullBaseTableName}.[DerivedDataTableName] = '{Dataset}' AND {fullBaseTabl
             sqlManager.GetColumns(conn, dbName, Schema, BaseDataset);
             sqlManager.GetColumns(conn, dbName, Schema, Dataset);
 
-            bool success = sqlCreate.MakeFunctionsWithBaseTypeAsync(dbName, Schema, BaseDataset, Dataset, Key1Name, IdentityName, GetBasePropertyData(), GetPropertyData(), baseType, typeof(OBJTYPE),
+            List<PropertyData> combinedProps = ObjectSupport.GetPropertyData(typeof(OBJTYPE));
+
+            sqlCreate.MakeTypesWithBaseType(dbName, Schema, BaseDataset, Dataset, combinedProps, basePropData, propData, baseType, typeof(OBJTYPE));
+
+            bool success = sqlCreate.MakeFunctionsWithBaseTypeAsync(dbName, Schema, BaseDataset, Dataset, Key1Name, IdentityName, combinedProps, basePropData, propData, baseType, typeof(OBJTYPE),
+                    SiteIdentity,
                     DerivedDataTableName: "DerivedDataTableName", DerivedDataTypeName: "DerivedDataType", DerivedAssemblyName: "DerivedAssemblyName");
 
             conn.ReloadTypes();

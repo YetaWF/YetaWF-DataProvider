@@ -121,7 +121,7 @@ namespace YetaWF.DataProvider.PostgreSQL {
         }
 
         private string GetPostgreSqlConnectionString() {
-            string connString = WebConfigHelper.GetValue<string>(string.IsNullOrWhiteSpace(WebConfigArea) ? Dataset : WebConfigArea, PostgreSQLConnectString);
+            string connString = WebConfigHelper.GetValue<string>(/*$$$string.IsNullOrWhiteSpace(WebConfigArea) ? */Dataset /*$$$ : WebConfigArea*/, PostgreSQLConnectString);
             if (string.IsNullOrWhiteSpace(connString)) {
                 if (string.IsNullOrWhiteSpace(WebConfigArea))
                     connString = WebConfigHelper.GetValue<string>(Package.AreaName, PostgreSQLConnectString);
@@ -138,7 +138,7 @@ namespace YetaWF.DataProvider.PostgreSQL {
             return connString;
         }
         private string GetPostgreSqlSchema() {
-            string schema = WebConfigHelper.GetValue<string>(string.IsNullOrWhiteSpace(WebConfigArea) ? Dataset : WebConfigArea, PostgreSQLSchemaString);
+            string schema = WebConfigHelper.GetValue<string>(/*string.IsNullOrWhiteSpace(WebConfigArea) ? $$$*/Dataset/* : WebConfigArea*/, PostgreSQLSchemaString);
             if (string.IsNullOrWhiteSpace(schema)) {
                 if (string.IsNullOrWhiteSpace(WebConfigArea))
                     schema = WebConfigHelper.GetValue<string>(Package.AreaName, PostgreSQLSchemaString);

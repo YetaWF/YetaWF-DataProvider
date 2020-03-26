@@ -16,7 +16,7 @@ namespace YetaWF.DataProvider.PostgreSQL {
                 return true;
             } catch (Exception exc) {
                 if (Logging) YetaWF.Core.Log.Logging.AddErrorLog($"Couldn't drop table {tableName}", exc);
-                errorList.Add($"Couldn't drop table {tableName}" );
+                errorList.Add($"Couldn't drop table {tableName}");
                 errorList.Add(ErrorHandling.FormatExceptionMessage(exc));
                 return false;
             }

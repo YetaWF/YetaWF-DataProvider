@@ -21,11 +21,6 @@ namespace YetaWF.DataProvider.PostgreSQL {
 
         public const string ValSiteIdentity = "valSiteIdentity"; // sproc argument with site identity
 
-        internal bool MakeFunctionsWithBaseTypeAsync(string dbName, string schema, string baseDataset, string dataset, string key1Name, string identityName, List<PropertyData> basePropData, List<PropertyData> propData, Type baseType, Type type, string DerivedDataTableName, string DerivedDataTypeName, string DerivedAssemblyName) {
-            //$$$
-            return true;
-        }
-
         // http://www.sqlines.com/postgresql/how-to/return_result_set_from_stored_procedure
 
         internal async Task<bool> MakeFunctionsAsync(string dbName, string schema, string dataset, string key1Name, string key2Name, string identityName, List<PropertyData> propData, Type objType, int siteIdentity,
@@ -64,7 +59,7 @@ CREATE OR REPLACE FUNCTION ""{schema}"".""{dataset}__Get""(""Key1Val"" {typeKey1
             sb.Append($@")");
 
             sb.Append($@"
-    RETURNS SETOF ""{schema}"".""{dataset}_TP""
+    RETURNS SETOF ""{schema}"".""{dataset}_T""
     LANGUAGE 'plpgsql'
 AS $$
 BEGIN
@@ -89,7 +84,7 @@ BEGIN
                     string colType = GetDataTypeArgumentString(col);
                     sb.Append(colType);
                 } else {
-                    sb.Append($@"""{subTable.Name}_TP""");
+                    sb.Append($@"""{subTable.Name}_T""");
                 }
 
                 sb.Append($@")
@@ -123,7 +118,7 @@ $$;");
                 sb.Append($@"
 DROP FUNCTION IF EXISTS ""{schema}"".""{dataset}__GetByIdentity"";
 CREATE OR REPLACE FUNCTION ""{schema}"".""{dataset}__GetByIdentity""(""valIdentity"" integer)
-    RETURNS SETOF ""{schema}"".""{dataset}_TP""
+    RETURNS SETOF ""{schema}"".""{dataset}_T""
     LANGUAGE 'plpgsql'
 AS $$
 BEGIN
@@ -147,7 +142,7 @@ BEGIN
                         string colType = GetDataTypeArgumentString(col);
                         sb.Append(colType);
                     } else {
-                        sb.Append($@"""{subTable.Name}_TP""");
+                        sb.Append($@"""{subTable.Name}_T""");
                     }
 
                     sb.Append($@")
@@ -506,7 +501,10 @@ DROP FUNCTION IF EXISTS ""{schema}"".""{dataset}__Add"";
 DROP FUNCTION IF EXISTS ""{schema}"".""{dataset}__Update"";
 DROP FUNCTION IF EXISTS ""{schema}"".""{dataset}__UpdateByIdentity"";
 DROP FUNCTION IF EXISTS ""{schema}"".""{dataset}__Remove"";
-DROP FUNCTION IF EXISTS ""{schema}"".""{dataset}__RemoveByIdentity"";");
+DROP FUNCTION IF EXISTS ""{schema}"".""{dataset}__RemoveByIdentity"";
+
+DROP FUNCTION IF EXISTS ""{schema}"".""{dataset}__GetBase"";
+");
 
             using (NpgsqlCommand cmd = new NpgsqlCommand()) {
                 cmd.Connection = Conn;
@@ -559,6 +557,12 @@ DROP FUNCTION IF EXISTS ""{schema}"".""{dataset}__RemoveByIdentity"";");
                 (prefix, name) => { // predef
                     if (name == SQLGenericBase.SubTableKeyColumn)
                         return null;
+                    if (name == "DerivedDataTableName")
+                        return $@"""valDerivedDataTableName"" character varying,";
+                    if (name == "DerivedDataType") 
+                        return $@"""valDerivedDataType"" character varying,";
+                    if (name == "DerivedAssemblyName") 
+                        return $@"""valDerivedAssemblyName"" character varying,";
                     string colType = "character varying";
                     if (name == SQLGenericBase.SiteColumn) {
                         name = SQLGen.ValSiteIdentity;
@@ -572,7 +576,7 @@ DROP FUNCTION IF EXISTS ""{schema}"".""{dataset}__RemoveByIdentity"";");
                         string colType = GetDataTypeArgumentString(col);
                         return $"{SQLBuilder.WrapIdentifier($"arg{prefix}{prop.Name}")} {colType}[],";
                     } else {
-                        return $"{SQLBuilder.WrapIdentifier($"arg{prefix}{prop.Name}")} {SQLBuilder.WrapIdentifier($"{subtableName}_TP")}[],";
+                        return $"{SQLBuilder.WrapIdentifier($"arg{prefix}{prop.Name}")} {SQLBuilder.WrapIdentifier($"{subtableName}_T")}[],";
                     }
                 },
                 dbName, schema, dataset, propData, tpContainer, new List<string>(), Prefix, TopMost, SiteSpecific, WithDerivedInfo, SubTable);
@@ -626,7 +630,7 @@ DROP FUNCTION IF EXISTS ""{schema}"".""{dataset}__RemoveByIdentity"";");
                         string colType = GetDataTypeArgumentString(col);
                         return $"{SQLBuilder.WrapIdentifier($"{prefix}{prop.Name}")} {colType}[],";
                     }
-                    return $"{SQLBuilder.WrapIdentifier($"{prefix}{prop.Name}")} {SQLBuilder.WrapIdentifier($"{subtableName}_TP")}[],";
+                    return $"{SQLBuilder.WrapIdentifier($"{prefix}{prop.Name}")} {SQLBuilder.WrapIdentifier($"{subtableName}_T")}[],";
                 },
                 dbName, schema, dataset, propData, tpContainer, new List<string>(), Prefix, TopMost, SiteSpecific, WithDerivedInfo, SubTable);
         }
@@ -697,6 +701,12 @@ DROP FUNCTION IF EXISTS ""{schema}"".""{dataset}__RemoveByIdentity"";");
                     return sb.ToString();
                 },
                 (prefix, name) => { // predef
+                    if (name == "DerivedDataTableName")
+                        return $@"""valDerivedDataTableName"",";
+                    if (name == "DerivedDataType")
+                        return $@"""valDerivedDataType"",";
+                    if (name == "DerivedAssemblyName")
+                        return $@"""valDerivedAssemblyName"",";
                     if (name == SQLGenericBase.SiteColumn)
                         return $"{SQLBuilder.WrapIdentifier(SQLGen.ValSiteIdentity)},";
                     if (name == SQLGenericBase.SubTableKeyColumn)

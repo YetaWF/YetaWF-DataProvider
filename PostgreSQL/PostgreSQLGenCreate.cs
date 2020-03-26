@@ -40,13 +40,14 @@ namespace YetaWF.DataProvider.PostgreSQL {
         }
 
         public bool CreateTableFromModel(string dbName, string schema, string tableName, string key1Name, string key2Name, string identityName, List<PropertyData> propData, Type tpProps,
-                List<string> errorList, List<string> columns,
+                List<string> errorList, 
                 bool TopMost = false,
                 bool SiteSpecific = false,
                 string ForeignKeyTable = null,
                 bool WithDerivedInfo = false,
                 bool SubTable = false) {
 
+            List<string> columns = new List<string>();
             TableInfo tableInfo = CreateSimpleTableFromModel(dbName, schema, tableName, key1Name, key2Name, identityName, propData, tpProps,
                 errorList, columns,
                 TopMost, SiteSpecific, ForeignKeyTable, WithDerivedInfo,
@@ -54,7 +55,7 @@ namespace YetaWF.DataProvider.PostgreSQL {
             if (tableInfo == null)
                 return false;
 
-            MakeTables(dbName, schema, tableInfo, propData, tpProps);
+            MakeTables(dbName, schema, tableInfo, propData, tpProps, WithDerivedInfo);
             return true;
         }
 
@@ -97,7 +98,7 @@ namespace YetaWF.DataProvider.PostgreSQL {
                 // PK Index
                 if (!SubTable) {
                     Index newIndex = new Index {
-                        Name = "PK_" + tableName,
+                        Name = "P" + tableName,
                     };
                     newIndex.IndexedColumns.Add(key1Name);
                     if (!string.IsNullOrWhiteSpace(key2Name))
@@ -123,7 +124,7 @@ namespace YetaWF.DataProvider.PostgreSQL {
                                     foreach (LanguageData lang in Languages) {
                                         string col = SQLBase.ColumnFromPropertyWithLanguage(lang.Id, propIndex.Name);
                                         Index newIndex = new Index {
-                                            Name = "K_" + tableName + "_" + col,
+                                            Name = "K" + tableName + "_" + col,
                                         };
                                         newIndex.IndexedColumns.Add(col);
                                         newIndex.IndexType = IndexType.Indexed;
@@ -131,7 +132,7 @@ namespace YetaWF.DataProvider.PostgreSQL {
                                     }
                                 } else {
                                     Index newIndex = new Index {
-                                        Name = "K_" + tableName + "_" + propIndex.Name,
+                                        Name = "K" + tableName + "_" + propIndex.Name,
                                     };
                                     newIndex.IndexedColumns.Add(propIndex.Name);
                                     newIndex.IndexType = IndexType.Indexed;
@@ -167,7 +168,7 @@ namespace YetaWF.DataProvider.PostgreSQL {
                     newTable.Columns.Add(newColumn);
 
                     Index newIndex = new Index {
-                        Name = "K_" + tableName + "_" + SQLBase.IdentityColumn,
+                        Name = "K" + tableName + "_" + SQLBase.IdentityColumn,
                     };
                     newIndex.IndexedColumns.Add(SQLBase.IdentityColumn);
                     newIndex.IndexType = IndexType.UniqueKey;
@@ -185,7 +186,7 @@ namespace YetaWF.DataProvider.PostgreSQL {
                         newTable.Columns.Add(newColumn);
 
                         Index newIndex = new Index {
-                            Name = "K_" + tableName + "_" + identityName,
+                            Name = "K" + tableName + "_" + identityName,
                         };
                         newIndex.IndexedColumns.Add(identityName);
                         newIndex.IndexType = IndexType.UniqueKey;
@@ -203,7 +204,7 @@ namespace YetaWF.DataProvider.PostgreSQL {
                             newTable.Columns.Add(newColumn);
 
                             Index newIndex = new Index {
-                                Name = "K_" + tableName + "_" + SQLBase.IdentityColumn,
+                                Name = "K" + tableName + "_" + SQLBase.IdentityColumn,
                             };
                             newIndex.IndexedColumns.Add(SQLBase.IdentityColumn);
                             newIndex.IndexType = IndexType.UniqueKey;
@@ -223,7 +224,7 @@ namespace YetaWF.DataProvider.PostgreSQL {
                             throw new InternalError("Identity required");
 
                         Index newIndex = new Index {
-                            Name = "K_" + tableName + "_" + SQLBase.SubTableKeyColumn,
+                            Name = "K" + tableName + "_" + SQLBase.SubTableKeyColumn,
                         };
                         newIndex.IndexedColumns.Add(SQLBase.SubTableKeyColumn);
                         newIndex.IndexType = IndexType.Indexed;
@@ -231,7 +232,7 @@ namespace YetaWF.DataProvider.PostgreSQL {
 
                         // a subtable uses the identity of the main table as key
                         ForeignKey fk = new ForeignKey {
-                            Name = "FK_" + tableName + SQLBase.SubTableKeyColumn + "_" + ForeignKeyTable + "_" + identityName
+                            Name = "F" + tableName + SQLBase.SubTableKeyColumn + "_" + ForeignKeyTable + "_" + identityName
                         };
                         fk.ForeignKeyColumns.Add(new ForeignKeyColumn { Column = SQLBase.SubTableKeyColumn, ReferencedColumn = identityName });
                         fk.ReferencedTable = ForeignKeyTable;
@@ -240,7 +241,7 @@ namespace YetaWF.DataProvider.PostgreSQL {
                         if (key2Name != null) throw new InternalError("Only a single key can be used with foreign keys");
 
                         ForeignKey fk = new ForeignKey {
-                            Name = "FK_" + tableName + "_" + key1Name + "_" + ForeignKeyTable + "_" + key1Name
+                            Name = "F" + tableName + "_" + key1Name + "_" + ForeignKeyTable + "_" + key1Name
                         };
                         fk.ForeignKeyColumns.Add(new ForeignKeyColumn { Column = key1Name, ReferencedColumn = key1Name });
                         fk.ReferencedTable = ForeignKeyTable;
@@ -392,14 +393,14 @@ namespace YetaWF.DataProvider.PostgreSQL {
             return !string.IsNullOrEmpty(result);
         }
 
-        private void MakeTables(string dbName, string schema, TableInfo tableInfo, List<PropertyData> propData, Type tpProps) {
+        private void MakeTables(string dbName, string schema, TableInfo tableInfo, List<PropertyData> propData, Type tpProps, bool WithDerivedInfo = false) {
             if (tableInfo.CurrentTable != null) {
                 RemoveIndexesAndForeignKeys(dbName, schema, tableInfo);
             }
-            MakeTable(dbName, schema, tableInfo, propData, tpProps);
+            MakeTable(dbName, schema, tableInfo, propData, tpProps, WithDerivedInfo);
         }
 
-        private void MakeTable(string dbName, string schema, TableInfo tableInfo, List<PropertyData> propData, Type tpProps) {
+        private void MakeTable(string dbName, string schema, TableInfo tableInfo, List<PropertyData> propData, Type tpProps, bool WithDerivedInfo = false) {
             if (tableInfo.CurrentTable != null)
                 UpdateTable(dbName, schema, tableInfo.CurrentTable, tableInfo.NewTable);
             else
@@ -410,13 +411,16 @@ namespace YetaWF.DataProvider.PostgreSQL {
                 else
                     CreateTable(dbName, schema, subtableInfo.NewTable);
             }
+        }
 
-            List<SubTableInfo> subTables = GetSubTables(tableInfo.NewTable.Name, propData);
+        internal void MakeTypes(string dbName, string schema, string tableName, List<PropertyData> propData, Type tpProps) {
+
+            List<SubTableInfo> subTables = GetSubTables(tableName, propData);
 
             // Update cached info for new table and subtables
             SQLManager sqlManager = new SQLManager();
             SQLGenericManagerCache.ClearCache();
-            sqlManager.GetColumns(Conn, dbName, schema, tableInfo.NewTable.Name);
+            sqlManager.GetColumns(Conn, dbName, schema, tableName);
             foreach (SubTableInfo subtable in subTables) {
                 sqlManager.GetColumns(Conn, dbName, schema, subtable.Name);
             }
@@ -427,7 +431,24 @@ namespace YetaWF.DataProvider.PostgreSQL {
                 MakeType(dbName, schema, subtable.Name, subPropData, subtable.Type, SubTable: true);
             }
 
-            MakeType(dbName, schema, tableInfo.NewTable.Name, propData, tpProps, SubTable: false);
+            MakeType(dbName, schema, tableName, propData, tpProps, SubTable: false);
+        }
+
+        internal void MakeTypesWithBaseType(string dbName, string schema, string baseDataset, string dataset, List<PropertyData> combinedProps, List<PropertyData> basePropData, List<PropertyData> propData, Type baseType, Type type) {
+
+            // Update cached info for new table and subtables
+            SQLManager sqlManager = new SQLManager();
+            SQLGenericManagerCache.ClearCache();
+            List<SubTableInfo> subTables = GetSubTables(dataset, propData);
+            sqlManager.GetColumns(Conn, dbName, schema, dataset);
+            foreach (SubTableInfo subtable in subTables) {
+                sqlManager.GetColumns(Conn, dbName, schema, subtable.Name);
+            }
+
+            //MakeType(dbName, schema, dataset, combinedProps, type, WithDerivedInfo: true);
+            //MakeType(dbName, schema, dataset, combinedProps, type, WithDerivedInfo: false);
+
+            MakeTypeWithBaseType(dbName, schema, baseDataset, dataset, combinedProps, basePropData, propData, baseType, type);
         }
 
         private void CreateTable(string dbName, string schema, Table newTable) {
@@ -565,7 +586,7 @@ ELSE
                 switch (index.IndexType) {
                     case IndexType.PrimaryKey:
                     case IndexType.UniqueKey:
-                        sb.Append($"ALTER TABLE [{SQLBuilder.WrapIdentifier(schema)}].[{newTable.Name}]\r\n");
+                        sb.Append($"ALTER TABLE {SQLBuilder.WrapIdentifier(schema)}.{SQLBuilder.WrapIdentifier(newTable.Name)}\r\n");
                         sb.Append($"  ADD");
                         sb.Append(GetAddIndex(index, dbName, schema, newTable));
                         sb.RemoveLastComma();
@@ -779,7 +800,7 @@ ELSE
             return sb.ToString();
         }
 
-        private void MakeType(string dbName, string schema, string dataset, List<PropertyData> propData, Type tpType, bool SubTable = false) {
+        private void MakeType(string dbName, string schema, string dataset, List<PropertyData> propData, Type tpType, bool SubTable = false, bool WithDerivedInfo = false) {
 
             SQLBuilder sb = new SQLBuilder();
             SQLHelper sqlHelper = new SQLHelper(Conn, null, Languages);
@@ -787,14 +808,14 @@ ELSE
             if (propData.Count <= 1)
                 return;
 
-            string typeName = $"{dataset}_TP";
+            string typeName = $"{dataset}_T";
 
             sb.Append($@"
 DROP TYPE IF EXISTS ""{schema}"".""{typeName}"";
 CREATE TYPE ""{schema}"".""{typeName}"" AS
 (");
             sb.Append($@"
-{GetTypeNameList(dbName, schema, dataset, propData, tpType, Prefix: null, TopMost: false, SiteSpecific: false, WithDerivedInfo: false, SubTable: SubTable)}");
+{GetTypeNameList(dbName, schema, dataset, propData, tpType, Prefix: null, TopMost: false, SiteSpecific: false, WithDerivedInfo: WithDerivedInfo, SubTable: SubTable)}");
 
             sb.RemoveLastComma();
 
@@ -810,12 +831,60 @@ CREATE TYPE ""{schema}"".""{typeName}"" AS
             }
         }
 
+        private void MakeTypeWithBaseType(string dbName, string schema, string baseDataset, string dataset, List<PropertyData> combinedProps, List<PropertyData> basePropData, List<PropertyData> propData, Type baseType, Type type) {
+
+            SQLBuilder sb = new SQLBuilder();
+            SQLHelper sqlHelper = new SQLHelper(Conn, null, Languages);
+
+            if (combinedProps.Count <= 1)
+                return;
+
+            string typeName = $"{dataset}_T";
+
+            List<PropertyData> propDataNoDups = combinedProps.Except(basePropData, new PropertyDataComparer()).ToList();
+
+            sb.Append($@"
+DROP TYPE IF EXISTS ""{schema}"".""{typeName}"";
+CREATE TYPE ""{schema}"".""{typeName}"" AS
+(");
+            sb.Append($@"
+{GetTypeNameList(dbName, schema, baseDataset, basePropData, baseType, Prefix: null, TopMost: false, SiteSpecific: true, WithDerivedInfo: false, SubTable: false)}
+{GetTypeNameList(dbName, schema, dataset, propDataNoDups, type, Prefix: null, TopMost: false, SiteSpecific: false, WithDerivedInfo: false, SubTable: false)}");
+            sb.RemoveLastComma();
+
+            sb.Append($@"
+);");
+
+#if NOTWANTED            
+            sb.Append($@"
+DROP TYPE IF EXISTS ""{schema}"".""{typeName}_DRV"";
+CREATE TYPE ""{schema}"".""{typeName}_DRV"" AS
+(");
+            sb.Append($@"
+{GetTypeNameList(dbName, schema, baseDataset, basePropData, baseType, Prefix: null, TopMost: false, SiteSpecific: true, WithDerivedInfo: true, SubTable: false)}
+{GetTypeNameList(dbName, schema, dataset, propDataNoDups, type, Prefix: null, TopMost: false, SiteSpecific: false, WithDerivedInfo: false, SubTable: false)}");
+            sb.RemoveLastComma();
+
+            sb.Append($@"
+);
+");
+#endif
+
+            // Add to database
+            using (NpgsqlCommand cmd = new NpgsqlCommand()) {
+                cmd.Connection = Conn;
+                cmd.CommandText = sb.ToString();
+                YetaWF.Core.Log.Logging.AddTraceLog(cmd.CommandText);
+                cmd.ExecuteNonQuery();
+            }
+        }
+
         private void DropType(string dbName, string schema, string dataset, List<PropertyData> propData, Type tpType, bool SubTable = false) {
 
             SQLBuilder sb = new SQLBuilder();
             SQLHelper sqlHelper = new SQLHelper(Conn, null, Languages);
 
-            string typeName = $"{dataset}_TP";
+            string typeName = $"{dataset}_T";
 
             sb.Append($@"
 DROP TYPE IF EXISTS ""{schema}"".""{typeName}"";");
