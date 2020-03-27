@@ -42,8 +42,11 @@ namespace YetaWF.DataProvider.PostgreSQL {
         public async Task InitializeAsync(Package package) {
 
             string connString = WebConfigHelper.GetValue<string>(package.AreaName, SQLBase.PostgreSQLConnectString);
-            if (string.IsNullOrWhiteSpace(connString))
-                throw new InternalError($"No {SQLBase.PostgreSQLConnectString} connection string found for package {package.AreaName} - must be explicitly specified");
+            if (string.IsNullOrWhiteSpace(connString)) {
+                connString = WebConfigHelper.GetValue<string>(DataProviderImpl.DefaultString, SQLBase.PostgreSQLConnectString);
+                if (string.IsNullOrWhiteSpace(connString))
+                    throw new InternalError($"No {SQLBase.PostgreSQLConnectString} connection string found for package {package.AreaName} and no default defined");
+            }
 
             string path = Path.Combine(package.AddonsFolder, "_Main", "PostgreSql");
             if (!await FileSystem.FileSystemProvider.DirectoryExistsAsync(path))

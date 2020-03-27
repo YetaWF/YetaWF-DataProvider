@@ -121,7 +121,11 @@ namespace YetaWF.DataProvider.PostgreSQL {
         }
 
         private string GetPostgreSqlConnectionString() {
+#if TEST//$$$$
             string connString = WebConfigHelper.GetValue<string>(/*$$$string.IsNullOrWhiteSpace(WebConfigArea) ? */Dataset /*$$$ : WebConfigArea*/, PostgreSQLConnectString);
+#else
+            string connString = WebConfigHelper.GetValue<string>(string.IsNullOrWhiteSpace(WebConfigArea) ? Dataset : WebConfigArea, PostgreSQLConnectString);
+#endif
             if (string.IsNullOrWhiteSpace(connString)) {
                 if (string.IsNullOrWhiteSpace(WebConfigArea))
                     connString = WebConfigHelper.GetValue<string>(Package.AreaName, PostgreSQLConnectString);
@@ -138,7 +142,11 @@ namespace YetaWF.DataProvider.PostgreSQL {
             return connString;
         }
         private string GetPostgreSqlSchema() {
+#if TEST//$$$$
             string schema = WebConfigHelper.GetValue<string>(/*string.IsNullOrWhiteSpace(WebConfigArea) ? $$$*/Dataset/* : WebConfigArea*/, PostgreSQLSchemaString);
+#else
+            string schema = WebConfigHelper.GetValue<string>(string.IsNullOrWhiteSpace(WebConfigArea) ? Dataset : WebConfigArea, PostgreSQLSchemaString);
+#endif
             if (string.IsNullOrWhiteSpace(schema)) {
                 if (string.IsNullOrWhiteSpace(WebConfigArea))
                     schema = WebConfigHelper.GetValue<string>(Package.AreaName, PostgreSQLSchemaString);
@@ -294,17 +302,6 @@ namespace YetaWF.DataProvider.PostgreSQL {
             }
         }
 
-        internal async Task<string> CalculatedPropertiesAsync(Type objType) {
-            if (CalculatedPropertyCallbackAsync == null) return null;
-            SQLBuilder sb = new SQLBuilder();
-            List<PropertyData> props = ObjectSupport.GetPropertyData(objType);
-            props = (from p in props where p.CalculatedProperty select p).ToList();
-            foreach (PropertyData prop in props) {
-                string calcProp = await CalculatedPropertyCallbackAsync(prop.Name);
-                sb.Add($", ({calcProp}) AS {SQLBuilder.WrapIdentifier(prop.Name)}");
-            }
-            return sb.ToString();
-        }
         internal string GetColumnList(List<PropertyData> propData, Type tpContainer,
                 string prefix, bool topMost,
                 bool SiteSpecific = false,
@@ -344,7 +341,7 @@ namespace YetaWF.DataProvider.PostgreSQL {
                 sb.Add($"\"{prefix}{SiteColumn}\",");
             }
             if (WithDerivedInfo) {
-                sb.Add($"\"{prefix}DerivedDataTableName\",");
+                sb.Add($"\"{prefix}DerivedTableName\",");//$$$hardcoded
                 sb.Add($"\"{prefix}DerivedDataType\",");
                 sb.Add($"\"{prefix}DerivedAssemblyName\",");
             }

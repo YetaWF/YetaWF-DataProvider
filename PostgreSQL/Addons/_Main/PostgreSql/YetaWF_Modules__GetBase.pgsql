@@ -7,7 +7,7 @@ CREATE OR REPLACE FUNCTION "[Var,PostgreSQL-Schema]"."Y__GetBase"(
 AS $$
 BEGIN
     RETURN QUERY(
-        SELECT "DerivedDataTableName", "DerivedDataType", "DerivedAssemblyName"
+        SELECT "DerivedTableName", "DerivedDataType", "DerivedAssemblyName"
         FROM "[Var,PostgreSQL-Schema]"."YetaWF_Modules"
         WHERE "ModuleGuid" = "Key1Val" AND "__Site" = "valSiteIdentity"
         LIMIT 1    --- result set

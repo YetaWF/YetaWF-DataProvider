@@ -11,7 +11,7 @@ namespace YetaWF.DataProvider.PostgreSQL {
 
     internal partial class SQLGen {
 
-        internal bool MakeFunctionsWithBaseTypeAsync(string dbName, string schema, string baseDataset, string dataset, string key1Name, string identityName, List<PropertyData> combinedProps, List<PropertyData> basePropData, List<PropertyData> propData, Type baseType, Type type, int siteIdentity, string DerivedDataTableName, string DerivedDataTypeName, string DerivedAssemblyName) {
+        internal bool MakeFunctionsWithBaseTypeAsync(string dbName, string schema, string baseDataset, string dataset, string key1Name, string identityName, List<PropertyData> combinedProps, List<PropertyData> basePropData, List<PropertyData> propData, Type baseType, Type type, int siteIdentity, string DerivedTableName, string DerivedDataTypeName, string DerivedAssemblyName) {
 
             SQLManager sqlManager = new SQLManager();
             SQLBuilder sb = new SQLBuilder();
@@ -104,8 +104,7 @@ END;
 
             sb.Append($@"
 DROP FUNCTION IF EXISTS ""{schema}"".""{dataset}__Update"";
-CREATE OR REPLACE FUNCTION ""{schema}"".""{dataset}__Update""(""Key1Val"" {typeKey1},
-            {GetArgumentNameList(dbName, schema, baseDataset, basePropData, baseType, Prefix: null, TopMost: false, SiteSpecific: true, WithDerivedInfo: true, SubTable: false)}{GetArgumentNameList(dbName, schema, dataset, propDataNoDups, type, Prefix: null, TopMost: false, SiteSpecific: false, WithDerivedInfo: false, SubTable: false)}");
+CREATE OR REPLACE FUNCTION ""{schema}"".""{dataset}__Update""({GetArgumentNameList(dbName, schema, baseDataset, basePropData, baseType, Prefix: null, TopMost: false, SiteSpecific: true, WithDerivedInfo: true, SubTable: false)}{GetArgumentNameList(dbName, schema, dataset, propDataNoDups, type, Prefix: null, TopMost: false, SiteSpecific: false, WithDerivedInfo: false, SubTable: false)}");
 
             sb.RemoveLastComma();
 
@@ -124,7 +123,7 @@ BEGIN
             sb.RemoveLastComma();
 
             sb.Append($@"
-    WHERE ""{key1Name}"" = ""Key1Val"" AND ""{SQLGenericBase.SiteColumn}"" = ""{SQLGen.ValSiteIdentity}""
+    WHERE ""{key1Name}"" = ""arg{key1Name}"" AND ""{SQLGenericBase.SiteColumn}"" = ""{SQLGen.ValSiteIdentity}""
 ;
     GET DIAGNOSTICS __TOTAL = ROW_COUNT
 ;
@@ -135,7 +134,7 @@ BEGIN
             sb.RemoveLastComma();
 
             sb.Append($@"
-    WHERE ""{key1Name}"" = ""Key1Val"" AND ""{SQLGenericBase.SiteColumn}"" = ""{SQLGen.ValSiteIdentity}""
+    WHERE ""{key1Name}"" = ""arg{key1Name}"" AND ""{SQLGenericBase.SiteColumn}"" = ""{SQLGen.ValSiteIdentity}""
 ;
 
     RETURN (SELECT __TOTAL); --- result set

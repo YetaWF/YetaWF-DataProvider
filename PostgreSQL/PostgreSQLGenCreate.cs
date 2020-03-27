@@ -270,10 +270,10 @@ namespace YetaWF.DataProvider.PostgreSQL {
             Table newTable = tableInfo.NewTable;
             Table currentTable = tableInfo.CurrentTable;
             string result = ProcessColumns(
-                (prefix, prop) => { // regular property
+                (prefix, container, prop) => { // regular property
                     PropertyInfo pi = prop.PropInfo;
                     Column newColumn = new Column {
-                        Name = prop.ColumnName,
+                        Name = $"{prefix}{prop.ColumnName}",
                         Nullable = true,
                     };
                     newColumn.DataType = GetDataType(pi);
@@ -292,41 +292,41 @@ namespace YetaWF.DataProvider.PostgreSQL {
                         nullable = true;
                     newColumn.Nullable = nullable;
                     Data_NewValue newValAttr = (Data_NewValue)pi.GetCustomAttribute(typeof(Data_NewValue));
-                    if (currentTable != null && !currentTable.HasColumn(prop.ColumnName)) {
+                    if (currentTable != null && !currentTable.HasColumn($"{prefix}{prop.ColumnName}")) {
                         if (newValAttr == null)
                             throw new InternalError($"Property {prop.Name} in table {newTable.Name} doesn't have a Data_NewValue attribute, which is required when updating tables");
                     }
                     newTable.Columns.Add(newColumn);
                     return null;
                 },
-                (prefix, prop) => { // Identity
+                (prefix, container, prop) => { // Identity
                     return null;
                 },
-                (prefix, prop) => { // Binary
+                (prefix, container, prop) => { // Binary
                     Column newColumn = new Column {
-                        Name = prop.ColumnName,
+                        Name = $"{prefix}{prop.ColumnName}",
                         DataType = NpgsqlDbType.Bytea,
                         Nullable = true,
                     };
                     newTable.Columns.Add(newColumn);
                     return null;
                 },
-                (prefix, prop) => { // Image
+                (prefix, container, prop) => { // Image
                     Column newColumn = new Column {
-                        Name = prop.ColumnName,
+                        Name = $"{prefix}{prop.ColumnName}",
                         DataType = NpgsqlDbType.Bytea,
                         Nullable = true,
                     };
                     newTable.Columns.Add(newColumn);
                     return null;
                 },
-                (prefix, prop) => { // MultiString
+                (prefix, container, prop) => { // MultiString
                     if (Languages.Count == 0) throw new InternalError("We need Languages for MultiString support");
                     StringBuilder sb = new StringBuilder();
                     foreach (LanguageData lang in Languages) {
-                        string colName = prefix + SQLBase.ColumnFromPropertyWithLanguage(lang.Id, prop.Name);
+                        string colName = SQLBase.ColumnFromPropertyWithLanguage(lang.Id, prop.Name);
                         Column newColumn = new Column {
-                            Name = colName,
+                            Name = $"{prefix}{colName}",
                             DataType = NpgsqlDbType.Varchar,
                         };
                         StringLengthAttribute attr = (StringLengthAttribute)prop.PropInfo.GetCustomAttribute(typeof(StringLengthAttribute));
@@ -336,45 +336,45 @@ namespace YetaWF.DataProvider.PostgreSQL {
                             newColumn.Length = 0;
                         else
                             newColumn.Length = attr.MaximumLength;
-                        if (colName != key1Name && colName != key2Name)
+                        if (prop.Name != key1Name && prop.Name != key2Name)
                             newColumn.Nullable = true;
                         newTable.Columns.Add(newColumn);
                     }
                     return sb.ToString();
                 },
-                (prefix, name) => { // Predefined property
-                    if (name == "DerivedDataTableName")
+                (prefix, container, name) => { // Predefined property
+                    if (name == "DerivedTableName")
                         newTable.Columns.Add(new Column {
-                            Name = name,
+                            Name = $"{prefix}{name}",
                             DataType = NpgsqlDbType.Varchar,
                             Length = 80,
                         });
                     else if (name == "DerivedDataType")
                         newTable.Columns.Add(new Column {
-                            Name = name,
+                            Name = $"{prefix}{name}",
                             DataType = NpgsqlDbType.Varchar,
                             Length = 200,
                         });
                     else if (name == "DerivedAssemblyName")
                         newTable.Columns.Add(new Column {
-                            Name = name,
+                            Name = $"{prefix}{name}",
                             DataType = NpgsqlDbType.Varchar,
                             Length = 200,
                         });
                     else if (name == SQLGenericBase.SubTableKeyColumn)
                         newTable.Columns.Add(new Column {
-                            Name = SQLGenericBase.SubTableKeyColumn,
+                            Name = $"{prefix}{SQLGenericBase.SubTableKeyColumn}",
                             DataType = NpgsqlDbType.Integer,
                         });
                     else if (name == SQLGenericBase.SiteColumn)
                         newTable.Columns.Add(new Column {
-                            Name = SQLGenericBase.SiteColumn,
+                            Name = $"{prefix}{SQLGenericBase.SiteColumn}",
                             DataType = NpgsqlDbType.Integer,
                         });
 
                     return null;
                 },
-                (prefix, prop, subPropData, subType, subTableName) => { // Subtable property
+                (prefix, container, prop, subPropData, subType, subTableName) => { // Subtable property
                     // create a table that links the main table and this enumerated type using the key of the table
                     TableInfo subTableInfo = CreateSimpleTableFromModel(dbName, schema, subTableName, SQLBase.SubTableKeyColumn, null,
                         HasIdentity(identityName) ? identityName : SQLBase.IdentityColumn, subPropData, subType, errorList, columns,
@@ -388,7 +388,7 @@ namespace YetaWF.DataProvider.PostgreSQL {
 
                     return "subtable";
                 },
-                dbName, schema, newTable.Name, propData, tpContainer, columns, prefix, topMost, SiteSpecific, WithDerivedInfo, SubTable);
+                dbName, schema, newTable.Name, null, propData, tpContainer, columns, prefix, topMost, SiteSpecific, WithDerivedInfo, SubTable);
 
             return !string.IsNullOrEmpty(result);
         }
@@ -456,11 +456,13 @@ namespace YetaWF.DataProvider.PostgreSQL {
             StringBuilder sb = new StringBuilder();
             StringBuilder sbIx = new StringBuilder();
 
-            sb.Append($"CREATE TABLE {SQLBuilder.WrapIdentifier(schema)}.{SQLBuilder.WrapIdentifier(newTable.Name)} (\r\n");
+            sb.Append($@"
+CREATE TABLE ""{schema}"".""{newTable.Name}"" (");
 
             // Columns
             foreach (Column col in newTable.Columns) {
-                sb.Append($"    {SQLBuilder.WrapIdentifier(col.Name)} {GetDataTypeString(col)}{GetIdentity(col)}{GetNullable(col)},\r\n");
+                sb.Append($@"
+""{col.Name}"" {GetDataTypeString(col)}{GetIdentity(col)}{GetNullable(col)},");
             }
 
             // Indexes
@@ -487,7 +489,10 @@ namespace YetaWF.DataProvider.PostgreSQL {
             }
             sb.RemoveLastComma();
 
-            sb.Append("\r\n) WITH ( OIDS = FALSE );\r\n\r\n");
+            sb.Append($@"
+) WITH ( OIDS = FALSE );
+
+");
 
             sb.Append(sbIx.ToString());
 
@@ -520,20 +525,24 @@ namespace YetaWF.DataProvider.PostgreSQL {
             foreach (Index index in removedIndexes) {
                 switch (index.IndexType) {
                     case IndexType.Indexed:
-                        sb.Append($"DROP INDEX {index.Name};\r\n");
+                        sb.Append($@"
+DROP INDEX {index.Name};");
                         break;
                     case IndexType.UniqueKey:
-                        sb.Append($"ALTER TABLE {SQLBuilder.WrapIdentifier(schema)}.{SQLBuilder.WrapIdentifier(newTable.Name)} DROP CONSTRAINT {SQLBuilder.WrapIdentifier(index.Name)};\r\n");
+                        sb.Append($@"
+ALTER TABLE ""{schema}"".""{newTable.Name}"" DROP CONSTRAINT ""{index.Name}"";");
                         break;
                     case IndexType.PrimaryKey:
-                        sb.Append($"ALTER TABLE {SQLBuilder.WrapIdentifier(schema)}.{SQLBuilder.WrapIdentifier(newTable.Name)} DROP CONSTRAINT {SQLBuilder.WrapIdentifier(index.Name)};\r\n");
+                        sb.Append($@"
+ALTER TABLE ""{schema}"".""{newTable.Name}"" DROP CONSTRAINT ""{index.Name}"";");
                         break;
                 }
             }
 
             // Remove foreign key
             foreach (ForeignKey fk in removedForeignKeys) {
-                sb.Append($"ALTER TABLE {SQLBuilder.WrapIdentifier(schema)}.{SQLBuilder.WrapIdentifier(newTable.Name)} DROP CONSTRAINT {SQLBuilder.WrapIdentifier(fk.Name)};\r\n");
+                sb.Append($@"
+ALTER TABLE ""{schema}"".""{newTable.Name}"" DROP CONSTRAINT ""{fk.Name}"";");
             }
 
             if (sb.Length != 0) {
@@ -561,24 +570,26 @@ namespace YetaWF.DataProvider.PostgreSQL {
             // Remove columns
             foreach (Column col in removedColumns) {
                 sb.Append($@"
-IF EXISTS (SELECT * FROM  [{SQLBuilder.WrapIdentifier(schema)}].[sysobjects] WHERE id = OBJECT_ID(N'DF_{currentTable.Name}_{col.Name}') AND type = 'D')
+IF EXISTS (SELECT * FROM  [""{schema}""].[sysobjects] WHERE id = OBJECT_ID(N'DF_{currentTable.Name}_{col.Name}') AND type = 'D')
     BEGIN
-       ALTER TABLE  [{SQLBuilder.WrapIdentifier(schema)}].[{newTable.Name}] DROP CONSTRAINT [DF_{currentTable.Name}_{col.Name}], COLUMN [{col.Name}];
+       ALTER TABLE  [""{schema}""].[{newTable.Name}] DROP CONSTRAINT [DF_{currentTable.Name}_{col.Name}], COLUMN [{col.Name}];
     END
 ELSE
     BEGIN
-       ALTER TABLE  [{SQLBuilder.WrapIdentifier(schema)}].[{newTable.Name}] DROP COLUMN [{col.Name}];
+       ALTER TABLE  [""{schema}""].[{newTable.Name}] DROP COLUMN [{col.Name}];
     END
 ");
             }
 
             // Add columns
             foreach (Column col in addedColumns) {
-                sb.Append($"ALTER TABLE [{SQLBuilder.WrapIdentifier(schema)}].[{newTable.Name}] ADD [{col.Name}] {GetDataTypeString(col)}{GetDataTypeDefault(newTable.Name, col)}{GetIdentity(col)}{GetNullable(col)};\r\n");
+                sb.Append($@"
+ALTER TABLE [""{schema}""].[{newTable.Name}] ADD [{col.Name}] {GetDataTypeString(col)}{GetDataTypeDefault(newTable.Name, col)}{GetIdentity(col)}{GetNullable(col)};");
             }
             // Altered columns
             foreach (Column col in alteredColumns) {
-                sb.Append($"ALTER TABLE [{SQLBuilder.WrapIdentifier(schema)}].[{newTable.Name}] ALTER [{col.Name}] {GetDataTypeString(col)}{GetDataTypeDefault(newTable.Name, col)}{GetIdentity(col)}{GetNullable(col)};\r\n");
+                sb.Append($@"
+ALTER TABLE [""{schema}""].[{newTable.Name}] ALTER [{col.Name}] {GetDataTypeString(col)}{GetDataTypeDefault(newTable.Name, col)}{GetIdentity(col)}{GetNullable(col)};");
             }
 
             // Add index
@@ -586,14 +597,16 @@ ELSE
                 switch (index.IndexType) {
                     case IndexType.PrimaryKey:
                     case IndexType.UniqueKey:
-                        sb.Append($"ALTER TABLE {SQLBuilder.WrapIdentifier(schema)}.{SQLBuilder.WrapIdentifier(newTable.Name)}\r\n");
-                        sb.Append($"  ADD");
-                        sb.Append(GetAddIndex(index, dbName, schema, newTable));
+                        sb.Append($@"
+ALTER TABLE ""{schema}"".""{newTable.Name}""
+    ADD {GetAddIndex(index, dbName, schema, newTable)}");
                         sb.RemoveLastComma();
-                        sb.Append($";\r\n");
+                        sb.Append($@"
+;");
                         break;
                     case IndexType.Indexed:
-                        sb.Append(GetAddIndex(index, dbName, schema, newTable));
+                        sb.Append($@"
+{GetAddIndex(index, dbName, schema, newTable)}");
                         break;
                 }
             }
@@ -631,8 +644,10 @@ ELSE
             Type tp = pi.PropertyType;
             if (tp == typeof(DateTime) || tp == typeof(DateTime?))
                 return NpgsqlDbType.Timestamp;
-            else if (tp == typeof(TimeSpan) || tp == typeof(TimeSpan?))
+            else if (tp == typeof(long) || tp == typeof(long?))
                 return NpgsqlDbType.Bigint;
+            else if (tp == typeof(TimeSpan) || tp == typeof(TimeSpan?))
+                return NpgsqlDbType.Interval;
             else if (tp == typeof(decimal) || tp == typeof(decimal?))
                 return NpgsqlDbType.Money;
             else if (tp == typeof(bool) || tp == typeof(bool?))
@@ -643,8 +658,6 @@ ELSE
                 return NpgsqlDbType.Bytea;
             else if (tp == typeof(int) || tp == typeof(int?))
                 return NpgsqlDbType.Integer;
-            else if (tp == typeof(long) || tp == typeof(long?))
-                return NpgsqlDbType.Bigint;
             else if (tp == typeof(Single) || tp == typeof(Single?))
                 return NpgsqlDbType.Double;
             else if (tp.IsEnum)
@@ -657,6 +670,8 @@ ELSE
             switch (col.DataType) {
                 case NpgsqlDbType.Bigint:
                     return "bigint";
+                case NpgsqlDbType.Interval:
+                    return "interval";
                 case NpgsqlDbType.Bit:
                     return "boolean";
                 case NpgsqlDbType.Timestamp:
@@ -684,6 +699,8 @@ ELSE
             switch (col.DataType) {
                 case NpgsqlDbType.Bigint:
                     return "bigint";
+                case NpgsqlDbType.Interval:
+                    return "interval";
                 case NpgsqlDbType.Bit:
                     return "boolean";
                 case NpgsqlDbType.Timestamp:
@@ -714,6 +731,8 @@ ELSE
             switch (col.DataType) {
                 case NpgsqlDbType.Bigint:
                     return $" SET DEFAULT 0";
+                case NpgsqlDbType.Interval:
+                    return $"";
                 case NpgsqlDbType.Bit:
                     return $" SET DEFAULT 0";
                 case NpgsqlDbType.Timestamp:
@@ -752,50 +771,57 @@ ELSE
             sb.Append($"");
             switch (index.IndexType) {
                 case IndexType.PrimaryKey:
-                    sb.Append($"  CONSTRAINT {SQLBuilder.WrapIdentifier(index.Name)} PRIMARY KEY (");
+                    sb.Append($@"
+    CONSTRAINT ""{index.Name}"" PRIMARY KEY (");
                     foreach (string col in index.IndexedColumns) {
-                        sb.Append($"{SQLBuilder.WrapIdentifier(col)},");
+                        sb.Append($@"""{col}"",");
                     }
                     sb.RemoveLastComma();
-                    sb.Append($"),\r\n");
+                    sb.Append($"),");
                     break;
                 case IndexType.UniqueKey:
-                    sb.Append($"  CONSTRAINT {SQLBuilder.WrapIdentifier(index.Name)} UNIQUE (");
+                    sb.Append($@"  
+    CONSTRAINT ""{index.Name}"" UNIQUE (");
                     foreach (string col in index.IndexedColumns) {
-                        sb.Append($"{SQLBuilder.WrapIdentifier(col)},");
+                        sb.Append($@"""{col}"",");
                     }
                     sb.RemoveLastComma();
-                    sb.Append($"),\r\n");
+                    sb.Append($"),");
                     break;
                 case IndexType.Indexed:
                     // created separately, after table
-                    sb.Append($"CREATE INDEX {SQLBuilder.WrapIdentifier(index.Name)} ON {SQLBuilder.WrapIdentifier(schema)}.{SQLBuilder.WrapIdentifier(newTable.Name)} USING btree (\r\n");
+                    sb.Append($@"
+    CREATE INDEX ""{index.Name}"" ON ""{schema}"".""{newTable.Name}"" USING btree (");
                     foreach (string col in index.IndexedColumns) {
-                        sb.Append($"{SQLBuilder.WrapIdentifier(col)},");
+                        sb.Append($@"""{col}"",");
                     }
                     sb.RemoveLastComma();
-                    sb.Append($");\r\n");
+                    sb.Append($@")
+;");
                     break;
             }
             return sb.ToString();
         }
         private string GetAddForeignKey(ForeignKey fk, string dbName, string schema, Table newTable) {
             StringBuilder sb = new StringBuilder();
-            sb.Append($"  CONSTRAINT {SQLBuilder.WrapIdentifier(fk.Name)} FOREIGN KEY (");
+            sb.Append($@"
+    CONSTRAINT ""{fk.Name}"" FOREIGN KEY (");
             foreach (ForeignKeyColumn fkCol in fk.ForeignKeyColumns) {
-                sb.Append($"{SQLBuilder.WrapIdentifier(fkCol.Column)},");
+                sb.Append($@"""{fkCol.Column}"",");
             }
             sb.RemoveLastComma();
-            sb.Append($")\r\n");
-            sb.Append($"    REFERENCES {SQLBuilder.WrapIdentifier(schema)}.{SQLBuilder.WrapIdentifier(fk.ReferencedTable)} (");
+            sb.Append($@")");
+            sb.Append($@"
+    REFERENCES ""{schema}"".""{fk.ReferencedTable}"" (");
             foreach (ForeignKeyColumn fkCol in fk.ForeignKeyColumns) {
-                sb.Append($"{SQLBuilder.WrapIdentifier(fkCol.ReferencedColumn)},");
+                sb.Append($@"""{fkCol.ReferencedColumn}"",");
             }
             sb.RemoveLastComma();
-            sb.Append($") MATCH SIMPLE\r\n");
+            sb.Append($@") MATCH SIMPLE");
 
-            sb.Append($"    ON UPDATE NO ACTION\r\n");
-            sb.Append($"    ON DELETE CASCADE,\r\n");
+            sb.Append($@"
+    ON UPDATE NO ACTION
+    ON DELETE CASCADE,");
 
             return sb.ToString();
         }

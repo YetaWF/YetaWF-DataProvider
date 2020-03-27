@@ -164,6 +164,8 @@ namespace YetaWF.DataProvider.PostgreSQL {
                 return NpgsqlDbType.Timestamp;
             else if (typeName == "bigint")
                 return NpgsqlDbType.Bigint;
+            else if (typeName == "interval")
+                return NpgsqlDbType.Interval;
             else if (typeName == "money")
                 return NpgsqlDbType.Money;
             else if (typeName == "boolean")

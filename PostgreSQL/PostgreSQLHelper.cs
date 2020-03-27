@@ -504,6 +504,15 @@ namespace YetaWF.DataProvider.PostgreSQL {
             } else if (value is DateTime) {
                 parm = new NpgsqlParameter(name, NpgsqlDbType.Timestamp);
                 parm.Value = value;
+            } else if (value is TimeSpan) {
+                parm = new NpgsqlParameter(name, NpgsqlDbType.Interval);
+                parm.Value = value;
+            } else if (value is bool) {
+                parm = new NpgsqlParameter(name, NpgsqlDbType.Boolean);
+                parm.Value = value;
+            } else if (value is Enum) {
+                parm = new NpgsqlParameter(name, NpgsqlDbType.Integer);
+                parm.Value = (int)value;
             } else {
                 if (DataTypeName != null) {
                     parm = new NpgsqlParameter {
@@ -512,8 +521,12 @@ namespace YetaWF.DataProvider.PostgreSQL {
                         DataTypeName = DataTypeName,
                     };
                 } else {
-                    parm = new NpgsqlParameter(name, DbType);
-                    parm.Value = value;
+                    if (DbType == NpgsqlDbType.Unknown)
+                        parm = new NpgsqlParameter(name, value);
+                    else {
+                        parm = new NpgsqlParameter(name, DbType);
+                        parm.Value = value;
+                    }
                 }
             }
             parm.Direction = Direction;//<<<
