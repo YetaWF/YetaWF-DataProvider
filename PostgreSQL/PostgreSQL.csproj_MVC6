@@ -18,10 +18,15 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="Npgsql" Version="4.1.3.1" />
+    <Compile Remove="UnmappedCompositeClassMemberHandler.cs" />
+    <Compile Remove="UnmappedCompositeConstructorHandler.cs" />
+    <Compile Remove="UnmappedCompositeHandler.cs" />
+    <Compile Remove="UnmappedCompositeMemberHandler.cs" />
+    <Compile Remove="UnmappedCompositeTypeHandlerFactory.cs" />
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\..\..\npgsql\src\Npgsql\Npgsql.csproj" />
     <ProjectReference Include="..\..\CoreComponents\Core\Core.csproj" />
     <ProjectReference Include="..\SQLGeneric\SQLGeneric.csproj" />
   </ItemGroup>
