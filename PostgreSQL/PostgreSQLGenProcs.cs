@@ -407,9 +407,9 @@ AS $$
                 sb.Append($@"
 BEGIN
     DELETE FROM {fullTableName}
-    WHERE ""{key1Name}"" = Key1Val");
-                if (!string.IsNullOrWhiteSpace(key2Name)) sb.Append($@" AND ""{key2Name}"" = Key2Val");
-                if (siteIdentity > 0) sb.Append($@" AND ""{SQLGenericBase.SiteColumn}"" = {SQLGen.ValSiteIdentity}");
+    WHERE ""{key1Name}"" = ""Key1Val""");
+                if (!string.IsNullOrWhiteSpace(key2Name)) sb.Append($@" AND ""{key2Name}"" = ""Key2Val""");
+                if (siteIdentity > 0) sb.Append($@" AND ""{SQLGenericBase.SiteColumn}"" = ""{SQLGen.ValSiteIdentity}""");
 
                 sb.Append($@"
 ;");
@@ -420,9 +420,9 @@ BEGIN
     DECLARE __IDENTITY integer;
 BEGIN
     SELECT ""{GetIdentityNameOrDefault(identityName)}"" INTO __IDENTITY FROM {fullTableName}
-    WHERE ""{key1Name}"" = Key1Val");
-    if (!string.IsNullOrWhiteSpace(key2Name)) sb.Append($@" AND ""{key2Name}"" = Key2Val");
-    if (siteIdentity > 0) sb.Append($@" AND ""{SQLGenericBase.SiteColumn}"" = {SQLGen.ValSiteIdentity}");
+    WHERE ""{key1Name}"" = ""Key1Val""");
+    if (!string.IsNullOrWhiteSpace(key2Name)) sb.Append($@" AND ""{key2Name}"" = ""Key2Val""");
+    if (siteIdentity > 0) sb.Append($@" AND ""{SQLGenericBase.SiteColumn}"" = ""{SQLGen.ValSiteIdentity}""");
                 sb.Append($@"
 ;");
 
@@ -499,8 +499,6 @@ DROP FUNCTION IF EXISTS ""{schema}"".""{dataset}__Update"";
 DROP FUNCTION IF EXISTS ""{schema}"".""{dataset}__UpdateByIdentity"";
 DROP FUNCTION IF EXISTS ""{schema}"".""{dataset}__Remove"";
 DROP FUNCTION IF EXISTS ""{schema}"".""{dataset}__RemoveByIdentity"";
-
-DROP FUNCTION IF EXISTS ""{schema}"".""{dataset}__GetBase"";
 ");
 
             using (NpgsqlCommand cmd = new NpgsqlCommand()) {
@@ -533,27 +531,33 @@ DROP FUNCTION IF EXISTS ""{schema}"".""{dataset}__GetBase"";
         internal string GetArgumentNameList(string dbName, string schema, string dataset, List<PropertyData> propData, Type tpContainer, string Prefix = null, bool TopMost = true, bool SiteSpecific = false, bool WithDerivedInfo = false, bool SubTable = false) {
             SQLManager sqlManager = new SQLManager();
             return ProcessColumns(
-                (prefix, container, prop) => {
+                (prefix, container, prop) => { // prop
                     Column col = sqlManager.GetColumn(Conn, dbName, schema, dataset, $"{prefix}{prop.ColumnName}");
                     string colType = GetDataTypeArgumentString(col);
                     return $@"""arg{prefix}{prop.Name}"" {colType},";
                 },
-                (prefix, container, prop) => { return null; }, // Identity
-                (prefix, container, prop) => {
+                (prefix, container, prop) => { 
+                    return null; 
+                }, // Identity
+                (prefix, container, prop) => { // binary
                     Column col = sqlManager.GetColumn(Conn, dbName, schema, dataset, $"{prefix}{prop.ColumnName}");
                     string colType = GetDataTypeArgumentString(col);
                     return $@"""arg{prefix}{prop.Name}"" {colType},";
                 },
-                (prefix, container, prop) => {
+                (prefix, container, prop) => { // image
                     Column col = sqlManager.GetColumn(Conn, dbName, schema, dataset, $"{prefix}{prop.ColumnName}");
                     string colType = GetDataTypeArgumentString(col);
                     return $@"""arg{prefix}{prop.Name}"" {colType},";
                 },
-                (prefix, container, prop) => {
+                (prefix, container, prop) => { // multistring
                     if (Languages.Count == 0) throw new InternalError("We need Languages for MultiString support");
                     StringBuilder sb = new StringBuilder();
-                    foreach (LanguageData lang in Languages)
-                        sb.Append($@"""arg{prefix}{SQLGenericBase.ColumnFromPropertyWithLanguage(lang.Id, prop.Name)}"" character varying,");
+                    foreach (LanguageData lang in Languages) {
+                        string colName = $"{prefix}{SQLGenericBase.ColumnFromPropertyWithLanguage(lang.Id, $"{prefix}{prop.Name}")}";
+                        Column col = sqlManager.GetColumn(Conn, dbName, schema, dataset, colName);
+                        string colType = GetDataTypeArgumentString(col);
+                        sb.Append($@"""arg{colName}"" {colType},");
+                    }
                     return sb.ToString();
                 },
                 (prefix, container, name) => { // predef
@@ -612,8 +616,12 @@ DROP FUNCTION IF EXISTS ""{schema}"".""{dataset}__GetBase"";
                 (prefix, container, prop) => {
                     if (Languages.Count == 0) throw new InternalError("We need Languages for MultiString support");
                     StringBuilder sb = new StringBuilder();
-                    foreach (LanguageData lang in Languages)
-                        sb.Append($@"""{prefix}{SQLGenericBase.ColumnFromPropertyWithLanguage(lang.Id, $"{prefix}{prop.Name}")}"" character varying,");
+                    foreach (LanguageData lang in Languages) {
+                        string colName = $"{prefix}{SQLGenericBase.ColumnFromPropertyWithLanguage(lang.Id, $"{prefix}{prop.Name}")}";
+                        Column col = sqlManager.GetColumn(Conn, dbName, schema, dataset, colName);
+                        string colType = GetDataTypeArgumentString(col);
+                        sb.Append($@"""{colName}"" {colType},");
+                    }
                     return sb.ToString();
                 },
                 (prefix, container, name) => { // predef
@@ -636,27 +644,78 @@ DROP FUNCTION IF EXISTS ""{schema}"".""{dataset}__GetBase"";
                 },
                 dbName, schema, dataset, null, propData, tpContainer, new List<string>(), Prefix, TopMost, SiteSpecific, WithDerivedInfo, SubTable);
         }
-        internal string GetColumnNameList(string dbName, string schema, string dataset, List<PropertyData> propData, Type tpContainer, bool Add = false, string Prefix = null, bool TopMost = true, bool SiteSpecific = false, bool WithDerivedInfo = false, bool SubTable = false) {
+        internal string GetColumnNameList(string dbName, string schema, string dataset, List<PropertyData> propData, Type tpContainer, bool Add = false, string Prefix = null, bool TopMost = true, bool SiteSpecific = false, bool WithDerivedInfo = false, bool SubTable = false,
+                Dictionary<string, string> VisibleColumns = null) {
+            SQLBuilder sb = new SQLBuilder();
             return ProcessColumns(
-                (prefix, container, prop) => { return $@"""{prefix}{prop.ColumnName}"","; },
+                (prefix, container, prop) => {
+                    string col = $@"{prefix}{prop.ColumnName}";
+                    if (VisibleColumns != null) {
+                        if (VisibleColumns.ContainsKey(col)) return null;
+                        string fullCol = sb.BuildFullColumnName(dbName, schema, dataset, $"{prefix}{prop.ColumnName}");
+                        VisibleColumns.Add($"{prefix}{prop.ColumnName}", fullCol);
+                        return $"{fullCol},";
+                    }
+                    return $@"""{prefix}{prop.ColumnName}"","; 
+                },
                 (prefix, container, prop) => { // Identity
                     if (Add) {
                         return null;
                     } else {
+                        string col = $@"{prefix}{prop.ColumnName}";
+                        if (VisibleColumns != null) {
+                            if (VisibleColumns.ContainsKey(col)) return null;
+                            string fullCol = sb.BuildFullColumnName(dbName, schema, dataset, $"{prefix}{prop.ColumnName}");
+                            VisibleColumns.Add($"{prefix}{prop.ColumnName}", fullCol);
+                            return $"{fullCol},";
+                        }
                         return $@"""{prefix}{prop.ColumnName}"",";
                     }
                 },
-                (prefix, container, prop) => { return $@"""{prefix}{prop.ColumnName}"","; },
-                (prefix, container, prop) => { return $@"""{prefix}{prop.ColumnName}"","; },
+                (prefix, container, prop) => {
+                    string col = $@"{prefix}{prop.ColumnName}";
+                    if (VisibleColumns != null) {
+                        if (VisibleColumns.ContainsKey(col)) return null;
+                        string fullCol = sb.BuildFullColumnName(dbName, schema, dataset, $"{prefix}{prop.ColumnName}");
+                        VisibleColumns.Add($"{prefix}{prop.ColumnName}", fullCol);
+                        return $"{fullCol},";
+                    }
+                    return $@"""{prefix}{prop.ColumnName}"",";
+                },
+                (prefix, container, prop) => {
+                    string col = $@"{prefix}{prop.ColumnName}";
+                    if (VisibleColumns != null) {
+                        if (VisibleColumns.ContainsKey(col)) return null;
+                        string fullCol = sb.BuildFullColumnName(dbName, schema, dataset, $"{prefix}{prop.ColumnName}");
+                        VisibleColumns.Add($"{prefix}{prop.ColumnName}", fullCol);
+                        return $"{fullCol},";
+                    }
+                    return $@"""{prefix}{prop.ColumnName}"",";
+                },
                 (prefix, container, prop) => {
                     if (Languages.Count == 0) throw new InternalError("We need Languages for MultiString support");
-                    StringBuilder sb = new StringBuilder();
-                    foreach (LanguageData lang in Languages)
-                        sb.Append($@"""{prefix}{SQLGenericBase.ColumnFromPropertyWithLanguage(lang.Id, prop.Name)}"",");
-                    return sb.ToString();
+                    StringBuilder sbldr = new StringBuilder();
+                    foreach (LanguageData lang in Languages) {
+                        string col = $@"{prefix}{SQLGenericBase.ColumnFromPropertyWithLanguage(lang.Id, prop.Name)}";
+                        if (VisibleColumns != null) {
+                            if (VisibleColumns.ContainsKey(col)) return null;
+                            string fullCol = sb.BuildFullColumnName(dbName, schema, dataset, $"{prefix}{col}");
+                            VisibleColumns.Add(col, fullCol);
+                            sbldr.Append($"{fullCol},");
+                        } else
+                            sbldr.Append($@"""{prefix}{col}"",");
+                    }
+                    return sbldr.ToString();
                 },
                 (prefix, container, name) => { // predef
                     if (Add) {
+                        string col = $@"{prefix}{name}";
+                        if (VisibleColumns != null) {
+                            if (VisibleColumns.ContainsKey(col)) return null;
+                            string fullCol = sb.BuildFullColumnName(dbName, schema, dataset, $"{prefix}{name}");
+                            VisibleColumns.Add($"{prefix}{name}", fullCol);
+                            return $"{fullCol},";
+                        }
                         return $@"""{prefix}{name}"",";
                     } else {
                         return null;

@@ -78,7 +78,7 @@ namespace YetaWF.DataProvider.PostgreSQL {
         /// <param name="value">The value to search for.</param>
         /// <param name="escapeApostrophe">Defines whether to escape an apostrophe. Can be used to prevent double escaping of apostrophes.</param>
         /// <returns>Returns the translated value ready to be used in a LIKE statement.</returns>
-        internal string EscapeForLike(string value, bool escapeApostrophe = true) {
+        internal string EscapeForLike(string value, bool escapeApostrophe = true) { //$$$$$$
             string[] specialChars = { "%", "_", "-", "^" };
             string newChars;
 
@@ -138,7 +138,7 @@ namespace YetaWF.DataProvider.PostgreSQL {
         /// <returns>Returns a formatted table or a formatted name database name, database owner and table name, with brackets.</returns>
         /// <remarks>The result is bracketed. This method considers whether any of the parameters is already bracketed in which case no further brackets are added.</remarks>
         public override string BuildFullTableName(string database, string schema, string tableName) {
-            return $"{schema}.{WrapIdentifier(tableName)}";
+            return $@"""{schema}"".{WrapIdentifier(tableName)}";
         }
         /// <summary>
         /// Returns a formatted column name or a formatted database name, database owner, table name and column name, with brackets.
@@ -150,7 +150,7 @@ namespace YetaWF.DataProvider.PostgreSQL {
         /// <returns>Returns a formatted column name or a formatted database name, database owner, table name and column name, with brackets.</returns>
         /// <remarks>The result is bracketed. This method considers whether any of the parameters is already bracketed in which case no further brackets are added.</remarks>
         public override string BuildFullColumnName(string database, string schema, string tableName, string column) {
-            return $"{schema}.{BuildFullColumnName(tableName, column)}";
+            return $@"""{schema}"".{BuildFullColumnName(tableName, column)}";
         }
         /// <summary>
         /// Returns a formatted column name or a formatted database name, database owner, table name and column name, with brackets.
@@ -181,7 +181,7 @@ namespace YetaWF.DataProvider.PostgreSQL {
             if (token.StartsWith("\""))
                 return token;
             else
-                return $"\"{token}\"";
+                return $@"""{token}""";
         }
     }
 }

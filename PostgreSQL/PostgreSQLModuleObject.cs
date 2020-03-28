@@ -19,6 +19,22 @@ using YetaWF.DataProvider.SQLGeneric;
 namespace YetaWF.DataProvider.PostgreSQL {
 
     /// <summary>
+    /// An instance of this class describes one designed module.
+    /// Used during startup to retrieve all designed modules.
+    /// </summary>
+    public class TempDesignedModule {
+        [Data_PrimaryKey]
+        public Guid ModuleGuid { get; set; }
+        public string Name { get; set; }
+        public MultiString Description { get; set; }
+        public string DerivedAssemblyName { get; set; }
+
+        public TempDesignedModule() {
+            Description = new MultiString();
+        }
+    }
+
+    /// <summary>
     /// This class implements the base functionality to access the repository containing YetaWF modules.
     /// It is only used by the YetaWF.DataProvider.ModuleDefinition package and is not intended for application use.
     /// </summary>
@@ -28,22 +44,6 @@ namespace YetaWF.DataProvider.PostgreSQL {
         /// The PostgreSQL table name of the base dataset for all modules.
         /// </summary>
         public const string BaseDatasetName = "Y";
-
-        /// <summary>
-        /// An instance of this class describes one designed module.
-        /// Used during startup to retrieve all designed modules.
-        /// </summary>
-        public class TempDesignedModule {
-            [Data_PrimaryKey]
-            public Guid ModuleGuid { get; set; }
-            public string Name { get; set; }
-            public MultiString Description { get; set; }
-            public string DerivedAssemblyName { get; set; }
-
-            public TempDesignedModule() {
-                Description = new MultiString();
-            }
-        }
 
         /// <summary>
         /// Constructor.
@@ -91,9 +91,9 @@ namespace YetaWF.DataProvider.PostgreSQL {
                 sqlHelper = new SQLHelper(Conn, null, Languages);
                 sqlHelper.AddParam("Key1Val", key);
                 sqlHelper.AddParam(SQLGen.ValSiteIdentity, SiteIdentity);
-                Conn.TypeMapper.MapComposite<DerivedInfo>("Y_Derived_Info_T");//$$don't hard-code
+                Conn.TypeMapper.MapComposite<DerivedInfo>("Y_DerivedInfo_T");//$$don't hard-code
                 DerivedInfo info = null;
-                using (NpgsqlDataReader reader = await sqlHelper.ExecuteReaderStoredProcAsync($@"""Schema"".""{BaseDataset}__GetBase""")) {
+                using (NpgsqlDataReader reader = await sqlHelper.ExecuteReaderStoredProcAsync($@"""{Schema}"".""{BaseDataset}__GetBase""")) {
                     if (!(YetaWFManager.IsSync() ? reader.Read() : await reader.ReadAsync())) return default(OBJTYPE);
                     info = sqlHelper.CreateObject<DerivedInfo>(reader);
                 }
@@ -101,8 +101,8 @@ namespace YetaWF.DataProvider.PostgreSQL {
                 sqlHelper = new SQLHelper(Conn, null, Languages);
                 sqlHelper.AddParam("Key1Val", key);
                 sqlHelper.AddParam(SQLGen.ValSiteIdentity, SiteIdentity);
-                Conn.TypeMapper.MapComposite(sqlHelper.GetDerivedType(info.DerivedDataType, info.DerivedAssemblyName), info.DerivedTableName, new NpgsqlNullNameTranslator());
-                using (NpgsqlDataReader reader = await sqlHelper.ExecuteReaderStoredProcAsync($@"""Schema"".""{info.DerivedTableName}__Get""")) {
+                Conn.TypeMapper.MapComposite(sqlHelper.GetDerivedType(info.DerivedDataType, info.DerivedAssemblyName), $"{info.DerivedTableName}_T", new NpgsqlNullNameTranslator());
+                using (NpgsqlDataReader reader = await sqlHelper.ExecuteReaderStoredProcAsync($@"""{Schema}"".""{info.DerivedTableName}__Get""")) {
                     if (!(YetaWFManager.IsSync() ? reader.Read() : await reader.ReadAsync())) return default(OBJTYPE);
                     return sqlHelper.CreateObject<OBJTYPE>(reader, info.DerivedDataType, info.DerivedAssemblyName);
                 }
@@ -115,8 +115,8 @@ namespace YetaWF.DataProvider.PostgreSQL {
 
                 sqlHelper.AddParam("Key1Val", key);
                 sqlHelper.AddParam(SQLGen.ValSiteIdentity, SiteIdentity);
-                Conn.TypeMapper.MapComposite(typeof(OBJTYPE), $"Y{Dataset}", new NpgsqlNullNameTranslator());
-                using (NpgsqlDataReader reader = await sqlHelper.ExecuteReaderStoredProcAsync($@"""Schema"".""{Dataset}__Get""")) {
+                Conn.TypeMapper.MapComposite(typeof(OBJTYPE), $"Y{Dataset}_T", new NpgsqlNullNameTranslator());
+                using (NpgsqlDataReader reader = await sqlHelper.ExecuteReaderStoredProcAsync($@"""{Schema}"".""{Dataset}__Get""")) {
                     if (!(YetaWFManager.IsSync() ? reader.Read() : await reader.ReadAsync())) return default(OBJTYPE);
                     return sqlHelper.CreateObject<OBJTYPE>(reader);
                 }
@@ -226,9 +226,9 @@ namespace YetaWF.DataProvider.PostgreSQL {
             sqlHelper = new SQLHelper(Conn, null, Languages);
             sqlHelper.AddParam("Key1Val", key);
             sqlHelper.AddParam(SQLGen.ValSiteIdentity, SiteIdentity);
-            Conn.TypeMapper.MapComposite<DerivedInfo>("Y_Derived_Info_T");//$$don't hard-code
+            Conn.TypeMapper.MapComposite<DerivedInfo>("Y_DerivedInfo_T");//$$don't hard-code
             DerivedInfo info = null;
-            using (NpgsqlDataReader reader = await sqlHelper.ExecuteReaderStoredProcAsync($@"""Schema"".""{BaseDataset}__GetBase""")) {
+            using (NpgsqlDataReader reader = await sqlHelper.ExecuteReaderStoredProcAsync($@"""{Schema}"".""{BaseDataset}__GetBase""")) {
                 if (!(YetaWFManager.IsSync() ? reader.Read() : await reader.ReadAsync())) return false;
                 info = sqlHelper.CreateObject<DerivedInfo>(reader);
             }
@@ -236,7 +236,7 @@ namespace YetaWF.DataProvider.PostgreSQL {
             sqlHelper = new SQLHelper(Conn, null, Languages);
             sqlHelper.AddParam("Key1Val", key);
             sqlHelper.AddParam(SQLGen.ValSiteIdentity, SiteIdentity);
-            using (NpgsqlDataReader reader = await sqlHelper.ExecuteReaderStoredProcAsync($@"""Schema"".""{info.DerivedTableName}__Remove""")) {
+            using (NpgsqlDataReader reader = await sqlHelper.ExecuteReaderStoredProcAsync($@"""{Schema}"".""{info.DerivedTableName}__Remove""")) {
                 if (!(YetaWFManager.IsSync() ? reader.Read() : await reader.ReadAsync())) return false;
                 int removed = Convert.ToInt32(reader[0]);
                 return removed > 0;

@@ -243,6 +243,8 @@ namespace YetaWF.DataProvider.PostgreSQL {
         /// <param name="Joins">A collection describing the dataset joins.</param>
         /// <returns>Returns a YetaWF.Core.DataProvider.DataProviderGetRecords object describing the data returned.</returns>
         public async Task<DataProviderGetRecords<OBJTYPE>> GetRecordsAsync(int skip, int take, List<DataProviderSortInfo> sorts, List<DataProviderFilterInfo> filters, List<JoinData> Joins = null) {
+            if (Joins == null)
+                Joins = new List<JoinData>();
 
             await EnsureOpenAsync();
 
@@ -257,18 +259,46 @@ namespace YetaWF.DataProvider.PostgreSQL {
 
             sb = new SQLBuilder();
             string fullTableName = sb.GetTable(Database, Schema, Dataset);
-            Dictionary<string, string> visibleColumns = await GetVisibleColumnsAsync(Database, Schema, Dataset, typeof(OBJTYPE), Joins);
             int total = 0;
 
-            string orderByExpr = null;
-            {
-                sb = new SQLBuilder();
-                if (sorts == null || sorts.Count == 0)
-                    sorts = new List<DataProviderSortInfo> { new DataProviderSortInfo { Field = Key1Name, Order = DataProviderSortInfo.SortDirection.Ascending } };
-                sb.AddOrderBy(visibleColumns, sorts, skip, take);
-                orderByExpr = sb.ToString();
+            Dictionary<string, string> visibleColumns = Joins.Count > 0 ? new Dictionary<string, string>() : null;
+            string columnList = sqlCreate.GetColumnNameList(Database, Schema, Dataset, GetPropertyData(), typeof(OBJTYPE), Add: false, Prefix: null, TopMost: true, SiteSpecific: SiteIdentity > 0, WithDerivedInfo: false, SubTable: false,
+                VisibleColumns: visibleColumns);
+
+            string joinExpr = null;
+            sb = new SQLBuilder();
+            SQLBuilder sbCols = new SQLBuilder();
+            foreach (JoinData join in Joins) {
+                IPostgreSQLTableInfo joinInfo = await join.JoinDP.GetDataProvider().GetIPostgreSQLTableInfoAsync();
+                string joinTable = joinInfo.GetTableName();
+                IPostgreSQLTableInfo mainInfo = await join.MainDP.GetDataProvider().GetIPostgreSQLTableInfoAsync();
+                string mainTable = mainInfo.GetTableName();
+                if (join.JoinType == JoinData.JoinTypeEnum.Left)
+                    sb.Add($"LEFT JOIN {joinTable}");
+                else
+                    sb.Add($"INNER JOIN {joinTable}");
+                sb.Add(" ON ");
+                if (join.UseSite && SiteIdentity > 0)
+                    sb.Add("(");
+                sb.Add($"{sb.BuildFullColumnName(mainTable, join.MainColumn)} = {sb.BuildFullColumnName(joinTable, join.JoinColumn)}");
+                if (join.UseSite && SiteIdentity > 0)
+                    sb.Add($") AND {sb.BuildFullColumnName(mainTable, SiteColumn)} = {sb.BuildFullColumnName(joinTable, SiteColumn)}");
+
+                string databaseName = joinInfo.GetDatabaseName();
+                string schema = joinInfo.GetSchema();
+                string tableName = joinInfo.GetTableName();
+                tableName = tableName.Split(new char[] { '.' }).Last().Trim(new char[] { '\"', '\"' });
+                List<string> joinCols = sqlManager.GetColumnsOnly(join.JoinDP.GetDataProvider().Conn, databaseName, schema, tableName);
+                foreach (string col in joinCols) {
+                    if (!visibleColumns.ContainsKey(col)) {
+                        string fullCol = sb.BuildFullColumnName(Database, schema, tableName, col);
+                        visibleColumns.Add(col, fullCol);
+                        columnList += $"{fullCol},";
+                    }
+                }
             }
-            string joinExpr = await MakeJoinsAsync(sqlHelper, Joins);
+            joinExpr = sb.ToString();
+
             string filterExpr = MakeFilter(sqlHelper, filters, visibleColumns);
 
             // get total # of records (only if a subset is requested)
@@ -285,13 +315,26 @@ namespace YetaWF.DataProvider.PostgreSQL {
                 total = Convert.ToInt32(scalar);
             }
 
+            // eval filters again so we don't reuse parms (npgsql doesn't like that)
+            sqlHelper = new SQLHelper(Conn, null, Languages);
+            filterExpr = MakeFilter(sqlHelper, filters, visibleColumns);
+
+            string orderByExpr = null;
+            {
+                sb = new SQLBuilder();
+                if (sorts == null || sorts.Count == 0)
+                    sorts = new List<DataProviderSortInfo> { new DataProviderSortInfo { Field = Key1Name, Order = DataProviderSortInfo.SortDirection.Ascending } };
+                sb.AddOrderBy(visibleColumns, sorts, skip, take);
+                orderByExpr = sb.ToString();
+            }
+
             // Get records
 
             AddSubtableMapping();
 
             sb = new SQLBuilder();
             sb.Append($@"
-        SELECT {sqlCreate.GetColumnNameList(Database, Schema, Dataset, GetPropertyData(), typeof(OBJTYPE), Add: false, Prefix: null, TopMost: true, SiteSpecific: SiteIdentity > 0, WithDerivedInfo: false, SubTable: false)}");
+        SELECT {columnList}");
             if (CalculatedPropertyCallbackAsync != null) sb.Append(await SQLGen.CalculatedPropertiesAsync(typeof(OBJTYPE), CalculatedPropertyCallbackAsync));
 
             List<PropertyData> propData = GetPropertyData();

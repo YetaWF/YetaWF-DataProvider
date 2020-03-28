@@ -8,7 +8,7 @@ AS $$
 BEGIN
     RETURN QUERY(
         SELECT "DerivedTableName", "DerivedDataType", "DerivedAssemblyName"
-        FROM "[Var,PostgreSQL-Schema]"."YetaWF_Modules"
+        FROM "[Var,PostgreSQL-Schema]"."Y"
         WHERE "ModuleGuid" = "Key1Val" AND "__Site" = "valSiteIdentity"
         LIMIT 1    --- result set
     );

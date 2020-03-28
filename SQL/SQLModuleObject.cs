@@ -28,6 +28,11 @@ namespace YetaWF.DataProvider.SQL {
     public class SQLModuleObject<KEY, OBJTYPE> : SQLSimpleObject<KEY, OBJTYPE>, IDataProvider<KEY, OBJTYPE> {
 
         /// <summary>
+        /// The SQL table name of the base dataset for all modules.
+        /// </summary>
+        public const string BaseDatasetName = "YetaWF_Modules";
+
+        /// <summary>
         /// Constructor.
         /// </summary>
         /// <param name="options">A dictionary of options and optional parameters as provided to the YetaWF.Core.DataProvider.DataProviderImpl.MakeDataProvider method when the data provider is created.</param>
@@ -36,9 +41,9 @@ namespace YetaWF.DataProvider.SQL {
         /// </remarks>
         public SQLModuleObject(Dictionary<string, object> options) : base(options) {
             if (typeof(KEY) != typeof(Guid)) throw new InternalError("Only Guid is supported as Key");
-            BaseDataset = ModuleDefinition.BaseFolderName;
+            BaseDataset = BaseDatasetName;
             if (typeof(OBJTYPE) != typeof(ModuleDefinition))
-                Dataset = ModuleDefinition.BaseFolderName + "_" + Package.AreaName + "_" + typeof(OBJTYPE).Name;
+                Dataset = $"{BaseDatasetName}_{Package.AreaName}_{typeof(OBJTYPE).Name}";
         }
 
         /// <summary>

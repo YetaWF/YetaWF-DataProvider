@@ -204,28 +204,6 @@ namespace YetaWF.DataProvider.PostgreSQL {
         // SORTS, FILTERS
         // SORTS, FILTERS
 
-        internal async Task<string> MakeJoinsAsync(SQLHelper helper, List<JoinData> joins) {
-            SQLBuilder sb = new SQLBuilder();
-            if (joins != null) {
-                foreach (JoinData join in joins) {
-                    IPostgreSQLTableInfo joinInfo = await join.JoinDP.GetDataProvider().GetIPostgreSQLTableInfoAsync();
-                    string joinTable = joinInfo.GetTableName();
-                    IPostgreSQLTableInfo mainInfo = await join.MainDP.GetDataProvider().GetIPostgreSQLTableInfoAsync();
-                    string mainTable = mainInfo.GetTableName();
-                    if (join.JoinType == JoinData.JoinTypeEnum.Left)
-                        sb.Add($"LEFT JOIN {joinTable}");
-                    else
-                        sb.Add($"INNER JOIN {joinTable}");
-                    sb.Add(" ON ");
-                    if (join.UseSite && SiteIdentity > 0)
-                        sb.Add("(");
-                    sb.Add($"{sb.BuildFullColumnName(mainTable, join.MainColumn)} = {sb.BuildFullColumnName(joinTable, join.JoinColumn)}");
-                    if (join.UseSite && SiteIdentity > 0)
-                        sb.Add($") AND {sb.BuildFullColumnName(mainTable, SiteColumn)} = {sb.BuildFullColumnName(joinTable, SiteColumn)}");
-                }
-            }
-            return sb.ToString();
-        }
         internal string MakeFilter(SQLHelper sqlHelper, List<DataProviderFilterInfo> filters, Dictionary<string, string> visibleColumns = null) {
             SQLBuilder sb = new SQLBuilder();
             if (filters != null && filters.Count() > 0) {
@@ -240,262 +218,6 @@ namespace YetaWF.DataProvider.PostgreSQL {
                 if (SiteIdentity > 0)
                     sb.Add($"WHERE {sb.BuildFullColumnName(Database, Schema, Dataset, SiteColumn)} = {SiteIdentity}");
             }
-            return sb.ToString();
-        }
-        internal string MakeColumnList(SQLHelper sqlHelper, Dictionary<string, string> visibleColumns, List<JoinData> joins) {
-            SQLBuilder sb = new SQLBuilder();
-            if (joins != null && joins.Count > 0) {
-                foreach (string col in visibleColumns.Values) {
-                    sb.Add($"{col},");
-                }
-                sb.RemoveLastCharacter();
-            } else {
-                sb.Add("*");
-            }
-            return sb.ToString();
-        }
-
-        // Visible columns
-        // Visible columns
-        // Visible columns
-
-        // Flatten the current table(with joins) and create a lookup table for all fields.
-        // If a joined table has a field with the same name as the lookup table, it is not accessible.
-        internal async Task<Dictionary<string, string>> GetVisibleColumnsAsync(string databaseName, string schema, string tableName, Type objType, List<JoinData> joins) {
-			SQLManager sqlManager = new SQLManager();
-            Dictionary<string, string> visibleColumns = new Dictionary<string, string>();
-            tableName = tableName.Trim(new char[] { '[', ']' });
-            List<string> columns = sqlManager.GetColumnsOnly(Conn, databaseName, schema, tableName);
-            AddVisibleColumns(visibleColumns, databaseName, schema, tableName, columns);
-            if (CalculatedPropertyCallbackAsync != null) {
-                List<PropertyData> props = ObjectSupport.GetPropertyData(objType);
-                props = (from p in props where p.CalculatedProperty select p).ToList();
-                foreach (PropertyData prop in props)
-                    visibleColumns.Add(prop.ColumnName, prop.ColumnName);
-            }
-            if (joins != null) {
-                // no support for calculated properties in joined tables
-                foreach (JoinData join in joins) {
-                    IPostgreSQLTableInfo mainInfo = await join.MainDP.GetDataProvider().GetIPostgreSQLTableInfoAsync();
-                    databaseName = mainInfo.GetDatabaseName();
-                    schema = mainInfo.GetSchema();
-                    tableName = mainInfo.GetTableName();
-                    tableName = tableName.Split(new char[] { '.' }).Last().Trim(new char[] { '[', ']' });
-                    columns = sqlManager.GetColumnsOnly(Conn, databaseName, schema, tableName);
-                    AddVisibleColumns(visibleColumns, databaseName, schema, tableName, columns);
-                    IPostgreSQLTableInfo joinInfo = await join.JoinDP.GetDataProvider().GetIPostgreSQLTableInfoAsync();
-                    databaseName = joinInfo.GetDatabaseName();
-                    schema = joinInfo.GetSchema();
-                    tableName = joinInfo.GetTableName();
-                    tableName = tableName.Split(new char[] { '.' }).Last().Trim(new char[] { '[', ']' });
-                    columns = sqlManager.GetColumnsOnly(join.JoinDP.GetDataProvider().Conn, databaseName, schema, tableName);
-                    AddVisibleColumns(visibleColumns, databaseName, schema, tableName, columns);
-                }
-            }
-            return visibleColumns;
-        }
-        private void AddVisibleColumns(Dictionary<string, string> visibleColumns, string databaseName, string schema, string tableName, List<string> columns) {
-            SQLBuilder sb = new SQLBuilder();
-            foreach (string column in columns) {
-                if (!visibleColumns.ContainsKey(column))
-                    visibleColumns.Add(column, sb.BuildFullColumnName(databaseName, schema, tableName, column));
-            }
-        }
-
-        internal string GetColumnList(List<PropertyData> propData, Type tpContainer,
-                string prefix, bool topMost,
-                bool SiteSpecific = false,
-                bool WithDerivedInfo = false,
-                bool SubTable = false) {
-            SQLBuilder sb = new SQLBuilder();
-            foreach (PropertyData prop in propData) {
-                PropertyInfo pi = prop.PropInfo;
-                if (pi.CanRead && pi.CanWrite && !prop.HasAttribute("DontSave") && !prop.CalculatedProperty && !prop.HasAttribute(Data_DontSave.AttributeName)) {
-                    string colName = prop.ColumnName;
-                    if (prop.HasAttribute(Data_Identity.AttributeName)) {
-                        ; // nothing
-                    } else if (prop.HasAttribute(Data_BinaryAttribute.AttributeName)) {
-                        sb.Add($"\"{prefix}{colName}\",");
-                    } else if (pi.PropertyType == typeof(MultiString)) {
-                        if (Languages.Count == 0) throw new InternalError("We need Languages for MultiString support");
-                        foreach (LanguageData lang in Languages)
-                            sb.Add($"\"{prefix}{ColumnFromPropertyWithLanguage(lang.Id, colName)}\",");
-                    } else if (pi.PropertyType == typeof(Image)) {
-                        sb.Add($"\"{prefix}{colName}\",");
-                    } else if (TryGetDataType(pi.PropertyType)) {
-                        sb.Add($"\"{prefix}{colName}\",");
-                    } else if (pi.PropertyType.IsClass /* && propmmd.Model != null*/ && typeof(IEnumerable).IsAssignableFrom(pi.PropertyType)) {
-                        // This is a enumerated type, so we have to create separate values using this table's identity column as a link
-                        ; // these values are added as a subtable
-                    } else if (pi.PropertyType.IsClass /*&& propmmd.Model != null*/) {
-                        List<PropertyData> subPropData = ObjectSupport.GetPropertyData(pi.PropertyType);
-                        string columns = GetColumnList(subPropData, pi.PropertyType, prefix + colName + "_", false, SiteSpecific: false);
-                        if (columns.Length > 0) {
-                            sb.Add($"{columns},");
-                        }
-                    } else
-                        throw new InternalError("Unknown property type {2} used in class {0}, property {1}", tpContainer.FullName, colName, pi.PropertyType.FullName);
-                }
-            }
-            if (SiteSpecific) {
-                sb.Add($"\"{prefix}{SiteColumn}\",");
-            }
-            if (WithDerivedInfo) {
-                sb.Add($"\"{prefix}DerivedTableName\",");//$$$hardcoded
-                sb.Add($"\"{prefix}DerivedDataType\",");
-                sb.Add($"\"{prefix}DerivedAssemblyName\",");
-            }
-            if (SubTable) {
-                sb.Add($"\"{prefix}{SubTableKeyColumn}\",");
-            }
-            sb.RemoveLastCharacter();// ,
-            return sb.ToString();
-        }
-        internal string GetValueList(SQLHelper sqlHelper, string tableName, object container, List<PropertyData> propData, Type tpContainer,
-                string prefix = "", bool topMost = false,
-                bool SiteSpecific = false,
-                Type DerivedType = null, string DerivedTableName = null,
-                bool SubTable = false) {
-            SQLBuilder sb = new SQLBuilder();
-            foreach (PropertyData prop in propData) {
-                PropertyInfo pi = prop.PropInfo;
-                if (pi.CanRead && pi.CanWrite && !prop.HasAttribute("DontSave") && !prop.CalculatedProperty && !prop.HasAttribute(Data_DontSave.AttributeName)) {
-                    string colName = prop.ColumnName;
-                    if (prop.HasAttribute(Data_Identity.AttributeName)) {
-                        ; // nothing
-                    } else if (prop.HasAttribute(Data_BinaryAttribute.AttributeName)) {
-                        object val = pi.GetValue(container);
-                        if (val != null) {
-                            if (pi.PropertyType == typeof(byte[])) {
-                                sb.Add(sqlHelper.AddTempParam(val));
-                            } else {
-                                byte[] data = new GeneralFormatter().Serialize(val);
-                                sb.Add(sqlHelper.AddTempParam(data));
-                            }
-                        } else {
-                            sb.Add(sqlHelper.AddNullTempParam());
-                        }
-                        sb.Add(",");
-                    } else if (pi.PropertyType == typeof(MultiString)) {
-                        if (Languages.Count == 0) throw new InternalError("We need Languages for MultiString support");
-                        MultiString ms = (MultiString)pi.GetValue(container);
-                        foreach (LanguageData lang in Languages) {
-                            sb.Add(sqlHelper.AddTempParam(ms[lang.Id] ?? ""));
-                            sb.Add(",");
-                        }
-                    } else if (pi.PropertyType == typeof(Image)) {
-                        object val = pi.GetValue(container);
-                        BinaryFormatter binaryFmt = new BinaryFormatter { AssemblyFormat = 0/*System.Runtime.Serialization.Formatters.FormatterAssemblyStyle.Simple*/ };
-                        using (MemoryStream ms = new MemoryStream()) {
-                            binaryFmt.Serialize(ms, val);
-                            sb.Add(sqlHelper.AddTempParam(ms.ToArray()));
-                        }
-                        sb.Add(",");
-                    } else if (pi.PropertyType == typeof(TimeSpan)) {
-                        TimeSpan val = (TimeSpan)pi.GetValue(container);
-                        long ticks = val.Ticks;
-                        sb.Add(sqlHelper.AddTempParam(ticks));
-                        sb.Add(",");
-                    } else if (TryGetDataType(pi.PropertyType)) {
-                        if (pi.PropertyType.IsEnum)
-                            sb.Add(sqlHelper.AddTempParam((int)pi.GetValue(container)));
-                        else
-                            sb.Add(sqlHelper.AddTempParam(pi.GetValue(container)));
-                        sb.Add(",");
-                    } else if (pi.PropertyType.IsClass /* && propmmd.Model != null*/ && typeof(IEnumerable).IsAssignableFrom(pi.PropertyType)) {
-                        // This is a enumerated type, so we have to create separate values using this table's identity column as a link
-                        // determine the enumerated type
-                        // none
-                    } else if (pi.PropertyType.IsClass) {
-                        object objVal = pi.GetValue(container);
-                        List<PropertyData> subPropData = ObjectSupport.GetPropertyData(pi.PropertyType);
-                        string values = GetValueList(sqlHelper, tableName, objVal, subPropData, pi.PropertyType, prefix + prop.Name + "_", false);
-                        if (values.Length > 0) {
-                            sb.Add(values);
-                            sb.Add(",");
-                        }
-                    } else
-                        throw new InternalError("Unknown property type {2} used in class {0}, property {1}", tpContainer.FullName, prop.Name, prop.PropInfo.PropertyType.FullName);
-                }
-            }
-            if (SiteSpecific) {
-                sb.Add(sqlHelper.AddTempParam(SiteIdentity));
-                sb.Add(",");
-            }
-            if (DerivedType != null) {
-                if (DerivedTableName == null) throw new InternalError("Missing DerivedTableName");
-                sb.Add(sqlHelper.AddTempParam(DerivedTableName));
-                sb.Add(",");
-                sb.Add(sqlHelper.AddTempParam(DerivedType.FullName));
-                sb.Add(",");
-                sb.Add(sqlHelper.AddTempParam(DerivedType.Assembly.FullName.Split(new char[] { ',' }, 2).First()));
-                sb.Add(",");
-            }
-            if (SubTable) {
-                sb.Add("__IDENTITY,");
-            }
-            sb.RemoveLastCharacter();// ,
-            return sb.ToString();
-        }
-
-        internal string SetColumns(SQLHelper sqlHelper, string tableName, List<PropertyData> propData, object container, Type tpContainer, string prefix = "", bool topMost = false, bool SiteSpecific = false) {
-            SQLBuilder sb = new SQLBuilder();
-            foreach (PropertyData prop in propData) {
-                PropertyInfo pi = prop.PropInfo;
-                if (pi.CanRead && pi.CanWrite && !prop.HasAttribute("DontSave") && !prop.CalculatedProperty && !prop.HasAttribute(Data_DontSave.AttributeName)) {
-                    string colName = prop.ColumnName;
-                    if (prop.HasAttribute(Data_Identity.AttributeName)) {
-                        ; // nothing
-                    } else if (prop.HasAttribute(Data_BinaryAttribute.AttributeName)) {
-                        object val = pi.GetValue(container);
-                        if (pi.PropertyType == typeof(byte[])) {
-                            sb.Add(sqlHelper.Expr(prefix + colName, "=", val, null, true));
-                        } else if (val == null) {
-                            sb.Add(sqlHelper.Expr(prefix + colName, "=", null, null, true));
-                        } else {
-                            byte[] data = new GeneralFormatter().Serialize(val);
-                            sb.Add(sqlHelper.Expr(prefix + colName, "=", data, null, true));
-                        }
-                        sb.Add(",");
-                    } else if (pi.PropertyType == typeof(MultiString)) {
-                        if (Languages.Count == 0) throw new InternalError("We need Languages for MultiString support");
-                        MultiString ms = (MultiString)pi.GetValue(container);
-                        foreach (LanguageData lang in Languages) {
-                            sb.Add(sqlHelper.Expr(prefix + ColumnFromPropertyWithLanguage(lang.Id, colName), "=", ms[lang.Id], null, true));
-                            sb.Add(",");
-                        }
-                    } else if (pi.PropertyType == typeof(Image)) {
-                        object val = pi.GetValue(container);
-                        BinaryFormatter binaryFmt = new BinaryFormatter { AssemblyFormat = 0/*System.Runtime.Serialization.Formatters.FormatterAssemblyStyle.Simple*/ };
-                        using (MemoryStream ms = new MemoryStream()) {
-                            binaryFmt.Serialize(ms, val);
-                            sb.Add(sqlHelper.Expr(prefix + colName, "=", ms.ToArray(), null, true));
-                            sb.Add(",");
-                        }
-                    } else if (pi.PropertyType == typeof(TimeSpan)) {
-                        TimeSpan val = (TimeSpan)pi.GetValue(container);
-                        long ticks = val.Ticks;
-                        sb.Add(sqlHelper.Expr(prefix + colName, "=", ticks, null, true));
-                        sb.Add(",");
-                    } else if (TryGetDataType(pi.PropertyType)) {
-                        sb.Add(sqlHelper.Expr(prefix + colName, "=", pi.GetValue(container), null, true));
-                        sb.Add(",");
-                    } else if (pi.PropertyType.IsClass && typeof(IEnumerable).IsAssignableFrom(pi.PropertyType)) {
-                        // This is a enumerated type, saved in a separate table
-                    } else if (pi.PropertyType.IsClass) {
-                        object objVal = pi.GetValue(container);
-                        List<PropertyData> subPropData = ObjectSupport.GetPropertyData(pi.PropertyType);
-                        sb.Add(SetColumns(sqlHelper, tableName, subPropData, objVal, pi.PropertyType, prefix + colName + "_", false));
-                        sb.Add(",");
-                    } else
-                        throw new InternalError("Unknown property type {2} used in class {0}, property {1}", tpContainer.FullName, colName, pi.PropertyType.FullName);
-                }
-            }
-            if (SiteSpecific) {
-                sb.Add(sqlHelper.Expr(prefix + SiteColumn, "=", SiteIdentity, null, true));
-                sb.Add(",");
-            }
-            sb.RemoveLastCharacter();
             return sb.ToString();
         }
 
@@ -516,7 +238,7 @@ namespace YetaWF.DataProvider.PostgreSQL {
             string tableName = GetTableName();
             sql = sql.Replace("{TableName}", SQLBuilder.WrapIdentifier(tableName));
             if (SiteIdentity > 0)
-                sql = sql.Replace($"{{{SiteColumn}}}", $"[{SiteColumn}] = {SiteIdentity}");
+                sql = sql.Replace($"{{{SiteColumn}}}", $@"""{SiteColumn}"" = {SiteIdentity}");
             object o = await sqlHelper.ExecuteScalarAsync(sql);
             if (o == null || o.GetType() == typeof(System.DBNull))
                 return 0;
@@ -558,7 +280,7 @@ namespace YetaWF.DataProvider.PostgreSQL {
             }
             sql = sql.Replace("{TableName}", SQLBuilder.WrapIdentifier(tableName));
             if (SiteIdentity > 0)
-                sql = sql.Replace($"{{{SiteColumn}}}", $"[{SiteColumn}] = {SiteIdentity}");
+                sql = sql.Replace($"{{{SiteColumn}}}", $@"""{SiteColumn}"" = {SiteIdentity}");
             await sqlHelper.ExecuteNonQueryAsync(sql);
         }
         /// <summary>
@@ -590,7 +312,7 @@ namespace YetaWF.DataProvider.PostgreSQL {
             }
             sql = sql.Replace("{TableName}", SQLBuilder.WrapIdentifier(tableName));
             if (SiteIdentity > 0)
-                sql = sql.Replace($"{{{SiteColumn}}}", $"[{SiteColumn}] = {SiteIdentity}");
+                sql = sql.Replace($@"{{{SiteColumn}}}", $@"""{SiteColumn}"" = {SiteIdentity}");
             List<TYPE> list = new List<TYPE>();
             using (NpgsqlDataReader reader = await sqlHelper.ExecuteReaderAsync(sql)) {
                 if (YetaWFManager.IsSync() ? reader.Read() : await reader.ReadAsync())
@@ -628,7 +350,7 @@ namespace YetaWF.DataProvider.PostgreSQL {
             }
             sql = sql.Replace("{TableName}", SQLBuilder.WrapIdentifier(tableName));
             if (SiteIdentity > 0)
-                sql = sql.Replace($"{{{SiteColumn}}}", $"[{SiteColumn}] = {SiteIdentity}");
+                sql = sql.Replace($"{{{SiteColumn}}}", $@"""{SiteColumn}"" = {SiteIdentity}");
             List<TYPE> list = new List<TYPE>();
             using (NpgsqlDataReader reader = await sqlHelper.ExecuteReaderAsync(sql)) {
                 while (YetaWFManager.IsSync() ? reader.Read() : await reader.ReadAsync())
@@ -667,7 +389,7 @@ namespace YetaWF.DataProvider.PostgreSQL {
             }
             sql = sql.Replace("{TableName}", SQLBuilder.WrapIdentifier(tableName));
             if (SiteIdentity > 0)
-                sql = sql.Replace($"{{{SiteColumn}}}", $"[{SiteColumn}] = {SiteIdentity}");
+                sql = sql.Replace($"{{{SiteColumn}}}", $@"""{SiteColumn}"" = {SiteIdentity}");
 
             sort = NormalizeSort(typeof(TYPE), sort);
             sql = sql.Replace("$OrderBy$", sb.GetOrderBy(null, sort, Offset: skip, Next: take));

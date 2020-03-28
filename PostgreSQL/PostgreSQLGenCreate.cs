@@ -874,7 +874,7 @@ DROP TYPE IF EXISTS ""{schema}"".""{typeName}"";
 CREATE TYPE ""{schema}"".""{typeName}"" AS
 (");
             sb.Append($@"
-{GetTypeNameList(dbName, schema, baseDataset, basePropData, baseType, Prefix: null, TopMost: false, SiteSpecific: true, WithDerivedInfo: false, SubTable: false)}
+{GetTypeNameList(dbName, schema, baseDataset, basePropData, baseType, Prefix: null, TopMost: false, SiteSpecific: false, WithDerivedInfo: false, SubTable: false)}
 {GetTypeNameList(dbName, schema, dataset, propDataNoDups, type, Prefix: null, TopMost: false, SiteSpecific: false, WithDerivedInfo: false, SubTable: false)}");
             sb.RemoveLastComma();
 

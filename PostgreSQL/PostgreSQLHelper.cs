@@ -56,10 +56,6 @@ namespace YetaWF.DataProvider.PostgreSQL {
         // Create,Fill
         // Create,Fill
 
-        public T CreateObject<T>(NpgsqlDataReader dr, string dataType, string assemblyName) {
-            Type t = GetDerivedType(dataType, assemblyName);
-            return CreateObject<T>(dr);
-        }
         public Type GetDerivedType(string dataType, string assemblyName) {
             Type t = null;
             try {
@@ -72,16 +68,25 @@ namespace YetaWF.DataProvider.PostgreSQL {
         }
         public T CreateObject<T>(NpgsqlDataReader dr) {
             T obj = Activator.CreateInstance<T>();
-            FillObject<T>(dr, obj);
+            FillObject(dr, obj);
             return obj;
         }
-        public void FillObject<T>(NpgsqlDataReader dr, T obj) {
+        public T CreateObject<T>(NpgsqlDataReader dr, string dataType, string assemblyName) {
+            Type t = GetDerivedType(dataType, assemblyName);
+            return (T)CreateObject(dr, t);
+        }
+        public object CreateObject(NpgsqlDataReader dr, Type tp) {
+            object obj = Activator.CreateInstance(tp);
+            FillObject(dr, obj);
+            return obj;
+        }
+        public void FillObject(NpgsqlDataReader dr, object obj) {
             List<string> columns = new List<string>();
             for (int ci = 0; ci < dr.FieldCount; ci++)
                 columns.Add(dr.GetName(ci));
-            FillObject<T>(dr, obj, columns);
+            FillObject(dr, obj, columns);
         }
-        private void FillObject<T>(NpgsqlDataReader dr, T container, List<string> columns, string prefix = "") {
+        private void FillObject(NpgsqlDataReader dr, object container, List<string> columns, string prefix = "") {
             Type tpContainer = container.GetType();
             List<PropertyData> propData = ObjectSupport.GetPropertyData(tpContainer);
             foreach (PropertyData prop in propData) {
@@ -129,7 +134,7 @@ namespace YetaWF.DataProvider.PostgreSQL {
                         object value = dr[colName];
                         pi.SetValue(container, GetValue(pi.PropertyType, value), BindingFlags.Default, null, null, null);
                     } else if (pi.PropertyType.IsClass && ComplexTypeInColumns(columns, colName + "_")) {// This is SLOW so it should be last
-                        T propVal = (T)pi.GetValue(container);
+                        object propVal = pi.GetValue(container);
                         if (propVal != null)
                             FillObject(dr, propVal, columns, colName + "_");
                     }
@@ -207,36 +212,11 @@ namespace YetaWF.DataProvider.PostgreSQL {
                     }
                 }
             } else if (fieldType.Name == "SerializableList`1") {
-                Type valueType = value.GetType();
-                Type elemType = valueType.GetElementType();
-                if (!valueType.IsArray || fieldType.GenericTypeArguments.Length != 1)
-                    throw new InternalError($"Unexpected generic type {fieldType.FullName}");
-                Type genType = fieldType.GenericTypeArguments[0];// get the target type 
-                if (genType == elemType) {
-                    return Activator.CreateInstance(fieldType, value);
-                } else {
-                    // single array of native type, used for subtables which have only one column (PG doesn't support TYPEs with just one column)
-                    // get the property to set on the type instance
-                    List<PropertyInfo> genProps = ObjectSupport.GetProperties(genType);
-                    if (genProps.Count != 1)
-                        throw new InternalError($"Expected 1 property on type {genType.FullName} while processing {fieldType.FullName}");
-                    // create serializablelist and find add method for serializablelist
-                    object list = Activator.CreateInstance(fieldType);
-                    MethodInfo addMethod = fieldType.GetMethod("Add", new Type[] { typeof(object) });
-                    if (addMethod == null)
-                        throw new InternalError($"Add method not found on type {fieldType.FullName}");
-                    // build list of instances
-                    IEnumerable ienumerable = value as IEnumerable;
-                    if (ienumerable == null)
-                        throw new InternalError($"IEnumerable expected in {fieldType.FullName}");
-                    IEnumerator ienum = ienumerable.GetEnumerator();
-                    while (ienum.MoveNext()) {
-                        object vObj = Activator.CreateInstance(genType);// create the target instance
-                        genProps[0].SetValue(vObj, ienum.Current); // we're setting the native value via property name because we don't know/care what constructors are available
-                        addMethod.Invoke(list, new object[] { vObj });
-                    }
-                    return Activator.CreateInstance(fieldType, list);
-                }
+                // convert native array to serializablelist
+                return ConvertArrayToSerializableList(fieldType, fieldType, value);
+            } else if (fieldType.BaseType?.Name == "SerializableList`1") {
+                // convert native array to serializablelist
+                return ConvertArrayToSerializableList(fieldType, fieldType.BaseType, value);
             } else {
                 try {
                     newValue = Convert.ChangeType(value, fieldType);
@@ -245,8 +225,42 @@ namespace YetaWF.DataProvider.PostgreSQL {
             return newValue;
         }
 
-        private bool HasParams {
-            get { return Params.Count > 0; }
+        private object ConvertArrayToSerializableList(Type fieldType, Type baseType, object value) {
+            Type valueType = value.GetType();
+            Type elemType = valueType.GetElementType();
+            if (!valueType.IsArray || baseType.GenericTypeArguments.Length != 1)
+                throw new InternalError($"Unexpected generic type {fieldType.FullName}");
+            Type genType = baseType.GenericTypeArguments[0];// get the target type 
+
+            // single array of native type, used for subtables which have only one column (PG doesn't support TYPEs with just one column)
+            // get the property to set on the type instance
+            List<PropertyInfo> genProps = ObjectSupport.GetProperties(genType);
+            if (elemType != genType) {
+                if (genProps.Count != 1)
+                    throw new InternalError($"native array element has more than one property");
+            }
+            // create serializablelist and find add method for serializablelist
+            object list = Activator.CreateInstance(fieldType);
+            MethodInfo addMethod = fieldType.GetMethod("Add", new Type[] { typeof(object) });
+            if (addMethod == null)
+                throw new InternalError($"Add method not found on type {fieldType.FullName}");
+            // build list of instances
+            IEnumerable ienumerable = value as IEnumerable;
+            if (ienumerable == null)
+                throw new InternalError($"IEnumerable expected in {fieldType.FullName}");
+            IEnumerator ienum = ienumerable.GetEnumerator();
+            if (elemType == genType) {
+                while (ienum.MoveNext()) {
+                    addMethod.Invoke(list, new object[] { ienum.Current });
+                }                
+            } else {
+                while (ienum.MoveNext()) {
+                    object vObj = Activator.CreateInstance(genType);// create the target instance
+                    genProps[0].SetValue(vObj, ienum.Current); // we're setting the native value via property name because we don't know/care what constructors are available
+                    addMethod.Invoke(list, new object[] { vObj });
+                }
+            }
+            return list;
         }
 
         // Execute...
@@ -419,11 +433,7 @@ namespace YetaWF.DataProvider.PostgreSQL {
                 firstDone = true;
             }
         }
-        public string Expr(string wherecolumn, string @operator, object value, string cast = null, bool isSet = false) {
-            SQLBuilder sb = new SQLBuilder();
-            AddExpr(sb, wherecolumn, @operator, value, cast, isSet);
-            return sb.ToString();
-        }
+
         /// <summary>
         /// Adds a parameter to a WHERE statement. Will generate ColumnName {Operator} 'Value' (quotes only added if it is a string)
         /// </summary>
@@ -461,18 +471,6 @@ namespace YetaWF.DataProvider.PostgreSQL {
         public string AddTempParam(object value) {
             string name = "@temp" + Params.Count;
             AddParam(name, value);
-            return name;
-        }
-        /// <summary>
-        /// Adds a null value parameter and returns the created parameter name
-        /// Used when creating dynamic queries and the parameter is not important outside of the immediate query
-        /// </summary>
-        /// <returns>The generated name for the parameter</returns>
-        public string AddNullTempParam(ParameterDirection direction = ParameterDirection.Input) {
-            string name = "@temp" + Params.Count;
-            NpgsqlParameter parm = new NpgsqlParameter(name, NpgsqlDbType.Bytea);
-            parm.Direction = direction;
-            Params.Add(parm);
             return name;
         }
         /// <summary>

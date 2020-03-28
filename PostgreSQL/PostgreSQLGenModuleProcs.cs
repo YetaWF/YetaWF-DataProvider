@@ -36,20 +36,22 @@ CREATE OR REPLACE FUNCTION ""{schema}"".""{dataset}__Get""(""Key1Val"" {typeKey1
             sb.RemoveLastComma();
             sb.Append($@")");
 
+            Dictionary<string, string> visibleColumns = new Dictionary<string, string>();
+
             sb.Append($@"
 RETURNS SETOF ""{schema}"".""{dataset}_T""
 LANGUAGE 'plpgsql'
 AS $$
 BEGIN
     RETURN QUERY (
-        SELECT {GetColumnNameList(dbName, schema, baseDataset, basePropData, baseType, Prefix: null, TopMost: false, SiteSpecific: true, WithDerivedInfo: false, SubTable: false)}{GetColumnNameList(dbName, schema, dataset, propDataNoDups, type, Prefix: null, TopMost: false, SiteSpecific: false, WithDerivedInfo: false, SubTable: false)}");
+        SELECT {GetColumnNameList(dbName, schema, baseDataset, basePropData, baseType, Prefix: null, TopMost: false, SiteSpecific: true, WithDerivedInfo: false, SubTable: false, VisibleColumns: visibleColumns)}{GetColumnNameList(dbName, schema, dataset, propDataNoDups, type, Prefix: null, TopMost: false, SiteSpecific: false, WithDerivedInfo: false, SubTable: false, VisibleColumns: visibleColumns)}");
 
             sb.RemoveLastComma();
 
             sb.Append($@"
         FROM {fullBaseTableName}
-        LEFT JOIN {fullTableName} ON {fullBaseTableName}.""{key1Name}"" = {fullTableName}.""key1Name"" AND {fullBaseTableName}.""{SQLGenericBase.SiteColumn}"" = {fullTableName}.""{SQLGenericBase.SiteColumn}""
-        WHERE ""{key1Name}"" = ""Key1Val"" AND ""{SQLGenericBase.SiteColumn}"" = ""{SQLGen.ValSiteIdentity}""
+        LEFT JOIN {fullTableName} ON {fullBaseTableName}.""{key1Name}"" = {fullTableName}.""{key1Name}"" AND {fullBaseTableName}.""{SQLGenericBase.SiteColumn}"" = {fullTableName}.""{SQLGenericBase.SiteColumn}""
+        WHERE {fullBaseTableName}.""{key1Name}"" = ""Key1Val"" AND {fullBaseTableName}.""{SQLGenericBase.SiteColumn}"" = ""{SQLGen.ValSiteIdentity}""
         LIMIT 1    --- result set
     )
 ;
@@ -115,10 +117,13 @@ AS $$
 DECLARE
     __TOTAL integer;");
 
+            basePropData = (from p in basePropData where p.Name != key1Name select p).ToList();// remove ModuleGuid from set list, module guid doesn't change
+            propData = (from p in propData where p.Name != key1Name select p).ToList();// remove ModuleGuid from set list
+
             sb.Append($@"
 BEGIN
     UPDATE {fullBaseTableName}
-    SET {GetSetList(dbName, schema, baseDataset, basePropData, baseType, Prefix: null, TopMost: true, SiteSpecific: siteIdentity > 0, WithDerivedInfo: true, SubTable: false)}");
+    SET {GetSetList(dbName, schema, baseDataset, basePropData, baseType, Prefix: null, TopMost: true, SiteSpecific: siteIdentity > 0, WithDerivedInfo: false, SubTable: false)}");
 
             sb.RemoveLastComma();
 
@@ -126,17 +131,23 @@ BEGIN
     WHERE ""{key1Name}"" = ""arg{key1Name}"" AND ""{SQLGenericBase.SiteColumn}"" = ""{SQLGen.ValSiteIdentity}""
 ;
     GET DIAGNOSTICS __TOTAL = ROW_COUNT
-;
+;");
 
+            string setList = GetSetList(dbName, schema, dataset, propData, type, Prefix: null, TopMost: true, SiteSpecific: siteIdentity > 0, WithDerivedInfo: false, SubTable: false);
+            if (!string.IsNullOrWhiteSpace(setList)) { 
+
+                sb.Append($@"
     UPDATE {fullTableName}
-    SET {GetSetList(dbName, schema, dataset, propData, type, Prefix: null, TopMost: true, SiteSpecific: siteIdentity > 0, WithDerivedInfo: false, SubTable: false)}");
+    SET {setList}");
 
-            sb.RemoveLastComma();
+                sb.RemoveLastComma();
+
+                sb.Append($@"
+    WHERE ""{key1Name}"" = ""arg{key1Name}"" AND ""{SQLGenericBase.SiteColumn}"" = ""{SQLGen.ValSiteIdentity}""
+;");
+            }
 
             sb.Append($@"
-    WHERE ""{key1Name}"" = ""arg{key1Name}"" AND ""{SQLGenericBase.SiteColumn}"" = ""{SQLGen.ValSiteIdentity}""
-;
-
     RETURN (SELECT __TOTAL); --- result set
 END;
 $$;");
