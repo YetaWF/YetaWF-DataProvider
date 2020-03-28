@@ -61,7 +61,7 @@ namespace YetaWF.DataProvider.PostgreSQL {
             AddSubtableMapping();
             sqlHelper.AddParam("valIdentity", identity);
 
-            using (NpgsqlDataReader reader = await sqlHelper.ExecuteReaderStoredProcAsync($"{SQLBuilder.WrapIdentifier(Schema)}.{SQLBuilder.WrapIdentifier($"{Dataset}__GetByIdentity")}")) {
+            using (NpgsqlDataReader reader = await sqlHelper.ExecuteReaderStoredProcAsync($@"""{Schema}"".""{Dataset}__GetByIdentity""")) {
                 if (!(YetaWFManager.IsSync() ? reader.Read() : await reader.ReadAsync())) return default(OBJTYPE);
                 return sqlHelper.CreateObject<OBJTYPE>(reader);
             }
@@ -85,7 +85,7 @@ namespace YetaWF.DataProvider.PostgreSQL {
             sqlHelper.AddParam("valIdentity", identity);
 
             try {
-                using (NpgsqlDataReader reader = await sqlHelper.ExecuteReaderStoredProcAsync($"{SQLBuilder.WrapIdentifier(Schema)}.{SQLBuilder.WrapIdentifier($"{Dataset}__UpdateByIdentity")}")) {
+                using (NpgsqlDataReader reader = await sqlHelper.ExecuteReaderStoredProcAsync($@"""{Schema}"".""{Dataset}__UpdateByIdentity""")) {
                     if (!(YetaWFManager.IsSync() ? reader.Read() : await reader.ReadAsync()))
                         throw new InternalError($"No result set received from {Dataset}__UpdateByIdentity");
                     int changed = Convert.ToInt32(reader[0]);
@@ -116,7 +116,7 @@ namespace YetaWF.DataProvider.PostgreSQL {
             sqlHelper.AddParam("valIdentity", identity);
 
             try {
-                using (NpgsqlDataReader reader = await sqlHelper.ExecuteReaderStoredProcAsync($"{SQLBuilder.WrapIdentifier(Schema)}.{SQLBuilder.WrapIdentifier($"{Dataset}__RemoveByIdentity")}")) {
+                using (NpgsqlDataReader reader = await sqlHelper.ExecuteReaderStoredProcAsync($@"""{Schema}"".""{Dataset}__RemoveByIdentity""")) {
                     if (!(YetaWFManager.IsSync() ? reader.Read() : await reader.ReadAsync()))
                         throw new InternalError($"No result set received from {Dataset}__RemoveByIdentity");
                     int deleted = Convert.ToInt32(reader[0]);

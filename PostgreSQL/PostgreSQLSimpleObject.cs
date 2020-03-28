@@ -86,7 +86,7 @@ namespace YetaWF.DataProvider.PostgreSQL {
             if (SiteIdentity > 0)
                 sqlHelper.AddParam(SQLGen.ValSiteIdentity, SiteIdentity);
 
-            using (NpgsqlDataReader reader = await sqlHelper.ExecuteReaderStoredProcAsync($"{SQLBuilder.WrapIdentifier(Schema)}.{SQLBuilder.WrapIdentifier($"{Dataset}__Get")}")) {
+            using (NpgsqlDataReader reader = await sqlHelper.ExecuteReaderStoredProcAsync($@"""{Schema}"".""{Dataset}__Get""")) {
                 if (!(YetaWFManager.IsSync() ? reader.Read() : await reader.ReadAsync())) return default(OBJTYPE);
                 return sqlHelper.CreateObject<OBJTYPE>(reader);
             }
@@ -110,7 +110,7 @@ namespace YetaWF.DataProvider.PostgreSQL {
             GetParameterList(sqlHelper, obj, Database, Schema, Dataset, GetPropertyData(), Prefix: null, TopMost: true, SiteSpecific: SiteIdentity > 0, WithDerivedInfo: false, SubTable: false);
 
             try {
-                using (NpgsqlDataReader reader = await sqlHelper.ExecuteReaderStoredProcAsync($"{SQLBuilder.WrapIdentifier(Schema)}.{SQLBuilder.WrapIdentifier($"{Dataset}__Add")}")) {
+                using (NpgsqlDataReader reader = await sqlHelper.ExecuteReaderStoredProcAsync($@"""{Schema}"".""{Dataset}__Add""")) {
                     if (HasIdentity(IdentityName)) {
                         if (!(YetaWFManager.IsSync() ? reader.Read() : await reader.ReadAsync())) return false;
                         int identity = Convert.ToInt32(reader[0]);
@@ -163,7 +163,7 @@ namespace YetaWF.DataProvider.PostgreSQL {
                 sqlHelper.AddParam("Key2Val", origKey2);
 
             try {
-                using (NpgsqlDataReader reader = await sqlHelper.ExecuteReaderStoredProcAsync($"{SQLBuilder.WrapIdentifier(Schema)}.{SQLBuilder.WrapIdentifier($"{Dataset}__Update")}")) {
+                using (NpgsqlDataReader reader = await sqlHelper.ExecuteReaderStoredProcAsync($@"""{Schema}"".""{Dataset}__Update""")) {
                     if (!(YetaWFManager.IsSync() ? reader.Read() : await reader.ReadAsync()))
                         throw new InternalError($"No result set received from {Dataset}__Update");
                     int changed = Convert.ToInt32(reader[0]);
@@ -209,7 +209,7 @@ namespace YetaWF.DataProvider.PostgreSQL {
                 sqlHelper.AddParam(SQLGen.ValSiteIdentity, SiteIdentity);
 
             try {
-                using (NpgsqlDataReader reader = await sqlHelper.ExecuteReaderStoredProcAsync($"{SQLBuilder.WrapIdentifier(Schema)}.{SQLBuilder.WrapIdentifier($"{Dataset}__Remove")}")) {
+                using (NpgsqlDataReader reader = await sqlHelper.ExecuteReaderStoredProcAsync($@"""{Schema}"".""{Dataset}__Remove""")) {
                     if (!(YetaWFManager.IsSync() ? reader.Read() : await reader.ReadAsync())) return false;
                     int removed = Convert.ToInt32(reader[0]);
                     return removed > 0;

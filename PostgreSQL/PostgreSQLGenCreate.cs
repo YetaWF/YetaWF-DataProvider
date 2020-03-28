@@ -343,19 +343,19 @@ namespace YetaWF.DataProvider.PostgreSQL {
                     return sb.ToString();
                 },
                 (prefix, container, name) => { // Predefined property
-                    if (name == "DerivedTableName")
+                    if (name == SQLGen.DerivedTableName)
                         newTable.Columns.Add(new Column {
                             Name = $"{prefix}{name}",
                             DataType = NpgsqlDbType.Varchar,
                             Length = 80,
                         });
-                    else if (name == "DerivedDataType")
+                    else if (name == SQLGen.DerivedDataType)
                         newTable.Columns.Add(new Column {
                             Name = $"{prefix}{name}",
                             DataType = NpgsqlDbType.Varchar,
                             Length = 200,
                         });
-                    else if (name == "DerivedAssemblyName")
+                    else if (name == SQLGen.DerivedAssemblyName)
                         newTable.Columns.Add(new Column {
                             Name = $"{prefix}{name}",
                             DataType = NpgsqlDbType.Varchar,

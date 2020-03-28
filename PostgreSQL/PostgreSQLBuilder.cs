@@ -1,6 +1,5 @@
 ﻿/* Copyright © 2020 Softel vdm, Inc. - https://yetawf.com/Documentation/YetaWF/Licensing */
 
-using System;
 using System.Collections.Generic;
 using System.Text;
 using YetaWF.Core.DataProvider;
@@ -78,16 +77,16 @@ namespace YetaWF.DataProvider.PostgreSQL {
         /// <param name="value">The value to search for.</param>
         /// <param name="escapeApostrophe">Defines whether to escape an apostrophe. Can be used to prevent double escaping of apostrophes.</param>
         /// <returns>Returns the translated value ready to be used in a LIKE statement.</returns>
-        internal string EscapeForLike(string value, bool escapeApostrophe = true) { //$$$$$$
+        internal string EscapeForLike(string value, bool escapeApostrophe = true) {
             string[] specialChars = { "%", "_", "-", "^" };
             string newChars;
 
             // Escape the [ bracket
-            newChars = value.Replace("[", "[[]");
+            newChars = value.Replace(@"""", @"\\""");
 
             // Replace the special chars
             foreach (string t in specialChars) {
-                newChars = newChars.Replace(t, "[" + t + "]");
+                newChars = newChars.Replace(t, $@"\\{t}");
             }
 
             // Escape the apostrophe if requested
@@ -102,7 +101,7 @@ namespace YetaWF.DataProvider.PostgreSQL {
         /// <param name="sql">A SQL statement fragment.</param>
         /// <returns>Returns the clean SQL fragment, with escaped apostrophes.</returns>
         internal string EscapeApostrophe(string sql) {
-            sql = sql.Replace("'", "''");
+            sql = sql.Replace(@"'", @"\\'");
             return sql;
         }
 

@@ -6,7 +6,6 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Data;
-using System.Data.Common;
 using System.Drawing;
 using System.IO;
 using System.Reflection;
@@ -15,7 +14,6 @@ using YetaWF.Core.DataProvider;
 using YetaWF.Core.DataProvider.Attributes;
 using YetaWF.Core.Language;
 using YetaWF.Core.Models;
-using YetaWF.Core.Serializers;
 using YetaWF.Core.Support;
 using YetaWF.Core.Support.Serializers;
 
@@ -400,20 +398,20 @@ namespace YetaWF.DataProvider.PostgreSQL {
                             isNull = false;
                             oper = ">="; break;
                         case "startswith":
-                            oper = "LIKE"; val = sb.EscapeForLike((val ?? "").ToString(), false) + "%"; break;
+                            oper = "ILIKE"; val = sb.EscapeForLike((val ?? "").ToString(), false) + "%"; break;
                         case "notstartswith":
                             isNull = true;
-                            oper = "NOT LIKE"; val = sb.EscapeForLike((val ?? "").ToString(), false) + "%"; break;
+                            oper = "NOT ILIKE"; val = sb.EscapeForLike((val ?? "").ToString(), false) + "%"; break;
                         case "endswith":
-                            oper = "LIKE"; val = "%" + sb.EscapeForLike((val ?? "").ToString(), false); break;
+                            oper = "ILIKE"; val = "%" + sb.EscapeForLike((val ?? "").ToString(), false); break;
                         case "notendswith":
                             isNull = true;
-                            oper = "NOT LIKE"; val = "%" + sb.EscapeForLike((val ?? "").ToString(), false); break;
+                            oper = "NOT ILIKE"; val = "%" + sb.EscapeForLike((val ?? "").ToString(), false); break;
                         case "contains":
-                            oper = "LIKE"; val = "%" + sb.EscapeForLike((val ?? "").ToString(), false) + "%"; break;
+                            oper = "ILIKE"; val = "%" + sb.EscapeForLike((val ?? "").ToString(), false) + "%"; break;
                         case "notcontains":
                             isNull = true;
-                            oper = "NOT LIKE"; val = "%" + sb.EscapeForLike((val ?? "").ToString(), false) + "%"; break;
+                            oper = "NOT ILIKE"; val = "%" + sb.EscapeForLike((val ?? "").ToString(), false) + "%"; break;
                         default:
                             throw new InternalError("Invalid operator {0}", f.Operator);
                     }

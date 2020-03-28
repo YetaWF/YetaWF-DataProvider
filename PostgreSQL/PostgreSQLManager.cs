@@ -197,7 +197,7 @@ namespace YetaWF.DataProvider.PostgreSQL {
         internal static void DropIndex(NpgsqlConnection conn, string databaseName, string schema, string tableName, string index) {
             using (NpgsqlCommand cmd = new NpgsqlCommand()) {
                 cmd.Connection = conn;
-                cmd.CommandText = $"DROP INDEX {SQLBuilder.WrapIdentifier(schema)}.{SQLBuilder.WrapIdentifier(tableName)}.{index}";
+                cmd.CommandText = $@"DROP INDEX ""{schema}"".""{tableName}"".{index}";
                 YetaWF.Core.Log.Logging.AddTraceLog(cmd.CommandText);
                 cmd.ExecuteNonQuery();
             }
@@ -205,7 +205,7 @@ namespace YetaWF.DataProvider.PostgreSQL {
         internal static void DropUniqueKeyIndex(NpgsqlConnection conn, string databaseName, string schema, string tableName, string index) {
             using (NpgsqlCommand cmd = new NpgsqlCommand()) {
                 cmd.Connection = conn;
-                cmd.CommandText = $@"ALTER TABLE [{schema}].[{tableName}] DROP CONSTRAINT [{index}]";
+                cmd.CommandText = $@"ALTER TABLE ""{schema}"".""{tableName}"" DROP CONSTRAINT ""{index}""";
                 YetaWF.Core.Log.Logging.AddTraceLog(cmd.CommandText);
                 cmd.ExecuteNonQuery();
             }
@@ -221,7 +221,7 @@ namespace YetaWF.DataProvider.PostgreSQL {
         internal static void DropTable(NpgsqlConnection conn, string databaseName, string schema, string tableName) {
             using (NpgsqlCommand cmd = new NpgsqlCommand()) {
                 cmd.Connection = conn;
-                cmd.CommandText = $"DROP TABLE {SQLBuilder.WrapIdentifier(databaseName)}.{SQLBuilder.WrapIdentifier(schema)}.{SQLBuilder.WrapIdentifier(tableName)}";
+                cmd.CommandText = $@"DROP TABLE ""{databaseName}"".""{schema}"".""{tableName}""";
                 YetaWF.Core.Log.Logging.AddTraceLog(cmd.CommandText);
                 cmd.ExecuteNonQuery();
             }

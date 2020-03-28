@@ -11,7 +11,15 @@ namespace YetaWF.DataProvider.PostgreSQL {
 
     internal partial class SQLGen {
 
-        internal bool MakeFunctionsWithBaseTypeAsync(string dbName, string schema, string baseDataset, string dataset, string key1Name, string identityName, List<PropertyData> combinedProps, List<PropertyData> basePropData, List<PropertyData> propData, Type baseType, Type type, int siteIdentity, string DerivedTableName, string DerivedDataTypeName, string DerivedAssemblyName) {
+        internal const string ValDerivedTableName = "valDerivedTableName"; // sproc argument for derived table name
+        internal const string ValDerivedDataType = "valDerivedDataType"; // sproc argument for derived type 
+        internal const string ValDerivedAssemblyName = "valDerivedAssemblyName"; // sproc argument for derived assembly name
+
+        internal const string DerivedTableName = "DerivedTableName"; // column names
+        internal const string DerivedDataType = "DerivedDataType"; 
+        internal const string DerivedAssemblyName = "DerivedAssemblyName";
+
+        internal bool MakeFunctionsWithBaseTypeAsync(string dbName, string schema, string baseDataset, string dataset, string key1Name, string identityName, List<PropertyData> combinedProps, List<PropertyData> basePropData, List<PropertyData> propData, Type baseType, Type type, int siteIdentity) {
 
             SQLManager sqlManager = new SQLManager();
             SQLBuilder sb = new SQLBuilder();

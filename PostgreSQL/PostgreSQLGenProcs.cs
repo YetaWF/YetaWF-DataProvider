@@ -563,12 +563,12 @@ DROP FUNCTION IF EXISTS ""{schema}"".""{dataset}__RemoveByIdentity"";
                 (prefix, container, name) => { // predef
                     if (name == SQLGenericBase.SubTableKeyColumn)
                         return null;
-                    if (name == "DerivedTableName")
-                        return $@"""valDerivedTableName"" character varying,";
-                    if (name == "DerivedDataType") 
-                        return $@"""valDerivedDataType"" character varying,";
-                    if (name == "DerivedAssemblyName") 
-                        return $@"""valDerivedAssemblyName"" character varying,";
+                    if (name == SQLGen.DerivedTableName)
+                        return $@"""{SQLGen.ValDerivedTableName}"" character varying,";
+                    if (name == SQLGen.DerivedDataType) 
+                        return $@"""{SQLGen.ValDerivedDataType}"" character varying,";
+                    if (name == SQLGen.DerivedAssemblyName) 
+                        return $@"""{SQLGen.ValDerivedAssemblyName}"" character varying,";
                     string colType = "character varying";
                     if (name == SQLGenericBase.SiteColumn) {
                         name = SQLGen.ValSiteIdentity;
@@ -762,12 +762,12 @@ DROP FUNCTION IF EXISTS ""{schema}"".""{dataset}__RemoveByIdentity"";
                     return sb.ToString();
                 },
                 (prefix, container, name) => { // predef
-                    if (name == "DerivedTableName")
-                        return $@"""valDerivedTableName"",";
-                    if (name == "DerivedDataType")
+                    if (name == SQLGen.DerivedTableName)
+                        return $@"""{SQLGen.ValDerivedTableName}"",";
+                    if (name == SQLGen.DerivedDataType)
                         return $@"""valDerivedDataType"",";
-                    if (name == "DerivedAssemblyName")
-                        return $@"""valDerivedAssemblyName"",";
+                    if (name == SQLGen.DerivedAssemblyName)
+                        return $@"""{SQLGen.ValDerivedAssemblyName}"",";
                     if (name == SQLGenericBase.SiteColumn)
                         return $@"""{SQLGen.ValSiteIdentity}"",";
                     if (name == SQLGenericBase.SubTableKeyColumn)
@@ -859,9 +859,9 @@ DROP FUNCTION IF EXISTS ""{schema}"".""{dataset}__RemoveByIdentity"";
             if (SiteSpecific)
                 sb.Add(fmtPredef(Prefix, container, SQLGenericBase.SiteColumn));
             if (WithDerivedInfo) {
-                sb.Add(fmtPredef(Prefix, container, "DerivedTableName"));
-                sb.Add(fmtPredef(Prefix, container, "DerivedDataType"));
-                sb.Add(fmtPredef(Prefix, container, "DerivedAssemblyName"));
+                sb.Add(fmtPredef(Prefix, container, SQLGen.DerivedTableName));
+                sb.Add(fmtPredef(Prefix, container, SQLGen.DerivedDataType));
+                sb.Add(fmtPredef(Prefix, container, SQLGen.DerivedAssemblyName));
             }
             if (SubTable)
                 sb.Add(fmtPredef(Prefix, container, SQLGenericBase.SubTableKeyColumn));

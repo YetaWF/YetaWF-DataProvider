@@ -43,7 +43,12 @@ namespace YetaWF.DataProvider.PostgreSQL {
         /// <summary>
         /// The PostgreSQL table name of the base dataset for all modules.
         /// </summary>
-        public const string BaseDatasetName = "Y";
+        internal const string BaseDatasetName = "Y";
+
+        /// <summary>
+        /// The PG type for module derived info.
+        /// </summary>
+        internal const string DerivedInfoType = "Y_DerivedInfo_T"; 
 
         /// <summary>
         /// Constructor.
@@ -91,7 +96,7 @@ namespace YetaWF.DataProvider.PostgreSQL {
                 sqlHelper = new SQLHelper(Conn, null, Languages);
                 sqlHelper.AddParam("Key1Val", key);
                 sqlHelper.AddParam(SQLGen.ValSiteIdentity, SiteIdentity);
-                Conn.TypeMapper.MapComposite<DerivedInfo>("Y_DerivedInfo_T");//$$don't hard-code
+                Conn.TypeMapper.MapComposite<DerivedInfo>(DerivedInfoType);
                 DerivedInfo info = null;
                 using (NpgsqlDataReader reader = await sqlHelper.ExecuteReaderStoredProcAsync($@"""{Schema}"".""{BaseDataset}__GetBase""")) {
                     if (!(YetaWFManager.IsSync() ? reader.Read() : await reader.ReadAsync())) return default(OBJTYPE);
@@ -145,9 +150,9 @@ namespace YetaWF.DataProvider.PostgreSQL {
             AddSubtableMapping();
             GetParameterList(sqlHelper, obj, Database, Schema, BaseDataset, basePropData, Prefix: null, TopMost: false, SiteSpecific: false, WithDerivedInfo: false, SubTable: false);
             GetParameterList(sqlHelper, obj, Database, Schema, Dataset, propDataNoDups, Prefix: null, TopMost: false, SiteSpecific: false, WithDerivedInfo: false, SubTable: false);
-            sqlHelper.AddParam("valDerivedTableName", Dataset);//$$$hardcoded
-            sqlHelper.AddParam("valDerivedDataType", typeof(OBJTYPE).FullName);
-            sqlHelper.AddParam("valDerivedAssemblyName", typeof(OBJTYPE).Assembly.FullName.Split(new char[] { ',' }, 2).First());
+            sqlHelper.AddParam(SQLGen.ValDerivedTableName, Dataset);
+            sqlHelper.AddParam(SQLGen.ValDerivedDataType, typeof(OBJTYPE).FullName);
+            sqlHelper.AddParam(SQLGen.ValDerivedAssemblyName, typeof(OBJTYPE).Assembly.FullName.Split(new char[] { ',' }, 2).First());
             sqlHelper.AddParam(SQLGen.ValSiteIdentity, SiteIdentity);
 
             try {
@@ -187,9 +192,9 @@ namespace YetaWF.DataProvider.PostgreSQL {
             AddSubtableMapping();
             GetParameterList(sqlHelper, obj, Database, Schema, BaseDataset, basePropData, Prefix: null, TopMost: false, SiteSpecific: false, WithDerivedInfo: false, SubTable: false);
             GetParameterList(sqlHelper, obj, Database, Schema, Dataset, propDataNoDups, Prefix: null, TopMost: false, SiteSpecific: false, WithDerivedInfo: false, SubTable: false);
-            sqlHelper.AddParam("valDerivedTableName", Dataset);//$$$hardcoded
-            sqlHelper.AddParam("valDerivedDataType", typeof(OBJTYPE).FullName);
-            sqlHelper.AddParam("valDerivedAssemblyName", typeof(OBJTYPE).Assembly.FullName.Split(new char[] { ',' }, 2).First());
+            sqlHelper.AddParam(SQLGen.ValDerivedTableName, Dataset);//$$$hardcoded
+            sqlHelper.AddParam(SQLGen.ValDerivedDataType, typeof(OBJTYPE).FullName);
+            sqlHelper.AddParam(SQLGen.ValDerivedAssemblyName, typeof(OBJTYPE).Assembly.FullName.Split(new char[] { ',' }, 2).First());
             sqlHelper.AddParam(SQLGen.ValSiteIdentity, SiteIdentity);
 
             try {
@@ -226,7 +231,7 @@ namespace YetaWF.DataProvider.PostgreSQL {
             sqlHelper = new SQLHelper(Conn, null, Languages);
             sqlHelper.AddParam("Key1Val", key);
             sqlHelper.AddParam(SQLGen.ValSiteIdentity, SiteIdentity);
-            Conn.TypeMapper.MapComposite<DerivedInfo>("Y_DerivedInfo_T");//$$don't hard-code
+            Conn.TypeMapper.MapComposite<DerivedInfo>(DerivedInfoType);
             DerivedInfo info = null;
             using (NpgsqlDataReader reader = await sqlHelper.ExecuteReaderStoredProcAsync($@"""{Schema}"".""{BaseDataset}__GetBase""")) {
                 if (!(YetaWFManager.IsSync() ? reader.Read() : await reader.ReadAsync())) return false;
@@ -294,7 +299,7 @@ namespace YetaWF.DataProvider.PostgreSQL {
 SELECT COUNT(*)
 FROM {fullBaseTableName} WITH(NOLOCK)
 
-WHERE {fullBaseTableName}.[DerivedTableName] = '{Dataset}' AND {fullBaseTableName}.[DerivedDataType] = '{typeof(OBJTYPE).FullName}'
+WHERE {fullBaseTableName}.[SQLGen.DerivedTableName] = '{Dataset}' AND {fullBaseTableName}.[SQLGen.DerivedDataType] = '{typeof(OBJTYPE).FullName}'
  AND {fullBaseTableName}.[{SiteColumn}] = {SiteIdentity}
 ");
 
@@ -315,7 +320,7 @@ FROM {fullBaseTableName} WITH(NOLOCK)
 LEFT JOIN {fullTableName} ON
     {fullBaseTableName}.[{Key1Name}] = {fullTableName}.[{Key1Name}] AND {fullBaseTableName}.[{SiteColumn}] = {fullTableName}.[{SiteColumn}]
 
-WHERE {fullBaseTableName}.[DerivedTableName] = '{Dataset}' AND {fullBaseTableName}.[DerivedDataType] = '{typeof(OBJTYPE).FullName}'
+WHERE {fullBaseTableName}.[SQLGen.DerivedTableName] = '{Dataset}' AND {fullBaseTableName}.[SQLGen.DerivedDataType] = '{typeof(OBJTYPE).FullName}'
  AND {fullBaseTableName}.[{SiteColumn}] = {SiteIdentity}
 {orderby}
 
@@ -440,9 +445,7 @@ WHERE {fullBaseTableName}.[DerivedTableName] = '{Dataset}' AND {fullBaseTableNam
 
             sqlCreate.MakeTypesWithBaseType(dbName, Schema, BaseDataset, Dataset, combinedProps, basePropData, propData, baseType, typeof(OBJTYPE));
 
-            bool success = sqlCreate.MakeFunctionsWithBaseTypeAsync(dbName, Schema, BaseDataset, Dataset, Key1Name, IdentityName, combinedProps, basePropData, propData, baseType, typeof(OBJTYPE),
-                    SiteIdentity,
-                    DerivedTableName: "DerivedTableName", DerivedDataTypeName: "DerivedDataType", DerivedAssemblyName: "DerivedAssemblyName");
+            bool success = sqlCreate.MakeFunctionsWithBaseTypeAsync(dbName, Schema, BaseDataset, Dataset, Key1Name, IdentityName, combinedProps, basePropData, propData, baseType, typeof(OBJTYPE), SiteIdentity);
 
             conn.ReloadTypes();
             return success;
@@ -520,7 +523,7 @@ SELECT COUNT(*) FROM  {BaseDataset}
 
             sb.Add($@"
 DELETE FROM ""{Schema}"".""{Dataset}"" WHERE ""{SiteColumn}"" = {SiteIdentity};
-DELETE FROM ""{Schema}"".""{BaseDataset}"" WHERE ""DerivedTableName"" = '{Dataset}' AND ""{SiteColumn}"" = {SiteIdentity};
+DELETE FROM ""{Schema}"".""{BaseDataset}"" WHERE ""{SQLGen.DerivedTableName}"" = '{Dataset}' AND ""{SiteColumn}"" = {SiteIdentity};
 ");
             await sqlHelper.ExecuteNonQueryAsync(sb.ToString());
         }
