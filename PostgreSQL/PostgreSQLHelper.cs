@@ -152,11 +152,14 @@ namespace YetaWF.DataProvider.PostgreSQL {
             Type baseType = fieldType.BaseType;
             Type underlyingType = Nullable.GetUnderlyingType(fieldType);
 
-            // Check if an empty value or an empty string
-            if (value == null || value.ToString() == String.Empty)
-                return newValue;
-
-            if (fieldType.Equals(value.GetType())) {
+            if (value == null || value is System.DBNull) {
+                if (fieldType.Name == "SerializableList`1") {
+                    newValue = Activator.CreateInstance(fieldType);
+                } else if (fieldType.BaseType?.Name == "SerializableList`1") {
+                    newValue = Activator.CreateInstance(fieldType);
+                } else
+                    newValue = null;
+            } else if (fieldType.Equals(value.GetType())) {
                 newValue = value;
             } else if (fieldType == typeof(bool)) {
                 newValue = (value.ToString() == "1" ||
@@ -228,6 +231,7 @@ namespace YetaWF.DataProvider.PostgreSQL {
             Type elemType = valueType.GetElementType();
             if (!valueType.IsArray || baseType.GenericTypeArguments.Length != 1)
                 throw new InternalError($"Unexpected generic type {fieldType.FullName}");
+
             Type genType = baseType.GenericTypeArguments[0];// get the target type 
 
             // single array of native type, used for subtables which have only one column (PG doesn't support TYPEs with just one column)
@@ -250,7 +254,7 @@ namespace YetaWF.DataProvider.PostgreSQL {
             if (elemType == genType) {
                 while (ienum.MoveNext()) {
                     addMethod.Invoke(list, new object[] { ienum.Current });
-                }                
+                }
             } else {
                 while (ienum.MoveNext()) {
                     object vObj = Activator.CreateInstance(genType);// create the target instance
