@@ -1,6 +1,7 @@
 ﻿/* Copyright © 2020 Softel vdm, Inc. - https://yetawf.com/Documentation/YetaWF/Licensing */
 
 using Npgsql;
+using Npgsql.NameTranslation;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -136,6 +137,16 @@ namespace YetaWF.DataProvider.PostgreSQL {
         private static string _defaultConnectString;
         private static string _defaultSchema;
 
+        internal void AddCompositeMapping(Type type, string pgType) {
+            lock (lockObject) {
+                if (TypeList.Contains(pgType)) return;
+                Conn.TypeMapper.MapComposite(type, pgType, Translator);
+                TypeList.Add(pgType);
+            }
+        }
+        internal static NpgsqlNullNameTranslator Translator => new NpgsqlNullNameTranslator();
+        private List<string> TypeList => new List<string>();// keep track of mapped types
+        private static object lockObject => new object();
 
         // IDATAPROVIDERTRANSACTIONS
         // IDATAPROVIDERTRANSACTIONS

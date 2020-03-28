@@ -1,7 +1,6 @@
 ﻿/* Copyright © 2020 Softel vdm, Inc. - https://yetawf.com/Documentation/YetaWF/Licensing */
 
 using Npgsql;
-using Npgsql.NameTranslation;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -96,7 +95,7 @@ namespace YetaWF.DataProvider.PostgreSQL {
                 sqlHelper = new SQLHelper(Conn, null, Languages);
                 sqlHelper.AddParam("Key1Val", key);
                 sqlHelper.AddParam(SQLGen.ValSiteIdentity, SiteIdentity);
-                Conn.TypeMapper.MapComposite<DerivedInfo>(DerivedInfoType);
+                AddCompositeMapping(typeof(DerivedInfo), DerivedInfoType);
                 DerivedInfo info = null;
                 using (NpgsqlDataReader reader = await sqlHelper.ExecuteReaderStoredProcAsync($@"""{Schema}"".""{BaseDataset}__GetBase""")) {
                     if (!(YetaWFManager.IsSync() ? reader.Read() : await reader.ReadAsync())) return default(OBJTYPE);
@@ -106,7 +105,7 @@ namespace YetaWF.DataProvider.PostgreSQL {
                 sqlHelper = new SQLHelper(Conn, null, Languages);
                 sqlHelper.AddParam("Key1Val", key);
                 sqlHelper.AddParam(SQLGen.ValSiteIdentity, SiteIdentity);
-                Conn.TypeMapper.MapComposite(sqlHelper.GetDerivedType(info.DerivedDataType, info.DerivedAssemblyName), $"{info.DerivedTableName}_T", new NpgsqlNullNameTranslator());
+                AddCompositeMapping(sqlHelper.GetDerivedType(info.DerivedDataType, info.DerivedAssemblyName), $"{info.DerivedTableName}_T");
                 using (NpgsqlDataReader reader = await sqlHelper.ExecuteReaderStoredProcAsync($@"""{Schema}"".""{info.DerivedTableName}__Get""")) {
                     if (!(YetaWFManager.IsSync() ? reader.Read() : await reader.ReadAsync())) return default(OBJTYPE);
                     return sqlHelper.CreateObject<OBJTYPE>(reader, info.DerivedDataType, info.DerivedAssemblyName);
@@ -120,7 +119,7 @@ namespace YetaWF.DataProvider.PostgreSQL {
 
                 sqlHelper.AddParam("Key1Val", key);
                 sqlHelper.AddParam(SQLGen.ValSiteIdentity, SiteIdentity);
-                Conn.TypeMapper.MapComposite(typeof(OBJTYPE), $"Y{Dataset}_T", new NpgsqlNullNameTranslator());
+                AddCompositeMapping(typeof(OBJTYPE), $"Y{Dataset}_T");
                 using (NpgsqlDataReader reader = await sqlHelper.ExecuteReaderStoredProcAsync($@"""{Schema}"".""{Dataset}__Get""")) {
                     if (!(YetaWFManager.IsSync() ? reader.Read() : await reader.ReadAsync())) return default(OBJTYPE);
                     return sqlHelper.CreateObject<OBJTYPE>(reader);
@@ -192,7 +191,7 @@ namespace YetaWF.DataProvider.PostgreSQL {
             AddSubtableMapping();
             GetParameterList(sqlHelper, obj, Database, Schema, BaseDataset, basePropData, Prefix: null, TopMost: false, SiteSpecific: false, WithDerivedInfo: false, SubTable: false);
             GetParameterList(sqlHelper, obj, Database, Schema, Dataset, propDataNoDups, Prefix: null, TopMost: false, SiteSpecific: false, WithDerivedInfo: false, SubTable: false);
-            sqlHelper.AddParam(SQLGen.ValDerivedTableName, Dataset);//$$$hardcoded
+            sqlHelper.AddParam(SQLGen.ValDerivedTableName, Dataset);
             sqlHelper.AddParam(SQLGen.ValDerivedDataType, typeof(OBJTYPE).FullName);
             sqlHelper.AddParam(SQLGen.ValDerivedAssemblyName, typeof(OBJTYPE).Assembly.FullName.Split(new char[] { ',' }, 2).First());
             sqlHelper.AddParam(SQLGen.ValSiteIdentity, SiteIdentity);
@@ -231,7 +230,7 @@ namespace YetaWF.DataProvider.PostgreSQL {
             sqlHelper = new SQLHelper(Conn, null, Languages);
             sqlHelper.AddParam("Key1Val", key);
             sqlHelper.AddParam(SQLGen.ValSiteIdentity, SiteIdentity);
-            Conn.TypeMapper.MapComposite<DerivedInfo>(DerivedInfoType);
+            AddCompositeMapping(typeof(DerivedInfo), DerivedInfoType);
             DerivedInfo info = null;
             using (NpgsqlDataReader reader = await sqlHelper.ExecuteReaderStoredProcAsync($@"""{Schema}"".""{BaseDataset}__GetBase""")) {
                 if (!(YetaWFManager.IsSync() ? reader.Read() : await reader.ReadAsync())) return false;

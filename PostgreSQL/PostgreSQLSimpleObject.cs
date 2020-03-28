@@ -1,7 +1,6 @@
 ﻿/* Copyright © 2020 Softel vdm, Inc. - https://yetawf.com/Documentation/YetaWF/Licensing */
 
 using Npgsql;
-using Npgsql.NameTranslation;
 using NpgsqlTypes;
 using System;
 using System.Collections.Generic;
@@ -444,7 +443,7 @@ FROM {fullTableName}
             foreach (SQLGenericGen.SubTableInfo subTable in subTables) {
                 List<PropertyData> subPropData = ObjectSupport.GetPropertyData(subTable.Type);
                 if (subPropData.Count > 1)
-                    Conn.TypeMapper.MapComposite(subTable.Type, $"{subTable.Name}_T", new NpgsqlNullNameTranslator());
+                    AddCompositeMapping(subTable.Type, $"{subTable.Name}_T");
             }
         }
 
@@ -769,7 +768,7 @@ DELETE FROM {fullTableName} WHERE ""{SiteColumn}"" = {SiteIdentity}
                         NpgsqlDbType dbType = SQLGen.GetDataType(subProp.PropInfo);
                         sqlHelper.AddParam($"arg{prefix}{prop.Name}", sublist.ToArray(), DbType: dbType | NpgsqlDbType.Array);
                     } else {
-                        NpgsqlConnection.GlobalTypeMapper.MapComposite(prop.PropInfo.PropertyType, $"{subtableName}_T", new NpgsqlNullNameTranslator());//$$$$ optimize
+                        AddCompositeMapping(prop.PropInfo.PropertyType, $"{subtableName}_T");
                         List<object> list = new List<object>();
                         object val = prop.PropInfo.GetValue(container);
                         if (val != null)
