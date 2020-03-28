@@ -546,7 +546,7 @@ DELETE FROM ""{Schema}"".""{BaseDataset}"" WHERE ""DerivedTableName"" = '{Datase
             await EnsureOpenAsync();
 
             if (Dataset == BaseDataset) throw new InternalError("Base dataset is not supported");
-            if (YetaWFManager.Manager.ImportChunksNonSiteSpecifics) {
+            if (SiteIdentity > 0 || YetaWFManager.Manager.ImportChunksNonSiteSpecifics) {
                 SerializableList<OBJTYPE> serList = (SerializableList<OBJTYPE>)obj;
                 int total = serList.Count();
                 if (total > 0) {
