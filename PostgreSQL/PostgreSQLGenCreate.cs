@@ -457,12 +457,15 @@ namespace YetaWF.DataProvider.PostgreSQL {
             StringBuilder sbIx = new StringBuilder();
 
             sb.Append($@"
-CREATE TABLE ""{schema}"".""{newTable.Name}"" (");
+CREATE TABLE ""{schema}"".""{newTable.Name}"" (
+");
+
 
             // Columns
             foreach (Column col in newTable.Columns) {
                 sb.Append($@"
-""{col.Name}"" {GetDataTypeString(col)}{GetIdentity(col)}{GetNullable(col)},");
+    ""{col.Name}"" {GetDataTypeString(col)}{GetIdentity(col)}{GetNullable(col)},");
+
             }
 
             // Indexes
@@ -526,7 +529,7 @@ CREATE TABLE ""{schema}"".""{newTable.Name}"" (");
                 switch (index.IndexType) {
                     case IndexType.Indexed:
                         sb.Append($@"
-DROP INDEX {index.Name};");
+DROP INDEX ""{index.Name}"";");
                         break;
                     case IndexType.UniqueKey:
                         sb.Append($@"
@@ -570,26 +573,19 @@ ALTER TABLE ""{schema}"".""{newTable.Name}"" DROP CONSTRAINT ""{fk.Name}"";");
             // Remove columns
             foreach (Column col in removedColumns) {
                 sb.Append($@"
-IF EXISTS (SELECT * FROM  [""{schema}""].[sysobjects] WHERE id = OBJECT_ID(N'DF_{currentTable.Name}_{col.Name}') AND type = 'D')
-    BEGIN
-       ALTER TABLE  [""{schema}""].[{newTable.Name}] DROP CONSTRAINT [DF_{currentTable.Name}_{col.Name}], COLUMN [{col.Name}];
-    END
-ELSE
-    BEGIN
-       ALTER TABLE  [""{schema}""].[{newTable.Name}] DROP COLUMN [{col.Name}];
-    END
-");
+ALTER TABLE ""{schema}"".""{newTable.Name}"" DROP COLUMN IF EXISTS ""{col.Name}"" CASCADE;");
             }
 
             // Add columns
             foreach (Column col in addedColumns) {
                 sb.Append($@"
-ALTER TABLE [""{schema}""].[{newTable.Name}] ADD [{col.Name}] {GetDataTypeString(col)}{GetDataTypeDefault(newTable.Name, col)}{GetIdentity(col)}{GetNullable(col)};");
+ALTER TABLE ""{schema}"".""{newTable.Name}"" ADD ""{col.Name}"" {GetDataTypeString(col)}{GetIdentity(col)}{GetNullable(col)};");
             }
+
             // Altered columns
-            foreach (Column col in alteredColumns) {
+            foreach (Column col in alteredColumns) {//TODO: identity does not work {GetIdentity(col)}
                 sb.Append($@"
-ALTER TABLE [""{schema}""].[{newTable.Name}] ALTER [{col.Name}] {GetDataTypeString(col)}{GetDataTypeDefault(newTable.Name, col)}{GetIdentity(col)}{GetNullable(col)};");
+ALTER TABLE ""{schema}"".""{newTable.Name}"" ALTER ""{col.Name}"" TYPE {GetDataTypeString(col)}, ALTER ""{col.Name}"" {GetAlterNullable(col)};");
             }
 
             // Add index
@@ -760,6 +756,13 @@ ALTER TABLE ""{schema}"".""{newTable.Name}""
                 return " NOT NULL";
             }
         }
+        private string GetAlterNullable(Column col) {
+            if (col.Nullable) {
+                return " SET NOT NULL";
+            } else {
+                return " DROP NOT NULL";
+            }
+        }
         private string GetIdentity(Column col) {
             if (col.Identity) {
                 return $" GENERATED ALWAYS AS IDENTITY(START WITH {col.IdentitySeed} INCREMENT BY {col.IdentityIncrement})";
@@ -772,32 +775,37 @@ ALTER TABLE ""{schema}"".""{newTable.Name}""
             switch (index.IndexType) {
                 case IndexType.PrimaryKey:
                     sb.Append($@"
-    CONSTRAINT ""{index.Name}"" PRIMARY KEY (");
+    CONSTRAINT ""{index.Name}"" PRIMARY KEY (
+        ");
                     foreach (string col in index.IndexedColumns) {
                         sb.Append($@"""{col}"",");
                     }
                     sb.RemoveLastComma();
-                    sb.Append($"),");
+                    sb.Append($@"
+    ),");
                     break;
                 case IndexType.UniqueKey:
                     sb.Append($@"  
-    CONSTRAINT ""{index.Name}"" UNIQUE (");
+    CONSTRAINT ""{index.Name}"" UNIQUE (
+        ");
                     foreach (string col in index.IndexedColumns) {
                         sb.Append($@"""{col}"",");
                     }
                     sb.RemoveLastComma();
-                    sb.Append($"),");
+                    sb.Append($@"
+    ),");
                     break;
                 case IndexType.Indexed:
                     // created separately, after table
                     sb.Append($@"
-    CREATE INDEX ""{index.Name}"" ON ""{schema}"".""{newTable.Name}"" USING btree (");
+CREATE INDEX ""{index.Name}"" ON ""{schema}"".""{newTable.Name}"" USING btree (
+    ");
                     foreach (string col in index.IndexedColumns) {
                         sb.Append($@"""{col}"",");
                     }
                     sb.RemoveLastComma();
-                    sb.Append($@")
-;");
+                    sb.Append($@"
+);");
                     break;
             }
             return sb.ToString();
@@ -805,21 +813,21 @@ ALTER TABLE ""{schema}"".""{newTable.Name}""
         private string GetAddForeignKey(ForeignKey fk, string dbName, string schema, Table newTable) {
             StringBuilder sb = new StringBuilder();
             sb.Append($@"
-    CONSTRAINT ""{fk.Name}"" FOREIGN KEY (");
+    CONSTRAINT ""{fk.Name}"" FOREIGN KEY 
+    (");
             foreach (ForeignKeyColumn fkCol in fk.ForeignKeyColumns) {
                 sb.Append($@"""{fkCol.Column}"",");
             }
             sb.RemoveLastComma();
-            sb.Append($@")");
             sb.Append($@"
-    REFERENCES ""{schema}"".""{fk.ReferencedTable}"" (");
+    REFERENCES ""{schema}"".""{fk.ReferencedTable}"" 
+    (");
             foreach (ForeignKeyColumn fkCol in fk.ForeignKeyColumns) {
                 sb.Append($@"""{fkCol.ReferencedColumn}"",");
             }
             sb.RemoveLastComma();
-            sb.Append($@") MATCH SIMPLE");
-
             sb.Append($@"
+    ) MATCH SIMPLE
     ON UPDATE NO ACTION
     ON DELETE CASCADE,");
 
@@ -880,21 +888,6 @@ CREATE TYPE ""{schema}"".""{typeName}"" AS
 
             sb.Append($@"
 );");
-
-#if NOTWANTED            
-            sb.Append($@"
-DROP TYPE IF EXISTS ""{schema}"".""{typeName}_DRV"";
-CREATE TYPE ""{schema}"".""{typeName}_DRV"" AS
-(");
-            sb.Append($@"
-{GetTypeNameList(dbName, schema, baseDataset, basePropData, baseType, Prefix: null, TopMost: false, SiteSpecific: true, WithDerivedInfo: true, SubTable: false)}
-{GetTypeNameList(dbName, schema, dataset, propDataNoDups, type, Prefix: null, TopMost: false, SiteSpecific: false, WithDerivedInfo: false, SubTable: false)}");
-            sb.RemoveLastComma();
-
-            sb.Append($@"
-);
-");
-#endif
 
             // Add to database
             using (NpgsqlCommand cmd = new NpgsqlCommand()) {
