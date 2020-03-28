@@ -359,7 +359,11 @@ namespace YetaWF.DataProvider.PostgreSQL {
         /// The SQL statements must create two result sets. The first, a scalar value with the total number of records (not paged) and the second result set is a collection of objects of type {i}TYPE{/i}.
         /// </remarks>
         public async Task<DataProviderGetRecords<TYPE>> Direct_QueryPagedListAsync<TYPE>(string sql, int skip, int take, List<DataProviderSortInfo> sort, List<DataProviderFilterInfo> filters, params object[] args) {
+
+            throw new NotImplementedException();
+#if NOTYET
             await EnsureOpenAsync();
+
             SQLHelper sqlHelper = new SQLHelper(Conn, null, Languages);
             SQLBuilder sb = new SQLBuilder();
 
@@ -383,7 +387,7 @@ namespace YetaWF.DataProvider.PostgreSQL {
 
             DataProviderGetRecords<TYPE> recs = new DataProviderGetRecords<TYPE>();
 
-            using (NpgsqlDataReader reader = await sqlHelper.ExecuteReaderAsync(sql)) {
+            using (NpgsqlDataReader reader = await sqlHelper.ExecuteReaderAsync(sql)) {//$$$$$$$$doesn't work, need use case
 
                 if (!(YetaWFManager.IsSync() ? reader.Read() : await reader.ReadAsync())) throw new InternalError("Expected # of records");
                 recs.Total = reader.GetInt32(0);
@@ -396,6 +400,7 @@ namespace YetaWF.DataProvider.PostgreSQL {
                 }
             }
             return recs;
+#endif
         }
 
         /// <summary>
@@ -422,7 +427,6 @@ namespace YetaWF.DataProvider.PostgreSQL {
                 while ((YetaWFManager.IsSync() ? reader.Read() : await reader.ReadAsync())) {
                     TYPE o = sqlHelper.CreateObject<TYPE>(reader);
                     recs.Data.Add(o);
-                    // no subtables
                 }
                 recs.Total = recs.Data.Count;
             }
