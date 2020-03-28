@@ -272,8 +272,7 @@ namespace YetaWF.DataProvider.PostgreSQL {
         /// <param name="Joins">A collection describing the dataset joins.</param>
         /// <returns>Returns a YetaWF.Core.DataProvider.DataProviderGetRecords object describing the data returned.</returns>
         public new async Task<DataProviderGetRecords<OBJTYPE>> GetRecordsAsync(int skip, int take, List<DataProviderSortInfo> sorts, List<DataProviderFilterInfo> filters, List<JoinData> Joins = null) {
-            SQLBuilder sb = new SQLBuilder();
-            await EnsureOpenAsync();
+
             if (Dataset == BaseDataset) {
 
                 // we're reading the base table
@@ -281,66 +280,93 @@ namespace YetaWF.DataProvider.PostgreSQL {
 
             } else {
 
-                throw new NotImplementedException();//$$$ need use case, probably export
+                if (Joins != null && Joins.Count > 0)
+                    throw new NotImplementedException($"Joins not implemented for {nameof(GetRecordsAsync)} in {GetType().FullName}");
 
-                // an explicit type is requested
+                await EnsureOpenAsync();
+
+                filters = NormalizeFilter(typeof(OBJTYPE), filters);
+                sorts = NormalizeSort(typeof(OBJTYPE), sorts);
+
+                SQLManager sqlManager = new SQLManager();
                 SQLHelper sqlHelper = new SQLHelper(Conn, null, Languages);
+                SQLGen sqlCreate = new SQLGen(Conn, Languages, IdentitySeed, Logging);
 
-                DataProviderGetRecords<OBJTYPE> recs = new DataProviderGetRecords<OBJTYPE>();
+                SQLBuilder sb;
 
+                List<PropertyData> basePropData = GetBasePropertyData();
+                List<PropertyData> propData = GetPropertyData();
+                List<PropertyData> propDataNoDups = propData.Except(basePropData, new PropertyDataComparer()).ToList();
+
+                sb = new SQLBuilder();
                 string fullBaseTableName = sb.GetTable(Database, Schema, BaseDataset);
                 string fullTableName = sb.GetTable(Database, Schema, Dataset);
+                int total = 0;
+
+                Dictionary<string, string> visibleColumns = new Dictionary<string, string>();
+                string columnList = $"{sqlCreate.GetColumnNameList(Database, Schema, BaseDataset, basePropData, typeof(ModuleDefinition), Prefix: null, TopMost: false, SiteSpecific: true, WithDerivedInfo: false, SubTable: false, VisibleColumns: visibleColumns)}{sqlCreate.GetColumnNameList(Database, Schema, Dataset, propDataNoDups, typeof(OBJTYPE), Prefix: null, TopMost: false, SiteSpecific: false, WithDerivedInfo: false, SubTable: false, VisibleColumns: visibleColumns)}";
 
                 // get total # of records (only if a subset is requested)
-                string selectCount = null;
                 if (skip != 0 || take != 0) {
-                    sb.Add($@"
 
+                    sb = new SQLBuilder();
+                    sb.Append($@"
 SELECT COUNT(*)
-FROM {fullBaseTableName} WITH(NOLOCK)
+FROM {fullBaseTableName}
+LEFT JOIN {fullTableName} ON {fullBaseTableName}.""{Key1Name}"" = {fullTableName}.""{Key1Name}"" AND {fullBaseTableName}.""{SQLGenericBase.SiteColumn}"" = {fullTableName}.""{SQLGenericBase.SiteColumn}""
+{MakeFilter(sqlHelper, filters, visibleColumns)}
+; --- result set");
 
-WHERE {fullBaseTableName}.[SQLGen.DerivedTableName] = '{Dataset}' AND {fullBaseTableName}.[SQLGen.DerivedDataType] = '{typeof(OBJTYPE).FullName}'
- AND {fullBaseTableName}.[{SiteColumn}] = {SiteIdentity}
-");
-
-                    selectCount = sb.ToString();
+                    object scalar = await sqlHelper.ExecuteScalarAsync(sb.ToString());
+                    total = Convert.ToInt32(scalar);
+                    if (total == 0)
+                        return new DataProviderGetRecords<OBJTYPE> { Total = 0, };
                 }
 
-                string orderby = null;
-                if (skip != 0 || take != 0)
-                    orderby = $"ORDER BY [Name] ASC OFFSET {skip} ROWS FETCH NEXT {take} ROWS ONLY";
+                // eval filters again so we don't reuse parms (npgsql doesn't like that)
+                sqlHelper = new SQLHelper(Conn, null, Languages);
+                string filterExpr = MakeFilter(sqlHelper, filters, visibleColumns);
 
+                string orderByExpr = null;
+                {
+                    sb = new SQLBuilder();
+                    if (sorts == null || sorts.Count == 0)
+                        sorts = new List<DataProviderSortInfo> { new DataProviderSortInfo { Field = Key1Name, Order = DataProviderSortInfo.SortDirection.Ascending } };
+                    sb.AddOrderBy(visibleColumns, sorts, skip, take);
+                    orderByExpr = sb.ToString();
+                }
 
-                string script = $@"
-{selectCount} --- result set
+                // Get records
 
-SELECT *
-FROM {fullBaseTableName} WITH(NOLOCK)
+                AddSubtableMapping();
 
-LEFT JOIN {fullTableName} ON
-    {fullBaseTableName}.[{Key1Name}] = {fullTableName}.[{Key1Name}] AND {fullBaseTableName}.[{SiteColumn}] = {fullTableName}.[{SiteColumn}]
+                sb = new SQLBuilder();
+                sb.Append($@"
+SELECT {columnList}");
+                if (CalculatedPropertyCallbackAsync != null) sb.Append(await SQLGen.CalculatedPropertiesAsync(typeof(OBJTYPE), CalculatedPropertyCallbackAsync));
 
-WHERE {fullBaseTableName}.[SQLGen.DerivedTableName] = '{Dataset}' AND {fullBaseTableName}.[SQLGen.DerivedDataType] = '{typeof(OBJTYPE).FullName}'
- AND {fullBaseTableName}.[{SiteColumn}] = {SiteIdentity}
-{orderby}
+                sb.RemoveLastComma();
 
-{sqlHelper.DebugInfo}
-";
+                sb.Append($@"
+FROM {fullBaseTableName}
+LEFT JOIN {fullTableName} ON {fullBaseTableName}.""{Key1Name}"" = {fullTableName}.""{Key1Name}"" AND {fullBaseTableName}.""{SQLGenericBase.SiteColumn}"" = {fullTableName}.""{SQLGenericBase.SiteColumn}""
+{MakeFilter(sqlHelper, filters, visibleColumns)}
+{orderByExpr}
+; --- result set");
 
-                using (NpgsqlDataReader reader = await sqlHelper.ExecuteReaderAsync(script)) {
-                    if (skip != 0 || take != 0) {
-                        if (!(YetaWFManager.IsSync() ? reader.Read() : await reader.ReadAsync())) throw new InternalError("Expected # of records");
-                        recs.Total = reader.GetInt32(0);
-                        if (!(YetaWFManager.IsSync() ? reader.NextResult() : await reader.NextResultAsync())) throw new InternalError("Expected next result set (table)");
+                DataProviderGetRecords<OBJTYPE> recs = new DataProviderGetRecords<OBJTYPE>();
+                using (NpgsqlDataReader reader = await sqlHelper.ExecuteReaderAsync(sb.ToString())) {
+                    while (YetaWFManager.IsSync() ? reader.Read() : await reader.ReadAsync()) {
+                        OBJTYPE val = sqlHelper.CreateObject<OBJTYPE>(reader);
+                        recs.Data.Add(val);
                     }
-                    while ((YetaWFManager.IsSync() ? reader.Read() : await reader.ReadAsync()))
-                        recs.Data.Add(sqlHelper.CreateObject<OBJTYPE>(reader));
-
                     if (skip == 0 && take == 0)
                         recs.Total = recs.Data.Count;
+                    else
+                        recs.Total = total;
                     return recs;
                 }
-            }
+            }            
         }
 
         /// <summary>

@@ -9,6 +9,7 @@ using YetaWF.Core.DataProvider;
 using YetaWF.Core.IO;
 using YetaWF.Core.Packages;
 using YetaWF.Core.Serializers;
+using YetaWF.Core.Site;
 using YetaWF.Core.Support;
 
 namespace YetaWF.DataProvider.PostgreSQL {
@@ -17,7 +18,6 @@ namespace YetaWF.DataProvider.PostgreSQL {
     /// Opt-in to indicate Addons/_Main/PostgreSql folder has postgresql procs that need to be executed.
     /// </summary>
     public class SQLInitialization : SQLPackageInit { }
-
 
     /// <summary>
     /// Base class to implement executing all SQL procedures that are located in a package's Addons/_Main/Sql folder.
@@ -41,11 +41,11 @@ namespace YetaWF.DataProvider.PostgreSQL {
         /// <param name="package">The package.</param>
         public async Task InitializeAsync(Package package) {
 
-            string connString = WebConfigHelper.GetValue<string>(package.AreaName, SQLBase.PostgreSQLConnectString);
+            string connString = GetConnectionString(package);
             if (string.IsNullOrWhiteSpace(connString)) {
-                connString = WebConfigHelper.GetValue<string>(DataProviderImpl.DefaultString, SQLBase.PostgreSQLConnectString);
-                if (string.IsNullOrWhiteSpace(connString))
-                    throw new InternalError($"No {SQLBase.PostgreSQLConnectString} connection string found for package {package.AreaName} and no default defined");
+                if ((SiteDefinition.INITIAL_INSTALL || !YetaWF.Core.Support.Startup.Started) && GetType() == typeof(SQLInitialization)) // for postgres initialization, ignore if there is no connection string
+                    return;
+                throw new InternalError($"No {SQLBase.PostgreSQLConnectString} connection string found for package {package.AreaName} and no default defined");
             }
 
             string path = Path.Combine(package.AddonsFolder, "_Main", "PostgreSql");
@@ -85,6 +85,27 @@ namespace YetaWF.DataProvider.PostgreSQL {
                     }
                 }
             }
+        }
+
+        private string GetConnectionString(Package package) {
+
+            // verify correct I/O mode
+            string ioMode = WebConfigHelper.GetValue<string>(package.AreaName, DataProviderImpl.IOModeString);
+            if (string.IsNullOrWhiteSpace(ioMode))
+                ioMode = WebConfigHelper.GetValue<string>(DataProviderImpl.DefaultString, DataProviderImpl.IOModeString);
+            if (string.IsNullOrWhiteSpace(ioMode))
+                return null;
+            if (string.Compare(ioMode, SQLBase.ExternalName, true) != 0)
+                return null;
+
+            // retrieve connection string
+            string connString = WebConfigHelper.GetValue<string>(package.AreaName, SQLBase.PostgreSQLConnectString);
+            if (string.IsNullOrWhiteSpace(connString))
+                connString = WebConfigHelper.GetValue<string>(DataProviderImpl.DefaultString, SQLBase.PostgreSQLConnectString);
+            if (string.IsNullOrWhiteSpace(connString))
+                throw new InternalError($"No {SQLBase.PostgreSQLConnectString} connection string found, but {DataProviderImpl.IOModeString} present for default or package {package.AreaName}");
+
+            return connString;
         }
 
         /// <summary>
@@ -147,7 +168,9 @@ namespace YetaWF.DataProvider.PostgreSQL {
         /// Returns whether the data provider is installed and available.
         /// </summary>
         /// <returns>true if the data provider is installed and available, false otherwise.</returns>
-        public Task<bool> IsInstalledAsync() { return Task.FromResult(true); }
+        public Task<bool> IsInstalledAsync() {
+            return Task.FromResult(true);
+        }
         /// <summary>
         /// Called to translate the data managed by the data provider to another language.
         /// </summary>

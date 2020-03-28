@@ -303,6 +303,7 @@ namespace YetaWF.DataProvider.PostgreSQL {
 
             // get total # of records (only if a subset is requested)
             if (skip != 0 || take != 0) {
+
                 sb = new SQLBuilder();
                 sb.Append($@"
         SELECT COUNT(*)
@@ -313,6 +314,8 @@ namespace YetaWF.DataProvider.PostgreSQL {
 
                 object scalar = await sqlHelper.ExecuteScalarAsync(sb.ToString());
                 total = Convert.ToInt32(scalar);
+                if (total == 0)
+                    return new DataProviderGetRecords<OBJTYPE> { Total = 0, };
             }
 
             // eval filters again so we don't reuse parms (npgsql doesn't like that)
