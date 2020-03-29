@@ -75,6 +75,7 @@ namespace YetaWF.DataProvider.SQL {
         /// Constructor.
         /// </summary>
         /// <param name="options">A dictionary of options and optional parameters as provided to the YetaWF.Core.DataProvider.DataProviderImpl.MakeDataProvider method when the data provider is created.</param>
+        /// <param name="HasKey2">Defines whether the object has a secondary key.</param>
         /// <remarks>
         /// Data providers are instantiated when the YetaWF.Core.DataProvider.DataProviderImpl.MakeDataProvider method is called, usually by an application data provider.
         ///
