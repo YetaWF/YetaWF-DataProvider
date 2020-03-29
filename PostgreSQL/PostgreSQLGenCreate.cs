@@ -513,7 +513,7 @@ CREATE TABLE ""{schema}"".""{newTable.Name}"" (
                 RemoveIndexesAndForeignKeys(dbName, schema, t);
             }
 
-            Table currentTable = tableInfo.CurrentTable;
+            Table currentTable = tableInfo.CurrentTable ?? new Table();
             Table newTable = tableInfo.NewTable;
 
             List<Index> removedIndexes;
@@ -813,15 +813,16 @@ CREATE INDEX ""{index.Name}"" ON ""{schema}"".""{newTable.Name}"" USING btree (
         private string GetAddForeignKey(ForeignKey fk, string dbName, string schema, Table newTable) {
             StringBuilder sb = new StringBuilder();
             sb.Append($@"
-    CONSTRAINT ""{fk.Name}"" FOREIGN KEY 
-    (");
+    CONSTRAINT ""{fk.Name}"" FOREIGN KEY (
+        ");
             foreach (ForeignKeyColumn fkCol in fk.ForeignKeyColumns) {
                 sb.Append($@"""{fkCol.Column}"",");
             }
             sb.RemoveLastComma();
             sb.Append($@"
-    REFERENCES ""{schema}"".""{fk.ReferencedTable}"" 
-    (");
+    )
+    REFERENCES ""{schema}"".""{fk.ReferencedTable}"" (
+        ");
             foreach (ForeignKeyColumn fkCol in fk.ForeignKeyColumns) {
                 sb.Append($@"""{fkCol.ReferencedColumn}"",");
             }
