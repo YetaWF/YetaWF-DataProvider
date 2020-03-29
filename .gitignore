@@ -2,7 +2,6 @@
 *.opt
 *.plg
 *.xml
-*.csproj
 packages.config
 app.config
 
