@@ -87,7 +87,7 @@ namespace YetaWF.DataProvider.PostgreSQL {
 
             // Replace the special chars
             foreach (string t in specialChars) {
-                newChars = newChars.Replace(t, $@"\\{t}");
+                newChars = newChars.Replace(t, $@"\{t}");
             }
 
             // Escape the apostrophe if requested
@@ -102,7 +102,7 @@ namespace YetaWF.DataProvider.PostgreSQL {
         /// <param name="sql">A SQL statement fragment.</param>
         /// <returns>Returns the clean SQL fragment, with escaped apostrophes.</returns>
         internal string EscapeApostrophe(string sql) {
-            sql = sql.Replace(@"'", @"\\'");
+            sql = sql.Replace(@"'", @"\'");
             return sql;
         }
 

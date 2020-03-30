@@ -152,27 +152,25 @@ DECLARE
             sb.Append($@"
 BEGIN");
 
-            if (!HasIdentity(identityName)) {
-                if ((NpgsqlDbType)colKey1.DataType == NpgsqlDbType.Varchar || (!string.IsNullOrWhiteSpace(key2Name) && (NpgsqlDbType)colKey2.DataType == NpgsqlDbType.Varchar)) {
+            if ((NpgsqlDbType)colKey1.DataType == NpgsqlDbType.Varchar || (!string.IsNullOrWhiteSpace(key2Name) && (NpgsqlDbType)colKey2.DataType == NpgsqlDbType.Varchar)) {
 
-                    sb.Append($@"
+                sb.Append($@"
 
 	LOCK TABLE {fullTableName} IN ACCESS EXCLUSIVE MODE;
 
     SELECT ""{key1Name}"" INTO __VAR
     FROM {fullTableName}
     WHERE {GenCompare(key1Name, (NpgsqlDbType)colKey1.DataType, $@"""arg{key1Name}""")}");
-                    if (!string.IsNullOrWhiteSpace(key2Name)) sb.Append($@" AND {GenCompare(key2Name, (NpgsqlDbType)colKey2.DataType, $@"""arg{key2Name}""")}");
-                    if (siteIdentity > 0) sb.Append($@" AND ""{SQLGenericBase.SiteColumn}"" = ""{SQLGen.ValSiteIdentity}""");
+                if (!string.IsNullOrWhiteSpace(key2Name)) sb.Append($@" AND {GenCompare(key2Name, (NpgsqlDbType)colKey2.DataType, $@"""arg{key2Name}""")}");
+                if (siteIdentity > 0) sb.Append($@" AND ""{SQLGenericBase.SiteColumn}"" = ""{SQLGen.ValSiteIdentity}""");
 
-                    sb.Append($@"
+                sb.Append($@"
     LIMIT 1;
 
     IF __VAR IS NOT NULL THEN
         RAISE SQLSTATE '23505'; -- Unique violation
     END IF;
 ");
-                }
             }
 
             sb.Append($@"
@@ -249,10 +247,9 @@ DECLARE
             sb.Append($@"
 BEGIN");
 
-            if (!HasIdentity(identityName)) {
-                if ((NpgsqlDbType)colKey1.DataType == NpgsqlDbType.Varchar || (!string.IsNullOrWhiteSpace(key2Name) && (NpgsqlDbType)colKey2.DataType == NpgsqlDbType.Varchar)) {
+            if ((NpgsqlDbType)colKey1.DataType == NpgsqlDbType.Varchar || (!string.IsNullOrWhiteSpace(key2Name) && (NpgsqlDbType)colKey2.DataType == NpgsqlDbType.Varchar)) {
 
-                    sb.Append($@"
+                sb.Append($@"
 
 	LOCK TABLE {fullTableName} IN ACCESS EXCLUSIVE MODE;
 
@@ -260,26 +257,26 @@ BEGIN");
     FROM {fullTableName}
     WHERE ( 
             {GenCompare(key1Name, (NpgsqlDbType)colKey1.DataType, $@"""arg{key1Name}""")}");
-                    if (!string.IsNullOrWhiteSpace(key2Name)) sb.Append($@" AND {GenCompare(key2Name, (NpgsqlDbType)colKey2.DataType, $@"""arg{key2Name}""")}");
+                if (!string.IsNullOrWhiteSpace(key2Name)) sb.Append($@" AND {GenCompare(key2Name, (NpgsqlDbType)colKey2.DataType, $@"""arg{key2Name}""")}");
 
-                    sb.Append($@"
+                sb.Append($@"
           ) AND (
             ""{key1Name}"" <> ""Key1Val""");
-                    if (!string.IsNullOrWhiteSpace(key2Name)) sb.Append($@" AND ""{key2Name}"" <> ""Key2Val""");
+                if (!string.IsNullOrWhiteSpace(key2Name)) sb.Append($@" AND ""{key2Name}"" <> ""Key2Val""");
 
-                    sb.Append($@"
+                sb.Append($@"
           )");
-                    if (siteIdentity > 0) sb.Append($@" AND ""{SQLGenericBase.SiteColumn}"" = ""{SQLGen.ValSiteIdentity}""");
+                if (siteIdentity > 0) sb.Append($@" AND ""{SQLGenericBase.SiteColumn}"" = ""{SQLGen.ValSiteIdentity}""");
 
-                    sb.Append($@"
+                sb.Append($@"
     LIMIT 1;
 
     IF __VAR IS NOT NULL THEN
         RAISE SQLSTATE '23505'; -- Unique violation
     END IF;
 ");
-                }
             }
+            
 
             sb.Append($@"
     UPDATE {fullTableName}
