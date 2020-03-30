@@ -139,6 +139,7 @@ namespace YetaWF.DataProvider.PostgreSQL {
                 }
             }
         }
+
         private bool ComplexTypeInColumns(List<string> columns, string prefix) {
             foreach (string column in columns) {
                 if (column.StartsWith(prefix))
@@ -541,6 +542,16 @@ namespace YetaWF.DataProvider.PostgreSQL {
             }
             parm.Direction = Direction;//<<<
             Params.Add(parm);
+        }
+
+        public void AddKeyParam(string name, object value, Type keyType) {
+            if (keyType == typeof(string) && value != null) {
+                SQLBuilder sb = new SQLBuilder();
+                string stringVal = value.ToString();
+                AddParam(name, sb.EscapeForLike(stringVal));
+            } else {
+                AddParam(name, value);
+            }
         }
     }
 }

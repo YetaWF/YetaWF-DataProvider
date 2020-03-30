@@ -1,6 +1,7 @@
 ﻿/* Copyright © 2020 Softel vdm, Inc. - https://yetawf.com/Documentation/YetaWF/Licensing */
 
 using Npgsql;
+using NpgsqlTypes;
 using System;
 using System.Collections;
 using System.Collections.Generic;
@@ -72,8 +73,8 @@ BEGIN
 
             sb.Append($@"
         FROM {fullTableName}
-        WHERE ""{key1Name}"" = ""Key1Val""");
-            if (!string.IsNullOrWhiteSpace(key2Name)) sb.Append($@" AND ""{key2Name}"" = ""Key2Val""");
+        WHERE {GenCompare(key1Name, (NpgsqlDbType)colKey1.DataType, $@"""Key1Val""")}");
+            if (!string.IsNullOrWhiteSpace(key2Name)) sb.Append($@" AND {GenCompare(key2Name, (NpgsqlDbType)colKey2.DataType, $@"""Key2Val""")}");
             if (siteIdentity > 0) sb.Append($@" AND ""{SQLGenericBase.SiteColumn}"" = ""{SQLGen.ValSiteIdentity}""");
 
             sb.Append($@"
@@ -139,7 +140,9 @@ CREATE OR REPLACE FUNCTION ""{schema}"".""{dataset}__Add""({GetArgumentNameList(
 AS $$
 DECLARE
     __TOTAL integer;
-    __COUNT integer;");
+    __COUNT integer;
+    __VAR character varying;");
+
             if (HasIdentity(identityName)) {
 
                 sb.Append($@"
@@ -147,7 +150,32 @@ DECLARE
             }
 
             sb.Append($@"
-BEGIN
+BEGIN");
+
+            if (!HasIdentity(identityName)) {
+                if ((NpgsqlDbType)colKey1.DataType == NpgsqlDbType.Varchar || (!string.IsNullOrWhiteSpace(key2Name) && (NpgsqlDbType)colKey2.DataType == NpgsqlDbType.Varchar)) {
+
+                    sb.Append($@"
+
+	LOCK TABLE {fullTableName} IN ACCESS EXCLUSIVE MODE;
+
+    SELECT ""{key1Name}"" INTO __VAR
+    FROM {fullTableName}
+    WHERE {GenCompare(key1Name, (NpgsqlDbType)colKey1.DataType, $@"""arg{key1Name}""")}");
+                    if (!string.IsNullOrWhiteSpace(key2Name)) sb.Append($@" AND {GenCompare(key2Name, (NpgsqlDbType)colKey2.DataType, $@"""arg{key2Name}""")}");
+                    if (siteIdentity > 0) sb.Append($@" AND ""{SQLGenericBase.SiteColumn}"" = ""{SQLGen.ValSiteIdentity}""");
+
+                    sb.Append($@"
+    LIMIT 1;
+
+    IF __VAR IS NOT NULL THEN
+        RAISE SQLSTATE '23505'; -- Unique violation
+    END IF;
+");
+                }
+            }
+
+            sb.Append($@"
     INSERT INTO {fullTableName} ({GetColumnNameList(dbName, schema, dataset, propData, objType, Add: true, Prefix: null, TopMost: true, SiteSpecific: siteIdentity > 0, WithDerivedInfo: false, SubTable: false)}");
 
             sb.RemoveLastComma();
@@ -210,7 +238,8 @@ CREATE OR REPLACE FUNCTION ""{schema}"".""{dataset}__Update""(""Key1Val"" {typeK
 AS $$
 DECLARE
     __TOTAL integer;
-    __COUNT integer;");
+    __COUNT integer;
+    __VAR character varying;");
 
             if (HasIdentity(identityName)) {
                 sb.Append($@"
@@ -218,15 +247,49 @@ DECLARE
             }
 
             sb.Append($@"
-BEGIN
+BEGIN");
+
+            if (!HasIdentity(identityName)) {
+                if ((NpgsqlDbType)colKey1.DataType == NpgsqlDbType.Varchar || (!string.IsNullOrWhiteSpace(key2Name) && (NpgsqlDbType)colKey2.DataType == NpgsqlDbType.Varchar)) {
+
+                    sb.Append($@"
+
+	LOCK TABLE {fullTableName} IN ACCESS EXCLUSIVE MODE;
+
+    SELECT ""{key1Name}"" INTO __VAR
+    FROM {fullTableName}
+    WHERE ( 
+            {GenCompare(key1Name, (NpgsqlDbType)colKey1.DataType, $@"""arg{key1Name}""")}");
+                    if (!string.IsNullOrWhiteSpace(key2Name)) sb.Append($@" AND {GenCompare(key2Name, (NpgsqlDbType)colKey2.DataType, $@"""arg{key2Name}""")}");
+
+                    sb.Append($@"
+          ) AND (
+            ""{key1Name}"" <> ""Key1Val""");
+                    if (!string.IsNullOrWhiteSpace(key2Name)) sb.Append($@" AND ""{key2Name}"" <> ""Key2Val""");
+
+                    sb.Append($@"
+          )");
+                    if (siteIdentity > 0) sb.Append($@" AND ""{SQLGenericBase.SiteColumn}"" = ""{SQLGen.ValSiteIdentity}""");
+
+                    sb.Append($@"
+    LIMIT 1;
+
+    IF __VAR IS NOT NULL THEN
+        RAISE SQLSTATE '23505'; -- Unique violation
+    END IF;
+");
+                }
+            }
+
+            sb.Append($@"
     UPDATE {fullTableName}
     SET {GetSetList(dbName, schema, dataset, propData, objType, Prefix: null, TopMost: true, SiteSpecific: siteIdentity > 0, WithDerivedInfo: false, SubTable: false)}");
 
             sb.RemoveLastComma();
 
             sb.Append($@"
-    WHERE ""{key1Name}"" = ""Key1Val""");
-        if (!string.IsNullOrWhiteSpace(key2Name)) sb.Append($@" AND ""{key2Name}"" = ""Key2Val""");
+    WHERE {GenCompare(key1Name, (NpgsqlDbType)colKey1.DataType, $@"""Key1Val""")}");
+        if (!string.IsNullOrWhiteSpace(key2Name)) sb.Append($@" AND {GenCompare(key2Name, (NpgsqlDbType)colKey2.DataType, $@"""Key2Val""")}");
         if (siteIdentity > 0) sb.Append($@" AND ""{SQLGenericBase.SiteColumn}"" = ""{SQLGen.ValSiteIdentity}""");
 
             if (HasIdentity(identityName)) {
@@ -356,8 +419,8 @@ AS $$
                 sb.Append($@"
 BEGIN
     DELETE FROM {fullTableName}
-    WHERE ""{key1Name}"" = ""Key1Val""");
-                if (!string.IsNullOrWhiteSpace(key2Name)) sb.Append($@" AND ""{key2Name}"" = ""Key2Val""");
+    WHERE {GenCompare(key1Name, (NpgsqlDbType)colKey1.DataType, $@"""Key1Val""")}");
+                if (!string.IsNullOrWhiteSpace(key2Name)) sb.Append($@" AND {GenCompare(key2Name, (NpgsqlDbType)colKey2.DataType, $@"""Key2Val""")}");
                 if (siteIdentity > 0) sb.Append($@" AND ""{SQLGenericBase.SiteColumn}"" = ""{SQLGen.ValSiteIdentity}""");
 
                 sb.Append($@"
@@ -369,8 +432,8 @@ BEGIN
     DECLARE __IDENTITY integer;
 BEGIN
     SELECT ""{GetIdentityNameOrDefault(identityName)}"" INTO __IDENTITY FROM {fullTableName}
-    WHERE ""{key1Name}"" = ""Key1Val""");
-    if (!string.IsNullOrWhiteSpace(key2Name)) sb.Append($@" AND ""{key2Name}"" = ""Key2Val""");
+    WHERE {GenCompare(key1Name, (NpgsqlDbType)colKey1.DataType, $@"""Key1Val""")}");
+    if (!string.IsNullOrWhiteSpace(key2Name)) sb.Append($@" AND {GenCompare(key2Name, (NpgsqlDbType)colKey2.DataType, $@"""Key2Val""")}");
     if (siteIdentity > 0) sb.Append($@" AND ""{SQLGenericBase.SiteColumn}"" = ""{SQLGen.ValSiteIdentity}""");
                 sb.Append($@"
 ;");
@@ -434,6 +497,14 @@ $$;");
             }
 
             return true;
+        }
+
+        private string GenCompare(string keyName, NpgsqlDbType typeKey, string keyValue) {
+            if (typeKey == NpgsqlDbType.Varchar) {
+                return $@"""{keyName}"" ILIKE {keyValue}";
+            } else {
+                return $@"""{keyName}"" = {keyValue}";
+            }
         }
 
         internal Task<bool> DropFunctionsAsync(string dbName, string schema, string dataset) {

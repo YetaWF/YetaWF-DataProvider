@@ -79,9 +79,9 @@ namespace YetaWF.DataProvider.PostgreSQL {
 
             AddSubtableMapping();
 
-            sqlHelper.AddParam("Key1Val", key);
+            sqlHelper.AddKeyParam("Key1Val", key, typeof(KEYTYPE));
             if (HasKey2)
-                sqlHelper.AddParam("Key2Val", key2);
+                sqlHelper.AddKeyParam("Key2Val", key2, typeof(KEYTYPE2));
             if (SiteIdentity > 0)
                 sqlHelper.AddParam(SQLGen.ValSiteIdentity, SiteIdentity);
 
@@ -166,9 +166,9 @@ namespace YetaWF.DataProvider.PostgreSQL {
 
             AddSubtableMapping();
             GetParameterList(sqlHelper, obj, Database, Schema, Dataset, GetPropertyData(), Prefix: null, TopMost: true, SiteSpecific: SiteIdentity > 0, WithDerivedInfo: false, SubTable: false);
-            sqlHelper.AddParam("Key1Val", origKey);
+            sqlHelper.AddKeyParam("Key1Val", origKey, typeof(KEYTYPE));
             if (HasKey2)
-                sqlHelper.AddParam("Key2Val", origKey2);
+                sqlHelper.AddKeyParam("Key2Val", origKey2, typeof(KEYTYPE2));
 
             try {
                 using (NpgsqlDataReader reader = await sqlHelper.ExecuteReaderStoredProcAsync($@"""{Schema}"".""{Dataset}__Update""")) {
@@ -212,9 +212,9 @@ namespace YetaWF.DataProvider.PostgreSQL {
 
             SQLHelper sqlHelper = new SQLHelper(Conn, null, Languages);
 
-            sqlHelper.AddParam("Key1Val", key);
+            sqlHelper.AddKeyParam("Key1Val", key, typeof(KEYTYPE));
             if (HasKey2)
-                sqlHelper.AddParam("Key2Val", key2);
+                sqlHelper.AddKeyParam("Key2Val", key2, typeof(KEYTYPE2));
             if (SiteIdentity > 0)
                 sqlHelper.AddParam(SQLGen.ValSiteIdentity, SiteIdentity);
 

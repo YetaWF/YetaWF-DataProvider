@@ -78,11 +78,12 @@ namespace YetaWF.DataProvider.PostgreSQL {
         /// <param name="escapeApostrophe">Defines whether to escape an apostrophe. Can be used to prevent double escaping of apostrophes.</param>
         /// <returns>Returns the translated value ready to be used in a LIKE statement.</returns>
         internal string EscapeForLike(string value, bool escapeApostrophe = true) {
-            string[] specialChars = { "%", "_", "-", "^" };
-            string newChars;
+            string[] specialChars = { "%", "_", };
+            string newChars = value;
 
             // Escape the [ bracket
-            newChars = value.Replace(@"""", @"\\""");
+            if (escapeApostrophe)
+                newChars = newChars.Replace(@"""", @"\\""");
 
             // Replace the special chars
             foreach (string t in specialChars) {
