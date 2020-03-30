@@ -376,13 +376,23 @@ namespace YetaWF.DataProvider.PostgreSQL {
                         case "eq":
                         case "==":
                         case "=":
-                            oper = "="; break;
+                            if (val != null && val.GetType() == typeof(string)) {
+                                oper = "ILIKE";
+                            } else {
+                                oper = "=";
+                            }
+                            break;
                         case "neq":
                         case "<>":
                         case "!=":
                             if (val != null)
                                 isNull = true;
-                            oper = "<>"; break;
+                            if (val != null && val.GetType() == typeof(string)) {
+                                oper = "NOT ILIKE";
+                            } else {
+                                oper = "<>";
+                            }
+                            break;
                         case "lt":
                         case "<":
                             isNull = true;
