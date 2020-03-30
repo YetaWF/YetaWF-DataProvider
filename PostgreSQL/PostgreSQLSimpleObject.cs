@@ -736,7 +736,7 @@ DELETE FROM {fullTableName} WHERE ""{SiteColumn}"" = {SiteIdentity}
                 },
                 (prefix, container, prop, subPropData, subType, subtableName) => { // Subtable
                     if (subPropData.Count == 1) {
-                        // a subtable with a single column doesn't ahve a PG Type so we have to pass the column as an array instead
+                        // a subtable with a single column doesn't have a PG Type so we have to pass the column as an array instead
                         // get the list of objects.
                         List<object> list = new List<object>();
                         object val = prop.PropInfo.GetValue(container);
@@ -752,7 +752,7 @@ DELETE FROM {fullTableName} WHERE ""{SiteColumn}"" = {SiteIdentity}
                         NpgsqlDbType dbType = SQLGen.GetDataType(subProp.PropInfo);
                         sqlHelper.AddParam($"arg{prefix}{prop.Name}", sublist.ToArray(), DbType: dbType | NpgsqlDbType.Array);
                     } else {
-                        AddCompositeMapping(prop.PropInfo.PropertyType, $"{subtableName}_T");
+                        //AddCompositeMapping(prop.PropInfo.PropertyType, $"{subtableName}_T");
                         List<object> list = new List<object>();
                         object val = prop.PropInfo.GetValue(container);
                         if (val != null)
