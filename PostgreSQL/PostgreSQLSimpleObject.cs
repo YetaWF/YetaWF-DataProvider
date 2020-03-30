@@ -85,9 +85,16 @@ namespace YetaWF.DataProvider.PostgreSQL {
             if (SiteIdentity > 0)
                 sqlHelper.AddParam(SQLGen.ValSiteIdentity, SiteIdentity);
 
-            using (NpgsqlDataReader reader = await sqlHelper.ExecuteReaderStoredProcAsync($@"""{Schema}"".""{Dataset}__Get""")) {
-                if (!(YetaWFManager.IsSync() ? reader.Read() : await reader.ReadAsync())) return default(OBJTYPE);
-                return sqlHelper.CreateObject<OBJTYPE>(reader);
+            try {
+                using (NpgsqlDataReader reader = await sqlHelper.ExecuteReaderStoredProcAsync($@"""{Schema}"".""{Dataset}__Get""")) {
+                    if (!(YetaWFManager.IsSync() ? reader.Read() : await reader.ReadAsync())) return default(OBJTYPE);
+                    return sqlHelper.CreateObject<OBJTYPE>(reader);
+                }
+            } catch (Exception exc) {
+                Npgsql.PostgresException sqlExc = exc as Npgsql.PostgresException;
+                if (sqlExc != null)
+                    throw new InternalError($"{nameof(GetAsync)} failed for type {typeof(OBJTYPE).FullName} - {sqlExc.Detail} - {ErrorHandling.FormatExceptionMessage(exc)}");
+                throw new InternalError($"{nameof(GetAsync)} failed for type {typeof(OBJTYPE).FullName} - {ErrorHandling.FormatExceptionMessage(exc)}");
             }
         }
 
@@ -122,7 +129,9 @@ namespace YetaWF.DataProvider.PostgreSQL {
                 Npgsql.PostgresException sqlExc = exc as Npgsql.PostgresException;
                 if (sqlExc != null && sqlExc.SqlState == PostgresErrorCodes.UniqueViolation) // already exists
                     return false;
-                throw new InternalError("Add failed for type {0} - {1}", typeof(OBJTYPE).FullName, ErrorHandling.FormatExceptionMessage(exc));
+                if (sqlExc != null)
+                    throw new InternalError($"{nameof(AddAsync)} failed for type {typeof(OBJTYPE).FullName} - {sqlExc.Detail} - {ErrorHandling.FormatExceptionMessage(exc)}");
+                throw new InternalError($"{nameof(AddAsync)} failed for type {typeof(OBJTYPE).FullName} - {ErrorHandling.FormatExceptionMessage(exc)}");
             }
             return true;
         }
@@ -175,7 +184,9 @@ namespace YetaWF.DataProvider.PostgreSQL {
                 Npgsql.PostgresException sqlExc = exc as Npgsql.PostgresException;
                 if (sqlExc != null && sqlExc.SqlState == PostgresErrorCodes.UniqueViolation) // already exists
                     return UpdateStatusEnum.NewKeyExists;
-                throw new InternalError($"Update failed for type {typeof(OBJTYPE).FullName} - {ErrorHandling.FormatExceptionMessage(exc)}");
+                if (sqlExc != null)
+                    throw new InternalError($"{nameof(UpdateAsync)} failed for type {typeof(OBJTYPE).FullName} - {sqlExc.Detail} - {ErrorHandling.FormatExceptionMessage(exc)}");
+                throw new InternalError($"{nameof(UpdateAsync)} failed for type {typeof(OBJTYPE).FullName} - {ErrorHandling.FormatExceptionMessage(exc)}");
             }
             return UpdateStatusEnum.OK;
 
@@ -214,7 +225,10 @@ namespace YetaWF.DataProvider.PostgreSQL {
                     return removed > 0;
                 }
             } catch (Exception exc) {
-                throw new InternalError($"Remove failed for type {typeof(OBJTYPE).FullName} - {ErrorHandling.FormatExceptionMessage(exc)}");
+                Npgsql.PostgresException sqlExc = exc as Npgsql.PostgresException;
+                if (sqlExc != null)
+                    throw new InternalError($"{nameof(RemoveAsync)} failed for type {typeof(OBJTYPE).FullName} - {sqlExc.Detail} - {ErrorHandling.FormatExceptionMessage(exc)}");
+                throw new InternalError($"{nameof(RemoveAsync)} failed for type {typeof(OBJTYPE).FullName} - {ErrorHandling.FormatExceptionMessage(exc)}");
             }
         }
 
@@ -261,7 +275,7 @@ namespace YetaWF.DataProvider.PostgreSQL {
             int total = 0;
 
             Dictionary<string, string> visibleColumns = Joins.Count > 0 ? new Dictionary<string, string>() : null;
-            string columnList = sqlCreate.GetColumnNameList(Database, Schema, Dataset, GetPropertyData(), typeof(OBJTYPE), Add: false, Prefix: null, TopMost: true, SiteSpecific: SiteIdentity > 0, WithDerivedInfo: false, SubTable: false,
+            string columnList = sqlCreate.GetColumnNameList(Database, Schema, Dataset, GetPropertyData(), typeof(OBJTYPE), Add: false, Prefix: null, TopMost: true, IdentityName: IdentityName, SiteSpecific: SiteIdentity > 0, WithDerivedInfo: false, SubTable: false,
                 VisibleColumns: visibleColumns);
 
             string joinExpr = null;
@@ -338,36 +352,6 @@ namespace YetaWF.DataProvider.PostgreSQL {
             sb.Append($@"
         SELECT {columnList}");
             if (CalculatedPropertyCallbackAsync != null) sb.Append(await SQLGen.CalculatedPropertiesAsync(typeof(OBJTYPE), CalculatedPropertyCallbackAsync));
-
-            List<PropertyData> propData = GetPropertyData();
-            List<SQLGenericGen.SubTableInfo> subTables = SQLGen.GetSubTables(Dataset, propData);
-
-            foreach (SQLGenericGen.SubTableInfo subTable in subTables) {
-
-                List<PropertyData> subPropData = ObjectSupport.GetPropertyData(subTable.Type);
-
-                sb.Append($@"
-            (
-                SELECT ARRAY_AGG((");
-
-                sb.Append(sqlCreate.GetColumnNameList(Database, Schema, subTable.Name, subPropData, subTable.Type, Add: false, Prefix: null, TopMost: false, SiteSpecific: false, WithDerivedInfo: false, SubTable: true));
-                sb.RemoveLastComma();
-                sb.Append($@")::");
-
-                if (subPropData.Count == 1) {
-                    SQLGenericGen.Column col = sqlManager.GetColumn(Conn, Database, Schema, subTable.Name, subPropData[0].ColumnName);
-                    string colType = sqlCreate.GetDataTypeArgumentString(col);
-                    sb.Append(colType);
-                } else {
-                    sb.Append($@"""{subTable.Name}_T""");
-                }
-
-                sb.Append($@")
-                FROM ""{Schema}"".""{subTable.Name}""
-                WHERE ""{Schema}"".""{subTable.Name}"".""{SQLGenericBase.SubTableKeyColumn}"" = ""{Schema}"".""{Dataset}"".""{IdentityNameOrDefault}""
-            ) AS ""{subTable.PropInfo.Name}"",");
-
-            }
 
             sb.RemoveLastComma();
 
@@ -777,7 +761,7 @@ DELETE FROM {fullTableName} WHERE ""{SiteColumn}"" = {SiteIdentity}
                     }
                     return null;
                 },
-                dbName, schema, dataset, obj, propData, obj.GetType(), new List<string>(), Prefix, TopMost, SiteSpecific, WithDerivedInfo, SubTable) ;
+                dbName, schema, dataset, obj, propData, obj.GetType(), Prefix, TopMost, SiteSpecific, WithDerivedInfo, SubTable) ;
         }
     }
 }

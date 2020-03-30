@@ -679,10 +679,9 @@ FROM {fullTableName} WITH(NOLOCK)
         /// While a package is installed, all data models are installed by calling the InstallModelAsync method.</remarks>
         public async Task<bool> InstallModelAsync(List<string> errorList) {
             await EnsureOpenAsync();
-            List<string> columns = new List<string>();
             SQLGen sqlCreate = new SQLGen(Conn, Languages, IdentitySeed, Logging);
             //TODO: could asyncify but probably not worth it as this is used during install/startup only
-            bool success = sqlCreate.CreateTableFromModel(Database, Dbo, Dataset, Key1Name, HasKey2 ? Key2Name : null, IdentityName, GetPropertyData(), typeof(OBJTYPE), errorList, columns,
+            bool success = sqlCreate.CreateTableFromModel(Database, Dbo, Dataset, Key1Name, HasKey2 ? Key2Name : null, IdentityName, GetPropertyData(), typeof(OBJTYPE), errorList,
                 SiteSpecific: SiteIdentity > 0,
                 TopMost: true);
             SQLGenericManagerCache.ClearCache();

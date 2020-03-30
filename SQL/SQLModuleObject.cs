@@ -453,14 +453,13 @@ WHERE {fullBaseTableName}.[DerivedDataTableName] = '{Dataset}' AND {fullBaseTabl
         }
         private bool CreateTableWithBaseType(SqlConnection conn, string dbName, List<string> errorList) {
             Type baseType = typeof(ModuleDefinition);
-            List<string> columns = new List<string>();
             SQLGen sqlCreate = new SQLGen(conn, Languages, IdentitySeed, Logging);
-            if (!sqlCreate.CreateTableFromModel(dbName, Dbo, BaseDataset, Key1Name, null, IdentityName, GetBasePropertyData(), baseType, errorList, columns,
+            if (!sqlCreate.CreateTableFromModel(dbName, Dbo, BaseDataset, Key1Name, null, IdentityName, GetBasePropertyData(), baseType, errorList,
                     TopMost: true,
                     SiteSpecific: SiteIdentity > 0,
                     DerivedDataTableName: "DerivedDataTableName", DerivedDataTypeName: "DerivedDataType", DerivedAssemblyName: "DerivedAssemblyName"))
                 return false;
-            return sqlCreate.CreateTableFromModel(dbName, Dbo, Dataset, Key1Name, null, SQLBase.IdentityColumn, GetPropertyData(), typeof(OBJTYPE), errorList, columns,
+            return sqlCreate.CreateTableFromModel(dbName, Dbo, Dataset, Key1Name, null, SQLBase.IdentityColumn, GetPropertyData(), typeof(OBJTYPE), errorList,
                 TopMost: true,
                 SiteSpecific: SiteIdentity > 0,
                 ForeignKeyTable: BaseDataset);

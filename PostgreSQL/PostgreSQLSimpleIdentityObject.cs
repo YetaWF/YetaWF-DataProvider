@@ -61,9 +61,16 @@ namespace YetaWF.DataProvider.PostgreSQL {
             AddSubtableMapping();
             sqlHelper.AddParam("valIdentity", identity);
 
-            using (NpgsqlDataReader reader = await sqlHelper.ExecuteReaderStoredProcAsync($@"""{Schema}"".""{Dataset}__GetByIdentity""")) {
-                if (!(YetaWFManager.IsSync() ? reader.Read() : await reader.ReadAsync())) return default(OBJTYPE);
-                return sqlHelper.CreateObject<OBJTYPE>(reader);
+            try {
+                using (NpgsqlDataReader reader = await sqlHelper.ExecuteReaderStoredProcAsync($@"""{Schema}"".""{Dataset}__GetByIdentity""")) {
+                    if (!(YetaWFManager.IsSync() ? reader.Read() : await reader.ReadAsync())) return default(OBJTYPE);
+                    return sqlHelper.CreateObject<OBJTYPE>(reader);
+                }
+            } catch (Exception exc) {
+                Npgsql.PostgresException sqlExc = exc as Npgsql.PostgresException;
+                if (sqlExc != null)
+                    throw new InternalError($"{nameof(GetByIdentityAsync)} failed for type {typeof(OBJTYPE).FullName} - {sqlExc.Detail} - {ErrorHandling.FormatExceptionMessage(exc)}");
+                throw new InternalError($"{nameof(GetByIdentityAsync)} failed for type {typeof(OBJTYPE).FullName} - {ErrorHandling.FormatExceptionMessage(exc)}");
             }
         }
 
@@ -98,7 +105,9 @@ namespace YetaWF.DataProvider.PostgreSQL {
                 Npgsql.PostgresException sqlExc = exc as Npgsql.PostgresException;
                 if (sqlExc != null && sqlExc.SqlState == PostgresErrorCodes.UniqueViolation) // already exists
                     return UpdateStatusEnum.NewKeyExists;
-                throw new InternalError($"Update failed for type {typeof(OBJTYPE).FullName} - {ErrorHandling.FormatExceptionMessage(exc)}");
+                if (sqlExc != null)
+                    throw new InternalError($"{nameof(UpdateByIdentityAsync)} failed for type {typeof(OBJTYPE).FullName} - {sqlExc.Detail} - {ErrorHandling.FormatExceptionMessage(exc)}");
+                throw new InternalError($"{nameof(UpdateByIdentityAsync)} failed for type {typeof(OBJTYPE).FullName} - {ErrorHandling.FormatExceptionMessage(exc)}");
             }
             return UpdateStatusEnum.OK;
         }
@@ -128,7 +137,9 @@ namespace YetaWF.DataProvider.PostgreSQL {
                 Npgsql.PostgresException sqlExc = exc as Npgsql.PostgresException;
                 if (sqlExc != null && sqlExc.SqlState == PostgresErrorCodes.UniqueViolation) //$$$$$ ref integrity
                     return false;
-                throw new InternalError("Delete failed for type {0} - {1}", typeof(OBJTYPE).FullName, ErrorHandling.FormatExceptionMessage(exc));
+                if (sqlExc != null)
+                    throw new InternalError($"{nameof(RemoveByIdentityAsync)} failed for type {typeof(OBJTYPE).FullName} - {sqlExc.Detail} - {ErrorHandling.FormatExceptionMessage(exc)}");
+                throw new InternalError($"{nameof(RemoveByIdentityAsync)} failed for type {typeof(OBJTYPE).FullName} - {ErrorHandling.FormatExceptionMessage(exc)}");
             }
         }
     }

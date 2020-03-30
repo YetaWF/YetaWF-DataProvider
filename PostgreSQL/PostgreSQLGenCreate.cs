@@ -47,9 +47,8 @@ namespace YetaWF.DataProvider.PostgreSQL {
                 bool WithDerivedInfo = false,
                 bool SubTable = false) {
 
-            List<string> columns = new List<string>();
             TableInfo tableInfo = CreateSimpleTableFromModel(dbName, schema, tableName, key1Name, key2Name, identityName, propData, tpProps,
-                errorList, columns,
+                errorList,
                 TopMost, SiteSpecific, ForeignKeyTable, WithDerivedInfo,
                 SubTable);
             if (tableInfo == null)
@@ -60,7 +59,7 @@ namespace YetaWF.DataProvider.PostgreSQL {
         }
 
         private TableInfo CreateSimpleTableFromModel(string dbName, string schema, string tableName, string key1Name, string key2Name, string identityName, List<PropertyData> propData, Type tpProps,
-                List<string> errorList, List<string> columns,
+                List<string> errorList,
                 bool TopMost = false,
                 bool SiteSpecific = false,
                 string ForeignKeyTable = null,
@@ -93,7 +92,7 @@ namespace YetaWF.DataProvider.PostgreSQL {
                     DropType(dbName, schema, tableInfo.NewTable.Name, propData, tpProps, SubTable: false);// drop this type so we can recreate types for subtables
                 }
 
-                bool hasSubTable = AddTableColumns(dbName, schema, tableInfo, key1Name, key2Name, identityName, propData, tpProps, "", true, columns, errorList, SiteSpecific: SiteSpecific, WithDerivedInfo: WithDerivedInfo, SubTable: SubTable);
+                bool hasSubTable = AddTableColumns(dbName, schema, tableInfo, key1Name, key2Name, identityName, propData, tpProps, "", true, errorList, SiteSpecific: SiteSpecific, WithDerivedInfo: WithDerivedInfo, SubTable: SubTable);
 
                 // PK Index
                 if (!SubTable) {
@@ -262,7 +261,7 @@ namespace YetaWF.DataProvider.PostgreSQL {
 
         private bool AddTableColumns(string dbName, string schema, TableInfo tableInfo,
                 string key1Name, string key2Name, string identityName,
-                List<PropertyData> propData, Type tpContainer, string prefix, bool topMost, List<string> columns, List<string> errorList,
+                List<PropertyData> propData, Type tpContainer, string prefix, bool topMost, List<string> errorList,
                 bool SiteSpecific = false,
                 bool WithDerivedInfo = false,
                 bool SubTable = false) {
@@ -377,7 +376,7 @@ namespace YetaWF.DataProvider.PostgreSQL {
                 (prefix, container, prop, subPropData, subType, subTableName) => { // Subtable property
                     // create a table that links the main table and this enumerated type using the key of the table
                     TableInfo subTableInfo = CreateSimpleTableFromModel(dbName, schema, subTableName, SQLBase.SubTableKeyColumn, null,
-                        HasIdentity(identityName) ? identityName : SQLBase.IdentityColumn, subPropData, subType, errorList, columns,
+                        HasIdentity(identityName) ? identityName : SQLBase.IdentityColumn, subPropData, subType, errorList,
                         TopMost: false,
                         ForeignKeyTable: newTable.Name,
                         SubTable: true,
@@ -388,7 +387,7 @@ namespace YetaWF.DataProvider.PostgreSQL {
 
                     return "subtable";
                 },
-                dbName, schema, newTable.Name, null, propData, tpContainer, columns, prefix, topMost, SiteSpecific, WithDerivedInfo, SubTable);
+                dbName, schema, newTable.Name, null, propData, tpContainer, prefix, topMost, SiteSpecific, WithDerivedInfo, SubTable);
 
             return !string.IsNullOrEmpty(result);
         }

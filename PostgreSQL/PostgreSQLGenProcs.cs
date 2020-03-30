@@ -10,6 +10,7 @@ using System.Reflection;
 using System.Text;
 using System.Threading.Tasks;
 using YetaWF.Core.DataProvider.Attributes;
+using YetaWF.Core.Extensions;
 using YetaWF.Core.Language;
 using YetaWF.Core.Models;
 using YetaWF.Core.Support;
@@ -64,35 +65,8 @@ CREATE OR REPLACE FUNCTION ""{schema}"".""{dataset}__Get""(""Key1Val"" {typeKey1
 AS $$
 BEGIN
     RETURN QUERY (
-        SELECT {GetColumnNameList(dbName, schema, dataset, propData, objType, Add: false, Prefix: null, TopMost: false, SiteSpecific: siteIdentity > 0, WithDerivedInfo: false, SubTable: false)}");
+        SELECT {GetColumnNameList(dbName, schema, dataset, propData, objType, Add: false, Prefix: null, TopMost: false, IdentityName: identityName, SiteSpecific: siteIdentity > 0, WithDerivedInfo: false, SubTable: false)}");
             if (calculatedPropertyCallbackAsync != null) sb.Append(await CalculatedPropertiesAsync(objType, calculatedPropertyCallbackAsync));
-
-            foreach (SubTableInfo subTable in subTables) {
-
-                List<PropertyData> subPropData = ObjectSupport.GetPropertyData(subTable.Type);
-
-                sb.Append($@"
-            (
-                SELECT ARRAY_AGG((");
-
-                sb.Append(GetColumnNameList(dbName, schema, subTable.Name, subPropData, subTable.Type, Add: false, Prefix: null, TopMost: false, SiteSpecific: false, WithDerivedInfo: false, SubTable: true));
-                sb.RemoveLastComma();
-                sb.Append($@")::");
-
-                if (subPropData.Count == 1) {
-                    Column col = sqlManager.GetColumn(Conn, dbName, schema, subTable.Name, subPropData[0].ColumnName);
-                    string colType = GetDataTypeArgumentString(col);
-                    sb.Append(colType);
-                } else {
-                    sb.Append($@"""{subTable.Name}_T""");
-                }
-
-                sb.Append($@")
-                FROM ""{schema}"".""{subTable.Name}""
-                WHERE ""{schema}"".""{subTable.Name}"".""{SQLGenericBase.SubTableKeyColumn}"" = ""{schema}"".""{dataset}"".""{GetIdentityNameOrDefault(identityName)}""
-            ) AS ""{subTable.PropInfo.Name}"",");
-
-            }
 
             sb.RemoveLastComma();
 
@@ -123,34 +97,9 @@ CREATE OR REPLACE FUNCTION ""{schema}"".""{dataset}__GetByIdentity""(""valIdenti
 AS $$
 BEGIN
     RETURN QUERY (
-        SELECT {GetColumnNameList(dbName, schema, dataset, propData, objType, Add: false, Prefix: null, TopMost: false, SiteSpecific: siteIdentity > 0, WithDerivedInfo: false, SubTable: false)}");
+        SELECT {GetColumnNameList(dbName, schema, dataset, propData, objType, Add: false, Prefix: null, TopMost: false, IdentityName: identityName, SiteSpecific: siteIdentity > 0, WithDerivedInfo: false, SubTable: false)}");
                 if (calculatedPropertyCallbackAsync != null) sb.Append(await CalculatedPropertiesAsync(objType, calculatedPropertyCallbackAsync));
 
-                foreach (SubTableInfo subTable in subTables) {
-                    List<PropertyData> subPropData = ObjectSupport.GetPropertyData(subTable.Type);
-
-                    sb.Append($@"
-            (
-                SELECT ARRAY_AGG((");
-
-                    sb.Append(GetColumnNameList(dbName, schema, subTable.Name, subPropData, subTable.Type, Add: false, Prefix: null, TopMost: false, SiteSpecific: false, WithDerivedInfo: false, SubTable: true));
-                    sb.RemoveLastComma();
-                    sb.Append($@")::");
-
-                    if (subPropData.Count == 1) {
-                        Column col = sqlManager.GetColumn(Conn, dbName, schema, subTable.Name, subPropData[0].ColumnName);
-                        string colType = GetDataTypeArgumentString(col);
-                        sb.Append(colType);
-                    } else {
-                        sb.Append($@"""{subTable.Name}_T""");
-                    }
-
-                    sb.Append($@")
-                FROM ""{schema}"".""{subTable.Name}""
-                WHERE ""{schema}"".""{subTable.Name}"".""{SQLGenericBase.SubTableKeyColumn}"" = ""{schema}"".""{dataset}"".""{GetIdentityNameOrDefault(identityName)}""
-            ) AS ""{subTable.PropInfo.Name}"",");
-
-                }
                 sb.RemoveLastComma();
 
                 sb.Append($@"
@@ -585,7 +534,7 @@ DROP FUNCTION IF EXISTS ""{schema}"".""{dataset}__RemoveByIdentity"";
                         return $@"""arg{prefix}{prop.ColumnName}"" ""{subtableName}_T""[],";
                     }
                 },
-                dbName, schema, dataset, null, propData, tpContainer, new List<string>(), Prefix, TopMost, SiteSpecific, WithDerivedInfo, SubTable);
+                dbName, schema, dataset, null, propData, tpContainer, Prefix, TopMost, SiteSpecific, WithDerivedInfo, SubTable);
         }
         internal string GetTypeNameList(string dbName, string schema, string dataset, List<PropertyData> propData, Type tpContainer, string Prefix = null, bool TopMost = true, bool SiteSpecific = false, bool WithDerivedInfo = false, bool SubTable = false) {
             SQLManager sqlManager = new SQLManager();
@@ -642,11 +591,12 @@ DROP FUNCTION IF EXISTS ""{schema}"".""{dataset}__RemoveByIdentity"";
                     }
                     return $@"""{prefix}{prop.ColumnName}"" ""{subtableName}_T""[],";
                 },
-                dbName, schema, dataset, null, propData, tpContainer, new List<string>(), Prefix, TopMost, SiteSpecific, WithDerivedInfo, SubTable);
+                dbName, schema, dataset, null, propData, tpContainer, Prefix, TopMost, SiteSpecific, WithDerivedInfo, SubTable);
         }
-        internal string GetColumnNameList(string dbName, string schema, string dataset, List<PropertyData> propData, Type tpContainer, bool Add = false, string Prefix = null, bool TopMost = true, bool SiteSpecific = false, bool WithDerivedInfo = false, bool SubTable = false,
+        internal string GetColumnNameList(string dbName, string schema, string dataset, List<PropertyData> propData, Type tpContainer, bool Add = false, string Prefix = null, bool TopMost = true, string IdentityName = null, bool SiteSpecific = false, bool WithDerivedInfo = false, bool SubTable = false,
                 Dictionary<string, string> VisibleColumns = null) {
             SQLBuilder sb = new SQLBuilder();
+            SQLManager sqlManager = new SQLManager();
             return ProcessColumns(
                 (prefix, container, prop) => {
                     string col = $@"{prefix}{prop.ColumnName}";
@@ -722,9 +672,31 @@ DROP FUNCTION IF EXISTS ""{schema}"".""{dataset}__RemoveByIdentity"";
                     }
                 },
                 (prefix, container, prop, subPropData, subType, subtableName) => { // Subtable
-                    return null;
+                    if (Add) return null;
+
+                    StringBuilder sbldr = new StringBuilder();
+                    sbldr.Append($@"
+            (
+                SELECT CAST(ARRAY_AGG((");
+
+                    sbldr.Append(GetColumnNameList(dbName, schema, subtableName, subPropData, subType, Add: false, Prefix: null, TopMost: false, SiteSpecific: false, WithDerivedInfo: false, SubTable: true));
+                    sbldr.RemoveLastComma();
+
+                    string colType;
+                    if (subPropData.Count == 1) {
+                        Column col = sqlManager.GetColumn(Conn, dbName, schema, subtableName, subPropData[0].ColumnName);
+                        colType = GetDataTypeArgumentString(col);
+                    } else {
+                        colType = $@"""{subtableName}_T""";
+                    }
+
+                    sbldr.Append($@")::{colType}) AS {colType}[])
+                FROM ""{schema}"".""{subtableName}""
+                WHERE ""{schema}"".""{subtableName}"".""{SQLGenericBase.SubTableKeyColumn}"" = ""{schema}"".""{dataset}"".""{GetIdentityNameOrDefault(IdentityName)}""
+            ) AS ""{prop.Name}"",");
+                    return sbldr.ToString();
                 },
-                dbName, schema, dataset, null, propData, tpContainer, new List<string>(), Prefix, TopMost, SiteSpecific, WithDerivedInfo, SubTable);
+                dbName, schema, dataset, null, propData, tpContainer, Prefix, TopMost, SiteSpecific, WithDerivedInfo, SubTable);
         }
         internal string GetValueNameList(string dbName, string schema, string dataset, List<PropertyData> propData, Type tpContainer, string Prefix = null, bool TopMost = true, bool SiteSpecific = false, bool WithDerivedInfo = false, bool SubTable = false) {
             return ProcessColumns(
@@ -777,7 +749,7 @@ DROP FUNCTION IF EXISTS ""{schema}"".""{dataset}__RemoveByIdentity"";
                 (prefix, container, prop, subPropData, subType, subtableName) => { // Subtable
                     return null;
                 },
-                dbName, schema, dataset, null, propData, tpContainer, new List<string>(), Prefix, TopMost, SiteSpecific, WithDerivedInfo, SubTable);
+                dbName, schema, dataset, null, propData, tpContainer, Prefix, TopMost, SiteSpecific, WithDerivedInfo, SubTable);
         }
         internal string GetSetList(string dbName, string schema, string dataset, List<PropertyData> propData, Type tpContainer, bool Add = false, string Prefix = null, bool TopMost = true, bool SiteSpecific = false, bool WithDerivedInfo = false, bool SubTable = false) {
             if (SubTable) throw new InternalError($"{nameof(GetSetList)} called for subtable which is not supported");
@@ -799,7 +771,7 @@ DROP FUNCTION IF EXISTS ""{schema}"".""{dataset}__RemoveByIdentity"";
                 (prefix, container, prop, subPropData, subType, subtableName) => {
                     return null;
                 },
-                dbName, schema, dataset, null, propData, tpContainer, new List<string>(), Prefix, TopMost, SiteSpecific, WithDerivedInfo, SubTable);
+                dbName, schema, dataset, null, propData, tpContainer, Prefix, TopMost, SiteSpecific, WithDerivedInfo, SubTable);
         }
         internal static string ProcessColumns(
                 Func<string, object, PropertyData, string> fmt,
@@ -810,7 +782,7 @@ DROP FUNCTION IF EXISTS ""{schema}"".""{dataset}__RemoveByIdentity"";
                 Func<string, object, string, string> fmtPredef, 
                 Func<string, object, PropertyData, List<PropertyData>, Type, string, string> fmtSubtable,
                 string dbName, string schema, string dataset, 
-                object container, List<PropertyData> propData, Type tpContainer, List<string> columns,
+                object container, List<PropertyData> propData, Type tpContainer,
                 string Prefix = null, bool TopMost = true, bool SiteSpecific = false, bool WithDerivedInfo = false, bool SubTable = false) {
 
             SQLBuilder sb = new SQLBuilder();
@@ -818,42 +790,39 @@ DROP FUNCTION IF EXISTS ""{schema}"".""{dataset}__RemoveByIdentity"";
                 Type propertyType = prop.PropInfo.PropertyType;
                 if (prop.PropInfo.CanRead && prop.PropInfo.CanWrite && !prop.HasAttribute("DontSave") && !prop.CalculatedProperty && !prop.HasAttribute(Data_DontSave.AttributeName)) {
                     string colName = prop.ColumnName;
-                    if (!columns.Contains(colName)) {
-                        columns.Add(colName);
-                        if (prop.HasAttribute(Data_Identity.AttributeName)) {
-                            if (SubTable)
-                                throw new InternalError("Subtables can't have an explicit identity");
-                            if (propertyType != typeof(int))
-                                throw new InternalError("Identity columns must be of type int");
-                            sb.Add(fmtIdentity(Prefix, container, prop));
-                        } else if (prop.HasAttribute(Data_BinaryAttribute.AttributeName)) {
-                            sb.Add(fmtBinary(Prefix, container, prop));
-                        } else if (propertyType == typeof(MultiString)) {
-                            sb.Add(fmtLanguage(Prefix, container, prop));
-                        } else if (propertyType == typeof(Image)) {
-                            sb.Add(fmtImage(Prefix, container, prop));
-                        } else if (SQLGenericBase.TryGetDataType(propertyType)) {
-                            sb.Add(fmt(Prefix, container, prop));
-                        } else if (propertyType.IsClass && typeof(IEnumerable).IsAssignableFrom(propertyType)) {
-                            // This is a enumerated type, so we have to create separate values using this table's identity column as a link
-                            // these values are added as a subtable
-                            if (SubTable) throw new InternalError("Nested subtables not supported");
-                            PropertyInfo pi = prop.PropInfo;
-                            Type subType = pi.PropertyType.GetInterfaces().Where(t => t.IsGenericType == true && t.GetGenericTypeDefinition() == typeof(IEnumerable<>))
-                                    .Select(t => t.GetGenericArguments()[0]).FirstOrDefault();
-                            List<PropertyData> subPropData = ObjectSupport.GetPropertyData(subType);
-                            string subTableName = dataset + "_" + prop.Name;
-                            sb.Add(fmtSubtable(Prefix, container, prop, subPropData, subType, subTableName));
-                        } else if (propertyType.IsClass) {
-                            object sub = null;
-                            if (container != null)
-                                sub = prop.PropInfo.GetValue(container);
-                            List<PropertyData> subPropData = ObjectSupport.GetPropertyData(propertyType);
-                            string args = ProcessColumns(fmt, fmtIdentity, fmtBinary, fmtImage, fmtLanguage, fmtPredef, fmtSubtable, dbName, schema, dataset, sub, subPropData, propertyType, columns, Prefix + prop.Name + "_", TopMost, SiteSpecific: false, WithDerivedInfo: false, SubTable: false);
-                            sb.Add(args);
-                        } else
-                            throw new InternalError($"Unknown property type {propertyType.FullName} used in class {tpContainer.FullName}, property {colName}");
-                    }
+                    if (prop.HasAttribute(Data_Identity.AttributeName)) {
+                        if (SubTable)
+                            throw new InternalError("Subtables can't have an explicit identity");
+                        if (propertyType != typeof(int))
+                            throw new InternalError("Identity columns must be of type int");
+                        sb.Add(fmtIdentity(Prefix, container, prop));
+                    } else if (prop.HasAttribute(Data_BinaryAttribute.AttributeName)) {
+                        sb.Add(fmtBinary(Prefix, container, prop));
+                    } else if (propertyType == typeof(MultiString)) {
+                        sb.Add(fmtLanguage(Prefix, container, prop));
+                    } else if (propertyType == typeof(Image)) {
+                        sb.Add(fmtImage(Prefix, container, prop));
+                    } else if (SQLGenericBase.TryGetDataType(propertyType)) {
+                        sb.Add(fmt(Prefix, container, prop));
+                    } else if (propertyType.IsClass && typeof(IEnumerable).IsAssignableFrom(propertyType)) {
+                        // This is a enumerated type, so we have to create separate values using this table's identity column as a link
+                        // these values are added as a subtable
+                        if (SubTable) throw new InternalError("Nested subtables not supported");
+                        PropertyInfo pi = prop.PropInfo;
+                        Type subType = pi.PropertyType.GetInterfaces().Where(t => t.IsGenericType == true && t.GetGenericTypeDefinition() == typeof(IEnumerable<>))
+                                .Select(t => t.GetGenericArguments()[0]).FirstOrDefault();
+                        List<PropertyData> subPropData = ObjectSupport.GetPropertyData(subType);
+                        string subTableName = dataset + "_" + prop.Name;
+                        sb.Add(fmtSubtable(Prefix, container, prop, subPropData, subType, subTableName));
+                    } else if (propertyType.IsClass) {
+                        object sub = null;
+                        if (container != null)
+                            sub = prop.PropInfo.GetValue(container);
+                        List<PropertyData> subPropData = ObjectSupport.GetPropertyData(propertyType);
+                        string args = ProcessColumns(fmt, fmtIdentity, fmtBinary, fmtImage, fmtLanguage, fmtPredef, fmtSubtable, dbName, schema, dataset, sub, subPropData, propertyType, Prefix + prop.Name + "_", TopMost, SiteSpecific: false, WithDerivedInfo: false, SubTable: false);
+                        sb.Add(args);
+                    } else
+                        throw new InternalError($"Unknown property type {propertyType.FullName} used in class {tpContainer.FullName}, property {colName}");
                 }
             }
             if (SiteSpecific)

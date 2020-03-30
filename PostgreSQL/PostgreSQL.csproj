@@ -26,7 +26,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\..\..\npgsql\src\Npgsql\Npgsql.csproj" />
+    <ProjectReference Include="..\Npgsql\Npgsql.csproj" />
     <ProjectReference Include="..\..\CoreComponents\Core\Core.csproj" />
     <ProjectReference Include="..\SQLGeneric\SQLGeneric.csproj" />
   </ItemGroup>

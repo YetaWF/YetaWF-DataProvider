@@ -45,7 +45,7 @@ namespace YetaWF.DataProvider {
         }
 
         public bool CreateTableFromModel(string dbName, string dbOwner, string tableName, string key1Name, string key2Name, string identityName, List<PropertyData> propData, Type tpProps,
-                List<string> errorList, List<string> columns,
+                List<string> errorList,
                 bool TopMost = false,
                 bool SiteSpecific = false,
                 string ForeignKeyTable = null,
@@ -53,7 +53,7 @@ namespace YetaWF.DataProvider {
                 bool SubTable = false) {
 
             TableInfo tableInfo = CreateSimpleTableFromModel(dbName, dbOwner, tableName, key1Name, key2Name, identityName, propData, tpProps,
-                errorList, columns,
+                errorList,
                 TopMost, SiteSpecific, ForeignKeyTable, DerivedDataTableName, DerivedDataTypeName, DerivedAssemblyName,
                 SubTable);
             if (tableInfo == null)
@@ -65,14 +65,13 @@ namespace YetaWF.DataProvider {
         }
 
         private TableInfo CreateSimpleTableFromModel(string dbName, string dbOwner, string tableName, string key1Name, string key2Name, string identityName, List<PropertyData> propData, Type tpProps,
-                List<string> errorList, List<string> columns,
+                List<string> errorList,
                 bool TopMost = false,
                 bool SiteSpecific = false,
                 string ForeignKeyTable = null,
                 string DerivedDataTableName = null, string DerivedDataTypeName = null, string DerivedAssemblyName = null,
                 bool SubTable = false) {
             try {
-
                 SQLManager sqlManager = new SQLManager();
                 Table currentTable = null;
                 Table newTable = new Table {
@@ -92,7 +91,7 @@ namespace YetaWF.DataProvider {
                         Columns = sqlManager.GetColumns(Conn, dbName, dbOwner, tableName),
                     };
                 }
-                bool hasSubTable = AddTableColumns(dbName, dbOwner, tableInfo, key1Name, key2Name, identityName, propData, tpProps, "", true, columns, errorList, SubTable: SubTable);
+                bool hasSubTable = AddTableColumns(dbName, dbOwner, tableInfo, key1Name, key2Name, identityName, propData, tpProps, "", true, errorList, SubTable: SubTable);
 
                 // if this table (base class) has a derived type, add its table name and its derived type as a column
                 if (DerivedDataTableName != null) {
@@ -294,7 +293,7 @@ namespace YetaWF.DataProvider {
 
         private bool AddTableColumns(string dbName, string dbOwner, TableInfo tableInfo,
                 string key1Name, string key2Name, string identityName,
-                List<PropertyData> propData, Type tpContainer, string prefix, bool topMost, List<string> columns, List<string> errorList,
+                List<PropertyData> propData, Type tpContainer, string prefix, bool topMost, List<string> errorList,
                 bool SubTable = false) {
 
             Table newTable = tableInfo.NewTable;
@@ -307,9 +306,7 @@ namespace YetaWF.DataProvider {
                 if (pi.CanRead && pi.CanWrite && !prop.HasAttribute("DontSave") && !prop.CalculatedProperty && !prop.HasAttribute(Data_DontSave.AttributeName)) {
 
                     string colName = prefix + prop.ColumnName;
-                    if (colName == key1Name || colName == key2Name || !columns.Contains(colName)) {
-
-                        columns.Add(colName);
+                    if (colName == key1Name || colName == key2Name) {
 
                         if (prop.Name == identityName) {
                             if (SubTable)
@@ -392,7 +389,7 @@ namespace YetaWF.DataProvider {
                             List<PropertyData> subPropData = ObjectSupport.GetPropertyData(subType);
 
                             TableInfo subTableInfo = CreateSimpleTableFromModel(dbName, dbOwner, subTableName, SQLBase.SubTableKeyColumn, null,
-                                HasIdentity(identityName) ? identityName : SQLBase.IdentityColumn, subPropData, subType, errorList, new List<string>(),
+                                HasIdentity(identityName) ? identityName : SQLBase.IdentityColumn, subPropData, subType, errorList,
                                 TopMost: false,
                                 ForeignKeyTable: newTable.Name,
                                 SubTable: true,
@@ -404,7 +401,7 @@ namespace YetaWF.DataProvider {
                             hasSubTable = true;
                         } else if (pi.PropertyType.IsClass) {
                             List<PropertyData> subPropData = ObjectSupport.GetPropertyData(pi.PropertyType);
-                            AddTableColumns(dbName, dbOwner, tableInfo, null, null, identityName, subPropData, pi.PropertyType, prefix + prop.Name + "_", SubTable, columns, errorList);
+                            AddTableColumns(dbName, dbOwner, tableInfo, null, null, identityName, subPropData, pi.PropertyType, prefix + prop.Name + "_", SubTable, errorList);
                         } else
                             throw new InternalError("Unknown property type {2} used in class {0}, property {1}", tpContainer.FullName, prop.Name, pi.PropertyType.FullName);
                     }
