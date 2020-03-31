@@ -413,20 +413,20 @@ namespace YetaWF.DataProvider.PostgreSQL {
                             isNull = false;
                             oper = ">="; break;
                         case "startswith":
-                            oper = "ILIKE"; val = sb.EscapeForLike((val ?? "").ToString(), false) + "%"; break;
+                            oper = "ILIKE"; val = SQLBuilder.EscapeForLike((val ?? "").ToString(), false) + "%"; break;
                         case "notstartswith":
                             isNull = true;
-                            oper = "NOT ILIKE"; val = sb.EscapeForLike((val ?? "").ToString(), false) + "%"; break;
+                            oper = "NOT ILIKE"; val = SQLBuilder.EscapeForLike((val ?? "").ToString(), false) + "%"; break;
                         case "endswith":
-                            oper = "ILIKE"; val = "%" + sb.EscapeForLike((val ?? "").ToString(), false); break;
+                            oper = "ILIKE"; val = "%" + SQLBuilder.EscapeForLike((val ?? "").ToString(), false); break;
                         case "notendswith":
                             isNull = true;
-                            oper = "NOT ILIKE"; val = "%" + sb.EscapeForLike((val ?? "").ToString(), false); break;
+                            oper = "NOT ILIKE"; val = "%" + SQLBuilder.EscapeForLike((val ?? "").ToString(), false); break;
                         case "contains":
-                            oper = "ILIKE"; val = "%" + sb.EscapeForLike((val ?? "").ToString(), false) + "%"; break;
+                            oper = "ILIKE"; val = "%" + SQLBuilder.EscapeForLike((val ?? "").ToString(), false) + "%"; break;
                         case "notcontains":
                             isNull = true;
-                            oper = "NOT ILIKE"; val = "%" + sb.EscapeForLike((val ?? "").ToString(), false) + "%"; break;
+                            oper = "NOT ILIKE"; val = "%" + SQLBuilder.EscapeForLike((val ?? "").ToString(), false) + "%"; break;
                         default:
                             throw new InternalError("Invalid operator {0}", f.Operator);
                     }
@@ -546,9 +546,8 @@ namespace YetaWF.DataProvider.PostgreSQL {
 
         public void AddKeyParam(string name, object value, Type keyType) {
             if (keyType == typeof(string) && value != null) {
-                SQLBuilder sb = new SQLBuilder();
                 string stringVal = value.ToString();
-                AddParam(name, sb.EscapeForLike(stringVal));
+                AddParam(name, SQLBuilder.EscapeForLike(stringVal));
             } else {
                 AddParam(name, value);
             }

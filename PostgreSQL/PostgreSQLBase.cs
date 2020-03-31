@@ -358,49 +358,72 @@ namespace YetaWF.DataProvider.PostgreSQL {
         ///
         /// The SQL statements must create two result sets. The first, a scalar value with the total number of records (not paged) and the second result set is a collection of objects of type {i}TYPE{/i}.
         /// </remarks>
-        public async Task<DataProviderGetRecords<TYPE>> Direct_QueryPagedListAsync<TYPE>(string sql, int skip, int take, List<DataProviderSortInfo> sort, List<DataProviderFilterInfo> filters, params object[] args) {
+        public async Task<DataProviderGetRecords<TYPE>> Direct_QueryPagedListAsync<TYPE>(string sqlCount, string sql, int skip, int take, List<DataProviderSortInfo> sort, List<DataProviderFilterInfo> filters, params object[] args) {
 
-            throw new NotImplementedException();
-#if NOTYET
             await EnsureOpenAsync();
 
-            SQLHelper sqlHelper = new SQLHelper(Conn, null, Languages);
-            SQLBuilder sb = new SQLBuilder();
-
             string tableName = GetTableName();
-            int count = 0;
-            foreach (object arg in args) {
-                ++count;
-                sqlHelper.AddParam($"@p{count}", arg);
-            }
-            sql = sql.Replace("{TableName}", SQLBuilder.WrapIdentifier(tableName));
-            if (SiteIdentity > 0)
-                sql = sql.Replace($"{{{SiteColumn}}}", $@"""{SiteColumn}"" = {SiteIdentity}");
 
-            sort = NormalizeSort(typeof(TYPE), sort);
-            sql = sql.Replace("$OrderBy$", sb.GetOrderBy(null, sort, Offset: skip, Next: take));
-
-            filters = NormalizeFilter(typeof(TYPE), filters);
-            string filter = MakeFilter(sqlHelper, filters, null);
-            sql = sql.Replace("$WhereFilter$", filter);
-            sql += "\n\n" + sqlHelper.DebugInfo;
-
-            DataProviderGetRecords<TYPE> recs = new DataProviderGetRecords<TYPE>();
-
-            using (NpgsqlDataReader reader = await sqlHelper.ExecuteReaderAsync(sql)) {//$$$$$$$$doesn't work, need use case
-
-                if (!(YetaWFManager.IsSync() ? reader.Read() : await reader.ReadAsync())) throw new InternalError("Expected # of records");
-                recs.Total = reader.GetInt32(0);
-                if (!(YetaWFManager.IsSync() ? reader.NextResult() : await reader.NextResultAsync())) throw new InternalError("Expected next result set (main table)");
-
-                while ((YetaWFManager.IsSync() ? reader.Read() : await reader.ReadAsync())) {
-                    TYPE o = sqlHelper.CreateObject<TYPE>(reader);
-                    recs.Data.Add(o);
-                    // no subtables
+            // get count
+            if (skip != 0 || take != 0) {
+                SQLHelper sqlHelper = new SQLHelper(Conn, null, Languages);
+                int count = 0;
+                foreach (object arg in args) {
+                    ++count;
+                    sqlHelper.AddParam($"@p{count}", arg);
                 }
+
+                sqlCount = sqlCount.Replace("{TableName}", SQLBuilder.WrapIdentifier(tableName));
+                if (SiteIdentity > 0)
+                    sqlCount = sqlCount.Replace($"{{{SiteColumn}}}", $@"""{SiteColumn}"" = {SiteIdentity}");
+
+                filters = NormalizeFilter(typeof(TYPE), filters);
+                string filter = MakeFilter(sqlHelper, filters, null);
+                sqlCount = sqlCount.Replace("$WhereFilter$", filter);
+                sqlCount += "\n\n" + sqlHelper.DebugInfo;
+
+                int total;
+                using (NpgsqlDataReader reader = await sqlHelper.ExecuteReaderAsync(sqlCount)) {
+                    if (!(YetaWFManager.IsSync() ? reader.Read() : await reader.ReadAsync())) throw new InternalError("Expected # of records");
+                    total = reader.GetInt32(0);
+                }
+                if (total == 0)
+                    return new DataProviderGetRecords<TYPE>();
             }
-            return recs;
-#endif
+
+            // get records 
+            {
+                SQLHelper sqlHelper = new SQLHelper(Conn, null, Languages);
+                SQLBuilder sb = new SQLBuilder();
+
+                int count = 0;
+                foreach (object arg in args) {
+                    ++count;
+                    sqlHelper.AddParam($"@p{count}", arg);
+                }
+
+                sql = sql.Replace("{TableName}", SQLBuilder.WrapIdentifier(tableName));
+                if (SiteIdentity > 0)
+                    sql = sql.Replace($"{{{SiteColumn}}}", $@"""{SiteColumn}"" = {SiteIdentity}");
+
+                sort = NormalizeSort(typeof(TYPE), sort);
+                sql = sql.Replace("$OrderBy$", sb.GetOrderBy(null, sort, Offset: skip, Next: take));
+
+                filters = NormalizeFilter(typeof(TYPE), filters);
+                string filter = MakeFilter(sqlHelper, filters, null);
+                sql = sql.Replace("$WhereFilter$", filter);
+                sql += "\n\n" + sqlHelper.DebugInfo;
+
+                DataProviderGetRecords<TYPE> recs = new DataProviderGetRecords<TYPE>();
+
+                using (NpgsqlDataReader reader = await sqlHelper.ExecuteReaderAsync(sql)) {
+                    while ((YetaWFManager.IsSync() ? reader.Read() : await reader.ReadAsync())) {
+                        TYPE o = sqlHelper.CreateObject<TYPE>(reader);
+                        recs.Data.Add(o);
+                    }
+                }
+                return recs;
+            }
         }
 
         /// <summary>

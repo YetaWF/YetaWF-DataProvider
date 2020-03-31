@@ -77,7 +77,7 @@ namespace YetaWF.DataProvider.PostgreSQL {
         /// <param name="value">The value to search for.</param>
         /// <param name="escapeApostrophe">Defines whether to escape an apostrophe. Can be used to prevent double escaping of apostrophes.</param>
         /// <returns>Returns the translated value ready to be used in a LIKE statement.</returns>
-        internal string EscapeForLike(string value, bool escapeApostrophe = true) {
+        public static string EscapeForLike(string value, bool escapeApostrophe = true) {
             string[] specialChars = { "%", "_", };
             string newChars = value;
 
@@ -101,7 +101,7 @@ namespace YetaWF.DataProvider.PostgreSQL {
         /// </summary>
         /// <param name="sql">A SQL statement fragment.</param>
         /// <returns>Returns the clean SQL fragment, with escaped apostrophes.</returns>
-        internal string EscapeApostrophe(string sql) {
+        public static string EscapeApostrophe(string sql) {
             sql = sql.Replace(@"'", @"\'");
             return sql;
         }
