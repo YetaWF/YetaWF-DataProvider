@@ -26,12 +26,14 @@ namespace YetaWF.DataProvider.PostgreSQL {
         /// </summary>
         public const string ExternalName = "PostgreSQL";
         /// <summary>
-        /// Defines the key used in appsettings.json to define a PostgreSQL connection string
+        /// Defines the key used in appsettings.json to define a PostgreSQL connection string.
         /// ("PostgreSQLConnect": "Host=..host..;Port=..port..;Database=..database..;User ID=..userid..;Password=..password..").
         /// </summary>
-        internal const string PostgreSQLConnectString = "PostgreSQLConnect";
-
-        internal const string PostgreSQLSchemaString = "PostgreSQLSchema";
+        public const string PostgreSQLConnectString = "PostgreSQLConnect";
+        /// <summary>
+        /// Defines the key used in appsettings.json to define a PostgreSQL schema.
+        /// </summary>
+        public const string PostgreSQLSchemaString = "PostgreSQLSchema";
 
         private const string DefaultString = "Default";
 

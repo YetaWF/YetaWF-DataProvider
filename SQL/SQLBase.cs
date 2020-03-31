@@ -41,9 +41,11 @@ namespace YetaWF.DataProvider.SQL {
         /// Defines the key used in AppSettings.json to define a SQL connection string
         /// ("SQLConnect": "Data Source=...datasource...;Initial Catalog=...catalog...;User ID=..userid..;Password=..password..").
         /// </summary>
-        internal const string SQLConnectString = "SQLConnect";
-
-        internal const string SQLDboString = "SQLDbo";
+        public const string SQLConnectString = "SQLConnect";
+        /// <summary>
+        /// Defines the key used in AppSettings.json to define a SQL dbo.
+        /// </summary>
+        public const string SQLDboString = "SQLDbo";
 
         private const string DefaultString = "Default";
 
