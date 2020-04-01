@@ -124,18 +124,8 @@ DROP FUNCTION IF EXISTS ""{schema}"".""{dataset}__Add"";
 CREATE OR REPLACE FUNCTION ""{schema}"".""{dataset}__Add""({GetArgumentNameList(dbName, schema, dataset, propData, objType, Prefix: null, TopMost: true, SiteSpecific: siteIdentity > 0, WithDerivedInfo: false, SubTable: false)}");
 
             sb.RemoveLastComma();
-            sb.Append($@")");
-
-            if (HasIdentity(identityName)) {
-
-                sb.Append($@"
-    RETURNS integer");
-            } else {
-                sb.Append($@"
-    RETURNS void");
-            }
-
-            sb.Append($@"
+            sb.Append($@")
+    RETURNS integer
     LANGUAGE 'plpgsql'
 AS $$
 DECLARE
@@ -168,7 +158,7 @@ BEGIN");
     LIMIT 1;
 
     IF __VAR IS NOT NULL THEN
-        RAISE SQLSTATE '23505'; -- Unique violation
+        RETURN -1; -- Unique violation
     END IF;
 ");
             }
@@ -211,6 +201,9 @@ BEGIN");
             if (HasIdentity(identityName)) {
                 sb.Append($@"
     RETURN (SELECT __IDENTITY); --- result set");
+            } else {
+                sb.Append($@"
+    RETURN 0; ---result set");
             }
 
             sb.Append($@"
@@ -272,7 +265,7 @@ BEGIN");
     LIMIT 1;
 
     IF __VAR IS NOT NULL THEN
-        RAISE SQLSTATE '23505'; -- Unique violation
+        RETURN -1; -- Unique violation
     END IF;
 ");
             }

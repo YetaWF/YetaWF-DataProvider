@@ -117,9 +117,13 @@ namespace YetaWF.DataProvider.PostgreSQL {
 
             try {
                 using (NpgsqlDataReader reader = await sqlHelper.ExecuteReaderStoredProcAsync($@"""{Schema}"".""{Dataset}__Add""")) {
+                    if (!(YetaWFManager.IsSync() ? reader.Read() : await reader.ReadAsync())) return false;
+                    int identity = Convert.ToInt32(reader[0]);
+                    if (identity == -1)
+                        return false;// already exists
+                    if (identity <= 0)
+                        throw new InternalError($"{nameof(AddAsync)} invalid identity {identity} returned");
                     if (HasIdentity(IdentityName)) {
-                        if (!(YetaWFManager.IsSync() ? reader.Read() : await reader.ReadAsync())) return false;
-                        int identity = Convert.ToInt32(reader[0]);
                         PropertyInfo piIdent = ObjectSupport.GetProperty(typeof(OBJTYPE), IdentityName);
                         if (piIdent.PropertyType != typeof(int)) throw new InternalError($"Object identities must be of type int in {typeof(OBJTYPE).FullName}");
                         piIdent.SetValue(obj, identity);
@@ -175,9 +179,11 @@ namespace YetaWF.DataProvider.PostgreSQL {
                     if (!(YetaWFManager.IsSync() ? reader.Read() : await reader.ReadAsync()))
                         throw new InternalError($"No result set received from {Dataset}__Update");
                     int changed = Convert.ToInt32(reader[0]);
+                    if (changed == -1)
+                        return UpdateStatusEnum.NewKeyExists;
                     if (changed == 0)
                         return UpdateStatusEnum.RecordDeleted;
-                    if (changed > 1)
+                    if (changed < -1 || changed > 1)
                         throw new InternalError($"Update failed - {changed} records updated");
                 }
             } catch (Exception exc) {
