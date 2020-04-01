@@ -54,10 +54,7 @@ namespace YetaWF.DataProvider.PostgreSQL {
         /// The underlying Nqgsql.NpgsqlConnection object used to connect to the database.
         /// </summary>
         public NpgsqlConnection Conn { get; private set; }
-        /// <summary>
-        /// Dynamically allocated SQL connection with a use count, otherwise it's explicitly allocated.
-        /// </summary>
-        public bool ConnDynamic { get; private set; }
+        private bool ConnDependent { get; set; }
 
         /// <summary>
         /// Constructor.
@@ -75,8 +72,8 @@ namespace YetaWF.DataProvider.PostgreSQL {
             ConnectionString = sqlsb.ToString();
             Schema = GetPostgreSqlSchema();
 
-            Conn = GetSqlConnection(ConnectionString);
-            ConnDynamic = true;
+            Conn = new NpgsqlConnection(ConnectionString);
+            ConnDependent = false;
         }
         /// <summary>
         /// Performs application-defined tasks associated with freeing, releasing, or resetting unmanaged resources.
@@ -86,10 +83,10 @@ namespace YetaWF.DataProvider.PostgreSQL {
             base.Dispose(disposing);
             if (disposing) {
                 if (Conn != null) {
-                    if (ConnDynamic)
-                        ReleaseSqlConnection(ConnectionString);
-                    else
-                    Conn.Close();
+                    if (!ConnDependent) {
+                        Conn.Close();
+                        Conn.Dispose();
+                    }
                     Conn = null;
                 }
             }
@@ -111,43 +108,6 @@ namespace YetaWF.DataProvider.PostgreSQL {
             return Task.CompletedTask;
         }
         private static readonly object OpenLock = new object();
-
-        private class ConnectionEntry {
-            public NpgsqlConnection Conn { get; set; }
-            public int UseCount { get; set; }
-        }
-        private NpgsqlConnection GetSqlConnection(string connectionString) {
-            lock (ConnectionCacheLock) {
-                ConnectionEntry entry;
-                if (ConnectionCache.TryGetValue(connectionString, out entry)) {
-                    entry.UseCount++;
-                    return entry.Conn;
-                }
-                entry = new ConnectionEntry {
-                    Conn = new NpgsqlConnection(connectionString),
-                    UseCount = 1,
-                };
-                ConnectionCache.Add(connectionString, entry);
-                return entry.Conn;
-            }
-        }
-        private void ReleaseSqlConnection(string connectionString) {
-            lock (ConnectionCacheLock) {
-                ConnectionEntry entry;
-                if (!ConnectionCache.TryGetValue(connectionString, out entry))
-                    throw new InternalError($"Releasing unallocated sql connection");
-                entry.UseCount--;
-                if (entry.UseCount <= 0) {
-                    ConnectionCache.Remove(connectionString);
-                    entry.Conn.Close();
-                    entry.Conn.Dispose();
-                }
-            }
-        }
-
-        private static Dictionary<string, ConnectionEntry> ConnectionCache = new Dictionary<string, ConnectionEntry>();
-        private static object ConnectionCacheLock = new object();
-
 
         private string GetPostgreSqlConnectionString() {
             string connString = WebConfigHelper.GetValue<string>(string.IsNullOrWhiteSpace(WebConfigArea) ? Dataset : WebConfigArea, PostgreSQLConnectString);
@@ -221,31 +181,30 @@ namespace YetaWF.DataProvider.PostgreSQL {
 
             // release the owner's current connection
             SQLBase ownerSqlBase = (SQLBase)ownerDP.GetDataProvider();
-            if (ConnDynamic)
-                ownerSqlBase.ReleaseSqlConnection(ownerSqlBase.ConnectionString);
-            else if (ownerSqlBase.Conn != null)
-                ownerSqlBase.Conn.Close();
-            ownerSqlBase.Conn = null;
-
+            if (!ConnDependent) {
+                Conn.Dispose();
+                Conn.Close();
+                Conn = null;
+            }
             // release all dependent dataprovider's connection
             foreach (DataProviderImpl dp in dps) {
                 SQLBase sqlBase = (SQLBase)dp.GetDataProvider();
-                if (ConnDynamic)
-                    sqlBase.ReleaseSqlConnection(sqlBase.ConnectionString);
-                else if (ownerSqlBase.Conn != null)
+                if (!sqlBase.ConnDependent) {
                     sqlBase.Conn.Close();
+                    sqlBase.Conn.Dispose();
+                }
                 sqlBase.Conn = null;
             }
 
             // Make a new connection
             ownerSqlBase.Conn = new NpgsqlConnection(ownerSqlBase.ConnectionString);
-            ownerSqlBase.ConnDynamic = false;
+            ownerSqlBase.ConnDependent = false;
 
             // all dependent data providers have to use the same connection
             foreach (DataProviderImpl dp in dps) {
                 SQLBase sqlBase = (SQLBase)dp.GetDataProvider();
                 sqlBase.Conn = ownerSqlBase.Conn;
-                sqlBase.ConnDynamic = false;
+                sqlBase.ConnDependent = true;
             }
 
             if (Trans != null) throw new InternalError("StartTransaction has already been called for this data provider");
