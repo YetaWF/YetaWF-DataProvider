@@ -793,7 +793,7 @@ namespace YetaWF.DataProvider.SQL {
 
             if (parms != null) {
                 foreach (PropertyInfo propertyInfo in parms.GetType().GetProperties(BindingFlags.Instance | BindingFlags.Public)) {
-                    sqlHelper.AddParam("@"+propertyInfo.Name, propertyInfo.GetValue(parms, null));
+                    sqlHelper.AddParam($"@{propertyInfo.Name}", propertyInfo.GetValue(parms, null));
                 }
             }
 

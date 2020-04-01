@@ -54,11 +54,16 @@ namespace YetaWF.DataProvider.PostgreSQL {
         /// The underlying Nqgsql.NpgsqlConnection object used to connect to the database.
         /// </summary>
         public NpgsqlConnection Conn { get; private set; }
+        /// <summary>
+        /// Dynamically allocated SQL connection with a use count, otherwise it's explicitly allocated.
+        /// </summary>
+        public bool ConnDynamic { get; private set; }
 
         /// <summary>
         /// Constructor.
         /// </summary>
         /// <param name="options">A dictionary of options and optional parameters as provided to the YetaWF.Core.DataProvider.DataProviderImpl.MakeDataProvider method when the data provider is created.</param>
+        /// <param name="HasKey2">Defines whether the object has a secondary key.</param>
         /// <remarks>
         /// Data providers are instantiated when the YetaWF.Core.DataProvider.DataProviderImpl.MakeDataProvider method is called, usually by an application data provider.
         ///
@@ -66,10 +71,12 @@ namespace YetaWF.DataProvider.PostgreSQL {
         /// </remarks>
         protected SQLBase(Dictionary<string, object> options, bool HasKey2 = false) : base(options, HasKey2) {
             NpgsqlConnectionStringBuilder sqlsb = new NpgsqlConnectionStringBuilder(GetPostgreSqlConnectionString());
+            // sqlsb....
             ConnectionString = sqlsb.ToString();
             Schema = GetPostgreSqlSchema();
 
-            Conn = new NpgsqlConnection(ConnectionString);
+            Conn = GetSqlConnection(ConnectionString);
+            ConnDynamic = true;
         }
         /// <summary>
         /// Performs application-defined tasks associated with freeing, releasing, or resetting unmanaged resources.
@@ -79,8 +86,10 @@ namespace YetaWF.DataProvider.PostgreSQL {
             base.Dispose(disposing);
             if (disposing) {
                 if (Conn != null) {
+                    if (ConnDynamic)
+                        ReleaseSqlConnection(ConnectionString);
+                    else
                     Conn.Close();
-                    Conn.Dispose();
                     Conn = null;
                 }
             }
@@ -92,15 +101,53 @@ namespace YetaWF.DataProvider.PostgreSQL {
         /// </summary>
         /// <remarks>Originally the connection was opened in the constructor (yeah, bad idea I had many years ago, before async).
         /// To avoid having to change the public APIs for data providers, this call in APIs offered by data providers opens the connection. All data provider APIs are async so no changes needed.</remarks>
-        public async Task EnsureOpenAsync() {
-            if (Conn.State == System.Data.ConnectionState.Closed) {
-                if (YetaWFManager.IsSync())
+        public Task EnsureOpenAsync() {
+            lock (OpenLock) { // prevent concurrent Open calls, could cause errors when multiple threads try to open the same DB
+                if (Conn.State == System.Data.ConnectionState.Closed) {
                     Conn.OpenAsync().Wait();
-                else
-                    await Conn.OpenAsync();
-                Database = Conn.Database;
+                }
+            }
+            Database = Conn.Database;
+            return Task.CompletedTask;
+        }
+        private static readonly object OpenLock = new object();
+
+        private class ConnectionEntry {
+            public NpgsqlConnection Conn { get; set; }
+            public int UseCount { get; set; }
+        }
+        private NpgsqlConnection GetSqlConnection(string connectionString) {
+            lock (ConnectionCacheLock) {
+                ConnectionEntry entry;
+                if (ConnectionCache.TryGetValue(connectionString, out entry)) {
+                    entry.UseCount++;
+                    return entry.Conn;
+                }
+                entry = new ConnectionEntry {
+                    Conn = new NpgsqlConnection(connectionString),
+                    UseCount = 1,
+                };
+                ConnectionCache.Add(connectionString, entry);
+                return entry.Conn;
             }
         }
+        private void ReleaseSqlConnection(string connectionString) {
+            lock (ConnectionCacheLock) {
+                ConnectionEntry entry;
+                if (!ConnectionCache.TryGetValue(connectionString, out entry))
+                    throw new InternalError($"Releasing unallocated sql connection");
+                entry.UseCount--;
+                if (entry.UseCount <= 0) {
+                    ConnectionCache.Remove(connectionString);
+                    entry.Conn.Close();
+                    entry.Conn.Dispose();
+                }
+            }
+        }
+
+        private static Dictionary<string, ConnectionEntry> ConnectionCache = new Dictionary<string, ConnectionEntry>();
+        private static object ConnectionCacheLock = new object();
+
 
         private string GetPostgreSqlConnectionString() {
             string connString = WebConfigHelper.GetValue<string>(string.IsNullOrWhiteSpace(WebConfigArea) ? Dataset : WebConfigArea, PostgreSQLConnectString);
@@ -160,7 +207,47 @@ namespace YetaWF.DataProvider.PostgreSQL {
         /// Starts a transaction that can be committed, saving all updates, or aborted to abandon all updates.
         /// </summary>
         /// <returns>Returns a YetaWF.Core.DataProvider.DataProviderTransaction object.</returns>
+        /// <remarks>
+        /// It is expected that the first dataprovider to be used will implicitly open the connection.
+        /// Second, it is expected that all dataproviders will be disposed of around the same time(otherwise you'll get "can't access disposed object" for a connection.
+        /// Lastly, if you use a dataprovider that is not the owner or listed as a dps parameter, you'll still get  'This platform does not support distributed transactions.'
+        /// </remarks>
         public DataProviderTransaction StartTransaction(DataProviderImpl ownerDP, params DataProviderImpl[] dps) {
+            // This is to work around the 'This platform does not support distributed transactions.'
+            // problem because we are using multiple connections, even if it's the same database.
+            // we consolidate all dataproviders to use one dataprovider (the owner).
+            // In order to participate in the transaction we have to open the connection, so we use a non-cached,
+            // non-dynamic connection (for all data providers).
+
+            // release the owner's current connection
+            SQLBase ownerSqlBase = (SQLBase)ownerDP.GetDataProvider();
+            if (ConnDynamic)
+                ownerSqlBase.ReleaseSqlConnection(ownerSqlBase.ConnectionString);
+            else if (ownerSqlBase.Conn != null)
+                ownerSqlBase.Conn.Close();
+            ownerSqlBase.Conn = null;
+
+            // release all dependent dataprovider's connection
+            foreach (DataProviderImpl dp in dps) {
+                SQLBase sqlBase = (SQLBase)dp.GetDataProvider();
+                if (ConnDynamic)
+                    sqlBase.ReleaseSqlConnection(sqlBase.ConnectionString);
+                else if (ownerSqlBase.Conn != null)
+                    sqlBase.Conn.Close();
+                sqlBase.Conn = null;
+            }
+
+            // Make a new connection
+            ownerSqlBase.Conn = new NpgsqlConnection(ownerSqlBase.ConnectionString);
+            ownerSqlBase.ConnDynamic = false;
+
+            // all dependent data providers have to use the same connection
+            foreach (DataProviderImpl dp in dps) {
+                SQLBase sqlBase = (SQLBase)dp.GetDataProvider();
+                sqlBase.Conn = ownerSqlBase.Conn;
+                sqlBase.ConnDynamic = false;
+            }
+
             if (Trans != null) throw new InternalError("StartTransaction has already been called for this data provider");
             Trans = new TransactionScope(TransactionScopeOption.Required, new TransactionOptions { IsolationLevel = IsolationLevel.Serializable }, TransactionScopeAsyncFlowOption.Enabled);
             return new DataProviderTransaction(CommitTransactionAsync, AbortTransaction);
