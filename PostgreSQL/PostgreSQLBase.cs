@@ -35,8 +35,6 @@ namespace YetaWF.DataProvider.PostgreSQL {
         /// </summary>
         public const string PostgreSQLSchemaString = "PostgreSQLSchema";
 
-        private const string DefaultString = "Default";
-
         /// <summary>
         /// Defines the PostgreSQL connection string used by this data provider.
         /// </summary>

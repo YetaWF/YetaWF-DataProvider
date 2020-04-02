@@ -47,8 +47,6 @@ namespace YetaWF.DataProvider.SQL {
         /// </summary>
         public const string SQLDboString = "SQLDbo";
 
-        private const string DefaultString = "Default";
-
         /// <summary>
         /// Defines the SQL connection string used by this data provider.
         /// </summary>

@@ -20,6 +20,11 @@ namespace YetaWF.DataProvider.SQLGeneric {
     public abstract class SQLGenericBase : IDisposable {
 
         /// <summary>
+        /// Defines the default key used in appsettings.json.
+        /// </summary>
+        public const string DefaultString = "Default";
+
+        /// <summary>
         /// Defines the column name used to associate a site with a data record. The __Site column contains the site ID, or 0 if there is no associated site.
         /// Not all tables use the __Site column.
         /// </summary>

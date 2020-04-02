@@ -162,6 +162,5 @@ namespace YetaWF.DataProvider.SQLGeneric {
             }
             return list;
         }
-
     }
 }
