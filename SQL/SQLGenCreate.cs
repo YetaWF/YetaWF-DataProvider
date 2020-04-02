@@ -306,105 +306,103 @@ namespace YetaWF.DataProvider {
                 if (pi.CanRead && pi.CanWrite && !prop.HasAttribute("DontSave") && !prop.CalculatedProperty && !prop.HasAttribute(Data_DontSave.AttributeName)) {
 
                     string colName = prefix + prop.ColumnName;
-                    if (colName == key1Name || colName == key2Name) {
-
-                        if (prop.Name == identityName) {
-                            if (SubTable)
-                                throw new InternalError("Subtables can't have an explicit identity");
-                            if (pi.PropertyType != typeof(int))
-                                throw new InternalError("Identity columns must be of type int");
-                            // done by caller
-                        } else if (prop.HasAttribute(Data_BinaryAttribute.AttributeName)) {
-                            if (topMost && (prop.Name == key1Name || prop.Name == key2Name))
-                                throw new InternalError("Binary data can't be a primary key - table {0}", newTable.Name);
+                    if (prop.Name == identityName) {
+                        if (SubTable)
+                            throw new InternalError("Subtables can't have an explicit identity");
+                        if (pi.PropertyType != typeof(int))
+                            throw new InternalError("Identity columns must be of type int");
+                        // done by caller
+                    } else if (prop.HasAttribute(Data_BinaryAttribute.AttributeName)) {
+                        if (topMost && (prop.Name == key1Name || prop.Name == key2Name))
+                            throw new InternalError("Binary data can't be a primary key - table {0}", newTable.Name);
+                        Column newColumn = new Column {
+                            Name = colName,
+                            DataType = SqlDbType.VarBinary,
+                            Nullable = true,
+                        };
+                        newTable.Columns.Add(newColumn);
+                    } else if (pi.PropertyType == typeof(MultiString)) {
+                        if (Languages.Count == 0)
+                            throw new InternalError("We need Languages for MultiString support");
+                        foreach (LanguageData lang in Languages) {
+                            colName = prefix + SQLBase.ColumnFromPropertyWithLanguage(lang.Id, prop.Name);
                             Column newColumn = new Column {
                                 Name = colName,
-                                DataType = SqlDbType.VarBinary,
-                                Nullable = true,
+                                DataType = SqlDbType.NVarChar,
                             };
+                            StringLengthAttribute attr = (StringLengthAttribute)pi.GetCustomAttribute(typeof(StringLengthAttribute));
+                            if (attr == null)
+                                throw new InternalError("StringLength attribute missing for property {0}", prefix + prop.Name);
+                            if (attr.MaximumLength >= 4000)
+                                newColumn.Length = 0;
+                            else
+                                newColumn.Length = attr.MaximumLength;
+                            if (colName != key1Name && colName != key2Name)
+                                newColumn.Nullable = true;
                             newTable.Columns.Add(newColumn);
-                        } else if (pi.PropertyType == typeof(MultiString)) {
-                            if (Languages.Count == 0)
-                                throw new InternalError("We need Languages for MultiString support");
-                            foreach (LanguageData lang in Languages) {
-                                colName = prefix + SQLBase.ColumnFromPropertyWithLanguage(lang.Id, prop.Name);
-                                Column newColumn = new Column {
-                                    Name = colName,
-                                    DataType = SqlDbType.NVarChar,
-                                };
-                                StringLengthAttribute attr = (StringLengthAttribute)pi.GetCustomAttribute(typeof(StringLengthAttribute));
-                                if (attr == null)
-                                    throw new InternalError("StringLength attribute missing for property {0}", prefix + prop.Name);
-                                if (attr.MaximumLength >= 4000)
-                                    newColumn.Length = 0;
-                                else
-                                    newColumn.Length = attr.MaximumLength;
-                                if (colName != key1Name && colName != key2Name)
-                                    newColumn.Nullable = true;
-                                newTable.Columns.Add(newColumn);
-                            }
-                        } else if (pi.PropertyType == typeof(Image)) {
-                            if (topMost && (prop.Name == key1Name || prop.Name == key2Name))
-                                throw new InternalError("Image can't be a primary key - table {0}", newTable.Name);
-                            Column newColumn = new Column {
-                                Name = colName,
-                                DataType = SqlDbType.VarBinary,
-                                Nullable = true,
-                            };
-                            newTable.Columns.Add(newColumn);
-                        } else if (SQLGenericBase.TryGetDataType(pi.PropertyType)) {
-                            Column newColumn = new Column {
-                                Name = colName,
-                                Nullable = true,
-                            };
-                            newColumn.DataType = GetDataType(pi);
-                            if (pi.PropertyType == typeof(string)) {
-                                StringLengthAttribute attr = (StringLengthAttribute)pi.GetCustomAttribute(typeof(StringLengthAttribute));
-                                if (attr == null)
-                                    throw new InternalError("StringLength attribute missing for property {0}", pi.Name);
-                                int len = attr.MaximumLength;
-                                if (len == 0 || len >= 4000)
-                                    newColumn.Length = 0;
-                                else
-                                    newColumn.Length = len;
-                            }
-                            bool nullable = false;
-                            if (colName != key1Name && colName != key2Name && (pi.PropertyType == typeof(string) || Nullable.GetUnderlyingType(pi.PropertyType) != null))
-                                nullable = true;
-                            newColumn.Nullable = nullable;
-                            Data_NewValue newValAttr = (Data_NewValue)pi.GetCustomAttribute(typeof(Data_NewValue));
-                            if (currentTable != null && !currentTable.HasColumn(colName)) {
-                                if (newValAttr == null)
-                                    throw new InternalError("Property {0} in table {1} doesn't have a Data_NewValue attribute, which is required when updating tables", prop.Name, newTable.Name);
-                            }
-                            newTable.Columns.Add(newColumn);
-                        } else if (pi.PropertyType.IsClass && typeof(IEnumerable).IsAssignableFrom(pi.PropertyType)) {
-                            // This is a enumerated type, so we have to create a separate table using this table's identity column as a link
-                            if (SubTable) throw new InternalError("Nested subtables not supported");
-                            // determine the enumerated type
-                            Type subType = pi.PropertyType.GetInterfaces().Where(t => t.IsGenericType == true && t.GetGenericTypeDefinition() == typeof(IEnumerable<>))
-                                    .Select(t => t.GetGenericArguments()[0]).FirstOrDefault();
-                            // create a table that links the main table and this enumerated type using the key of the table
-                            string subTableName = newTable.Name + "_" + pi.Name;
-                            List<PropertyData> subPropData = ObjectSupport.GetPropertyData(subType);
+                        }
+                    } else if (pi.PropertyType == typeof(Image)) {
+                        if (topMost && (prop.Name == key1Name || prop.Name == key2Name))
+                            throw new InternalError("Image can't be a primary key - table {0}", newTable.Name);
+                        Column newColumn = new Column {
+                            Name = colName,
+                            DataType = SqlDbType.VarBinary,
+                            Nullable = true,
+                        };
+                        newTable.Columns.Add(newColumn);
+                    } else if (SQLGenericBase.TryGetDataType(pi.PropertyType)) {
+                        Column newColumn = new Column {
+                            Name = colName,
+                            Nullable = true,
+                        };
+                        newColumn.DataType = GetDataType(pi);
+                        if (pi.PropertyType == typeof(string)) {
+                            StringLengthAttribute attr = (StringLengthAttribute)pi.GetCustomAttribute(typeof(StringLengthAttribute));
+                            if (attr == null)
+                                throw new InternalError("StringLength attribute missing for property {0}", pi.Name);
+                            int len = attr.MaximumLength;
+                            if (len == 0 || len >= 4000)
+                                newColumn.Length = 0;
+                            else
+                                newColumn.Length = len;
+                        }
+                        bool nullable = false;
+                        if (colName != key1Name && colName != key2Name && (pi.PropertyType == typeof(string) || Nullable.GetUnderlyingType(pi.PropertyType) != null))
+                            nullable = true;
+                        newColumn.Nullable = nullable;
+                        Data_NewValue newValAttr = (Data_NewValue)pi.GetCustomAttribute(typeof(Data_NewValue));
+                        if (currentTable != null && !currentTable.HasColumn(colName)) {
+                            if (newValAttr == null)
+                                throw new InternalError("Property {0} in table {1} doesn't have a Data_NewValue attribute, which is required when updating tables", prop.Name, newTable.Name);
+                        }
+                        newTable.Columns.Add(newColumn);
+                    } else if (pi.PropertyType.IsClass && typeof(IEnumerable).IsAssignableFrom(pi.PropertyType)) {
+                        // This is a enumerated type, so we have to create a separate table using this table's identity column as a link
+                        if (SubTable) throw new InternalError("Nested subtables not supported");
+                        // determine the enumerated type
+                        Type subType = pi.PropertyType.GetInterfaces().Where(t => t.IsGenericType == true && t.GetGenericTypeDefinition() == typeof(IEnumerable<>))
+                                .Select(t => t.GetGenericArguments()[0]).FirstOrDefault();
+                        // create a table that links the main table and this enumerated type using the key of the table
+                        string subTableName = newTable.Name + "_" + pi.Name;
+                        List<PropertyData> subPropData = ObjectSupport.GetPropertyData(subType);
 
-                            TableInfo subTableInfo = CreateSimpleTableFromModel(dbName, dbOwner, subTableName, SQLBase.SubTableKeyColumn, null,
-                                HasIdentity(identityName) ? identityName : SQLBase.IdentityColumn, subPropData, subType, errorList,
-                                TopMost: false,
-                                ForeignKeyTable: newTable.Name,
-                                SubTable: true,
-                                SiteSpecific: false);
-                            if (subTableInfo == null)
-                                throw new InternalError($"Creation of subtable {subTableName} failed");
-                            tableInfo.SubTables.Add(subTableInfo);
+                        TableInfo subTableInfo = CreateSimpleTableFromModel(dbName, dbOwner, subTableName, SQLBase.SubTableKeyColumn, null,
+                            HasIdentity(identityName) ? identityName : SQLBase.IdentityColumn, subPropData, subType, errorList,
+                            TopMost: false,
+                            ForeignKeyTable: newTable.Name,
+                            SubTable: true,
+                            SiteSpecific: false);
+                        if (subTableInfo == null)
+                            throw new InternalError($"Creation of subtable {subTableName} failed");
+                        tableInfo.SubTables.Add(subTableInfo);
 
-                            hasSubTable = true;
-                        } else if (pi.PropertyType.IsClass) {
-                            List<PropertyData> subPropData = ObjectSupport.GetPropertyData(pi.PropertyType);
-                            AddTableColumns(dbName, dbOwner, tableInfo, null, null, identityName, subPropData, pi.PropertyType, prefix + prop.Name + "_", SubTable, errorList);
-                        } else
-                            throw new InternalError("Unknown property type {2} used in class {0}, property {1}", tpContainer.FullName, prop.Name, pi.PropertyType.FullName);
-                    }
+                        hasSubTable = true;
+                    } else if (pi.PropertyType.IsClass) {
+                        List<PropertyData> subPropData = ObjectSupport.GetPropertyData(pi.PropertyType);
+                        AddTableColumns(dbName, dbOwner, tableInfo, null, null, identityName, subPropData, pi.PropertyType, prefix + prop.Name + "_", SubTable, errorList);
+                    } else
+                        throw new InternalError("Unknown property type {2} used in class {0}, property {1}", tpContainer.FullName, prop.Name, pi.PropertyType.FullName);
+
                 }
             }
             return hasSubTable;
