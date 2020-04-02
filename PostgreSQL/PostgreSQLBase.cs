@@ -390,19 +390,20 @@ namespace YetaWF.DataProvider.PostgreSQL {
         /// <summary>
         /// Executes the provided SQL statement(s) and returns a paged collection of objects (one for each row retrieved) of type {i}TYPE{/i}.
         /// </summary>
-        /// <param name="sql">The SQL statement(s).</param>
+        /// <param name="sqlCount">The SQL statement(s) to return the total number of records (not paged).</param>
+        /// <param name="sql">The SQL statement(s) to return a collection of objects of type {i}TYPE{/i}.</param>
         /// <param name="skip">The number of records to skip (paging support).</param>
         /// <param name="take">The number of records to retrieve (paging support). If more records are available they are dropped.</param>
         /// <param name="sort">A collection describing the sort order.</param>
         /// <param name="filters">A collection describing the filtering criteria.</param>
         /// <param name="args">Optional arguments that are passed when executing the SQL statements.</param>
         /// <remarks>This is used by application data providers to build and execute complex queries that are not possible with the standard data providers.
-        /// Use of this method limits the application data provider to SQL repositories.</remarks>
+        /// Use of this method limits the application data provider to PostgreSQL repositories.</remarks>
         /// <returns>Returns a collection  of objects (one for each row retrieved) of type {i}TYPE{/i}.</returns>
         /// <remarks>
-        /// $WhereFilter$ and $OrderBy$ embedded in the SQL statements are replace with a complete WHERE clause for filtering and the column names for sorting, respectively.
+        /// $WhereFilter$ and $OrderBy$ embedded in the SQL statements are replaced with a complete WHERE clause for filtering and the column names for sorting, respectively.
         ///
-        /// The SQL statements must create two result sets. The first, a scalar value with the total number of records (not paged) and the second result set is a collection of objects of type {i}TYPE{/i}.
+        /// Two SQL statements must be provided, one to return a scalar value with the total number of records (not paged) and the second to return a collection of objects of type {i}TYPE{/i}.
         /// </remarks>
         public async Task<DataProviderGetRecords<TYPE>> Direct_QueryPagedListAsync<TYPE>(string sqlCount, string sql, int skip, int take, List<DataProviderSortInfo> sort, List<DataProviderFilterInfo> filters, params object[] args) {
 
