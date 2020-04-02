@@ -23,8 +23,6 @@ namespace YetaWF.DataProvider.PostgreSQL {
 
         public const string ValSiteIdentity = "valSiteIdentity"; // sproc argument with site identity
 
-        // http://www.sqlines.com/postgresql/how-to/return_result_set_from_stored_procedure
-
         internal async Task<bool> MakeFunctionsAsync(string dbName, string schema, string dataset, string key1Name, string key2Name, string identityName, List<PropertyData> propData, Type objType, int siteIdentity,
                 Func<string, Task<string>> calculatedPropertyCallbackAsync) {
 

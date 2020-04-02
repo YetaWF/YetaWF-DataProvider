@@ -693,6 +693,8 @@ DELETE FROM {fullTableName} WHERE ""{SiteColumn}"" = {SiteIdentity}
             }
         }
 
+        // Helpers
+
         internal string GetParameterList(SQLHelper sqlHelper, OBJTYPE obj, string dbName, string schema, string dataset, List<PropertyData> propData, string Prefix = null, bool TopMost = true, bool SiteSpecific = false, bool WithDerivedInfo = false, bool SubTable = false) {
             SQLManager sqlManager = new SQLManager();
             return SQLGen.ProcessColumns(

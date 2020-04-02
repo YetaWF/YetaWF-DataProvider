@@ -380,6 +380,8 @@ LEFT JOIN {fullTableName} ON {fullBaseTableName}.""{Key1Name}"" = {fullTableName
             throw new NotImplementedException();
         }
 
+        // Helpers
+
         internal List<PropertyData> GetBasePropertyData() {
             if (_basePropertyData == null)
                 _basePropertyData = ObjectSupport.GetPropertyData(typeof(ModuleDefinition));

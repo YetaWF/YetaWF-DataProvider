@@ -26,7 +26,7 @@ namespace YetaWF.DataProvider.PostgreSQL {
     ///
     /// Can be used to create tables, add stored procedures, etc.
     ///
-    /// All files in the package's Addons/_Main/Sql folder with the extension Sql are executed when package models are installed.</remarks>
+    /// All files in the package's Addons/_Main/Sql folder with the extension .pgsql are executed when package models are installed.</remarks>
     public abstract class SQLPackageInit : IDisposable, IInstallableModel {
 
         /// <summary>

@@ -189,7 +189,7 @@ namespace YetaWF.DataProvider.PostgreSQL {
         internal static void DropForeignKey(NpgsqlConnection conn, string databaseName, string schema, string tableName, string foreignKey) {
             using (NpgsqlCommand cmd = new NpgsqlCommand()) {
                 cmd.Connection = conn;
-                cmd.CommandText = $"ALTER TABLE [{schema}].[{tableName}] DROP CONSTRAINT [{foreignKey}]";
+                cmd.CommandText = $@"ALTER TABLE ""{schema}"".""{tableName}"" DROP CONSTRAINT ""{foreignKey}""";
                 YetaWF.Core.Log.Logging.AddTraceLog(cmd.CommandText);
                 cmd.ExecuteNonQuery();
             }
@@ -197,7 +197,7 @@ namespace YetaWF.DataProvider.PostgreSQL {
         internal static void DropIndex(NpgsqlConnection conn, string databaseName, string schema, string tableName, string index) {
             using (NpgsqlCommand cmd = new NpgsqlCommand()) {
                 cmd.Connection = conn;
-                cmd.CommandText = $@"DROP INDEX ""{schema}"".""{tableName}"".{index}";
+                cmd.CommandText = $@"DROP INDEX ""{schema}"".""{tableName}"".""{index}""";
                 YetaWF.Core.Log.Logging.AddTraceLog(cmd.CommandText);
                 cmd.ExecuteNonQuery();
             }
@@ -213,7 +213,7 @@ namespace YetaWF.DataProvider.PostgreSQL {
         internal static void DropPrimaryKeyIndex(NpgsqlConnection conn, string databaseName, string schema, string tableName, string index) {
             using (NpgsqlCommand cmd = new NpgsqlCommand()) {
                 cmd.Connection = conn;
-                cmd.CommandText = $"ALTER TABLE [{schema}].[{tableName}] DROP CONSTRAINT [{index}]";
+                cmd.CommandText = $@"ALTER TABLE ""{schema}"".""{tableName}"" DROP CONSTRAINT ""{index}""";
                 YetaWF.Core.Log.Logging.AddTraceLog(cmd.CommandText);
                 cmd.ExecuteNonQuery();
             }

@@ -55,14 +55,12 @@ namespace YetaWF.DataProvider.PostgreSQL {
         // Create,Fill
 
         public Type GetDerivedType(string dataType, string assemblyName) {
-            Type t = null;
             try {
                 Assembly asm = Assemblies.Load(assemblyName);
-                t = asm.GetType(dataType, true);
+                return asm.GetType(dataType, true);
             } catch (Exception exc) {
                 throw new InternalError($"Invalid Type {dataType}/{assemblyName} requested - {ErrorHandling.FormatExceptionMessage(exc)}");
             }
-            return t;
         }
         public T CreateObject<T>(NpgsqlDataReader dr) {
             T obj = Activator.CreateInstance<T>();
