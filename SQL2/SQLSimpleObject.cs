@@ -161,13 +161,10 @@ namespace YetaWF.DataProvider.SQL2 {
 
             SQLHelper sqlHelper = new SQLHelper(Conn, null, Languages);
 
+            GetParameterList(sqlHelper, obj, Database, Dbo, Dataset, GetPropertyData(), Prefix: null, TopMost: true, SiteSpecific: SiteIdentity > 0, WithDerivedInfo: false, SubTable: false);
             sqlHelper.AddParam("Key1Val", origKey);
             if (HasKey2)
                 sqlHelper.AddParam("Key2Val", origKey2);
-            if (SiteIdentity > 0)
-                sqlHelper.AddParam(SQLGen.ValSiteIdentity, SiteIdentity);
-
-            GetParameterList(sqlHelper, obj, Database, Dbo, Dataset, GetPropertyData(), Prefix: null, TopMost: true, SiteSpecific: SiteIdentity > 0, WithDerivedInfo: false, SubTable: false);
 
             try {
                 using (SqlDataReader reader = await sqlHelper.ExecuteReaderStoredProcAsync($@"[{Dbo}].[{Dataset}__Update]")) {
