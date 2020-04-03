@@ -4,7 +4,6 @@ using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 using YetaWF.Core.DataProvider;
-using YetaWF.Core.Models;
 using YetaWF.Core.Support;
 #if MVC6
 using Microsoft.Data.SqlClient;
@@ -74,61 +73,6 @@ namespace YetaWF.DataProvider.SQL2 {
         }
 
         /// <summary>
-        /// Removes an existing record with the specified identity value.
-        /// </summary>
-        /// <param name="identity">The identity value of the record to remove.</param>
-        /// <returns>Returns true if the record was removed, or false if the record was not found. Other errors cause an exception.</returns>
-        public async Task<bool> RemoveByIdentityAsync(int identity) {
-            SQLBuilder sb = new SQLBuilder();
-            await EnsureOpenAsync();
-
-            SQLHelper sqlHelper = new SQLHelper(Conn, null, Languages);
-
-            string fullTableName = sb.GetTable(Database, Dbo, Dataset);
-            List<PropertyData> propData = GetPropertyData();
-
-            string subTablesDeletes = SubTablesDeletes(Dataset, propData, typeof(OBJTYPE));
-
-            string scriptMain = $@"
-DELETE
-FROM {fullTableName}
-WHERE {sqlHelper.Expr(IdentityName, "=", identity)} {AndSiteIdentity}
-;
-SELECT @@ROWCOUNT --- result set
-
-{sqlHelper.DebugInfo}";
-
-            string scriptWithSub = $@"
-DECLARE @ident int = {identity};
-
-DELETE
-FROM {fullTableName}
-WHERE [{IdentityName}] = @ident
-;
-SELECT @@ROWCOUNT --- result set
-
-{subTablesDeletes}
-
-{sqlHelper.DebugInfo}";
-
-            string script = (string.IsNullOrWhiteSpace(subTablesDeletes)) ? scriptMain : scriptWithSub;
-
-            object val;
-            try {
-                val = await sqlHelper.ExecuteScalarAsync(script);
-            } catch (Exception exc) {
-                SqlException sqlExc = exc as SqlException;
-                if (sqlExc != null && sqlExc.Number == 547) // ref integrity
-                    return false;
-                throw new InternalError("Delete failed for type {0} - {1}", typeof(OBJTYPE).FullName, ErrorHandling.FormatExceptionMessage(exc));
-            }
-            int deleted = Convert.ToInt32(val);
-            if (deleted > 1)
-                throw new InternalError($"More than 1 record deleted by {nameof(RemoveByIdentityAsync)} method");
-            return deleted > 0;
-        }
-
-        /// <summary>
         /// Updates an existing record with the specified existing identity value <paramref name="identity"/> in the database table.
         /// The primary/secondary keys can be changed in the object.
         /// </summary>
@@ -136,57 +80,62 @@ SELECT @@ROWCOUNT --- result set
         /// <param name="obj">The object being updated.</param>
         /// <returns>Returns a status indicator.</returns>
         public async Task<UpdateStatusEnum> UpdateByIdentityAsync(int identity, OBJTYPE obj) {
-            SQLBuilder sb = new SQLBuilder();
+
             await EnsureOpenAsync();
 
             SQLHelper sqlHelper = new SQLHelper(Conn, null, Languages);
 
-            string fullTableName = sb.GetTable(Database, Dbo, Dataset);
-            List<PropertyData> propData = GetPropertyData();
-            string setColumns = SetColumns(sqlHelper, Dataset, propData, obj, typeof(OBJTYPE));
-
-            string subTablesUpdates = SubTablesUpdates(sqlHelper, Dataset, obj, propData, typeof(OBJTYPE));
-
-            string scriptMain = $@"
-UPDATE {fullTableName}
-SET {setColumns}
-WHERE {sqlHelper.Expr(IdentityName, "=", identity)} {AndSiteIdentity}
-;
-SELECT @@ROWCOUNT --- result set
-
-{sqlHelper.DebugInfo}";
-
-            string scriptWithSub = $@"
-DECLARE @__IDENTITY int = {identity};
-
-UPDATE {fullTableName}
-SET {setColumns}
-WHERE [{IdentityName}] = @__IDENTITY
-;
-SELECT @@ROWCOUNT --- result set
-
-{subTablesUpdates}
-
-{sqlHelper.DebugInfo}";
-
-            string script = (string.IsNullOrWhiteSpace(subTablesUpdates)) ? scriptMain : scriptWithSub;
+            GetParameterList(sqlHelper, obj, Database, Dbo, Dataset, GetPropertyData(), Prefix: null, TopMost: true, SiteSpecific: false, WithDerivedInfo: false, SubTable: false);
+            sqlHelper.AddParam("ValIdentity", identity);
 
             try {
-                object val = await sqlHelper.ExecuteScalarAsync(script);
-                int changed = Convert.ToInt32(val);
-                if (changed == 0)
-                    return UpdateStatusEnum.RecordDeleted;
-                if (changed > 1)
-                    throw new InternalError($"Update failed - {changed} records updated");
+                using (SqlDataReader reader = await sqlHelper.ExecuteReaderStoredProcAsync($@"""{Dbo}"".""{Dataset}__UpdateByIdentity""")) {
+                    if (!(YetaWFManager.IsSync() ? reader.Read() : await reader.ReadAsync()))
+                        throw new InternalError($"No result set received from {Dataset}__UpdateByIdentity");
+                    int changed = Convert.ToInt32(reader[0]);
+                    if (changed == 0)
+                        return UpdateStatusEnum.RecordDeleted;
+                    if (changed > 1)
+                        throw new InternalError($"Update failed - {changed} records updated");
+                }
             } catch (Exception exc) {
                 SqlException sqlExc = exc as SqlException;
                 if (sqlExc != null && sqlExc.Number == 2627) {
                     // duplicate key violation, meaning the new key already exists
                     return UpdateStatusEnum.NewKeyExists;
                 }
-                throw new InternalError($"Update failed for type {typeof(OBJTYPE).FullName} - {ErrorHandling.FormatExceptionMessage(exc)}");
+                throw new InternalError($"{nameof(UpdateByIdentityAsync)} failed for type {typeof(OBJTYPE).FullName} - {ErrorHandling.FormatExceptionMessage(exc)}");
             }
             return UpdateStatusEnum.OK;
+        }
+
+        /// <summary>
+        /// Removes an existing record with the specified identity value.
+        /// </summary>
+        /// <param name="identity">The identity value of the record to remove.</param>
+        /// <returns>Returns true if the record was removed, or false if the record was not found. Other errors cause an exception.</returns>
+        public async Task<bool> RemoveByIdentityAsync(int identity) {
+
+            await EnsureOpenAsync();
+
+            SQLHelper sqlHelper = new SQLHelper(Conn, null, Languages);
+            sqlHelper.AddParam("valIdentity", identity);
+
+            try {
+                using (SqlDataReader reader = await sqlHelper.ExecuteReaderStoredProcAsync($@"[{Dbo}].[{Dataset}__RemoveByIdentity]")) {
+                    if (!(YetaWFManager.IsSync() ? reader.Read() : await reader.ReadAsync()))
+                        throw new InternalError($"No result set received from {Dataset}__RemoveByIdentity");
+                    int deleted = Convert.ToInt32(reader[0]);
+                    if (deleted > 1)
+                        throw new InternalError($"More than 1 record deleted by {nameof(RemoveByIdentityAsync)} method");
+                    return deleted > 0;
+                }
+            } catch (Exception exc) {
+                SqlException sqlExc = exc as SqlException;
+                if (sqlExc != null && sqlExc.Number == 547) // ref integrity
+                    return false;
+                throw new InternalError($"{nameof(RemoveByIdentityAsync)} failed for type {typeof(OBJTYPE).FullName} - {ErrorHandling.FormatExceptionMessage(exc)}");
+            }
         }
     }
 }

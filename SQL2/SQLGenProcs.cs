@@ -82,22 +82,22 @@ CREATE PROCEDURE [{dbo}].[{dataset}__Get]
 AS
 BEGIN
     SELECT TOP 1 {GetColumnNameList(dbName, dbo, dataset, propData, objType, Add: false, Prefix: null, TopMost: false, IdentityName: identityName, SiteSpecific: siteIdentity > 0, WithDerivedInfo: false, SubTable: false)}");
-        if (calculatedPropertyCallbackAsync != null) sb.Append(await CalculatedPropertiesAsync(objType, calculatedPropertyCallbackAsync));
+            if (calculatedPropertyCallbackAsync != null) sb.Append(await CalculatedPropertiesAsync(objType, calculatedPropertyCallbackAsync));
 
-        sb.RemoveLastComma();
+            sb.RemoveLastComma();
 
-        sb.Append($@"
+            sb.Append($@"
     FROM {fullTableName}
     WHERE [{key1Name}] = @Key1Val");
-        if (!string.IsNullOrWhiteSpace(key2Name)) sb.Append($@" AND [{key2Name}] = @Key2Val");
-        if (siteIdentity > 0) sb.Append($@" AND [{SQLGenericBase.SiteColumn}] = @{SQLGen.ValSiteIdentity}");
+            if (!string.IsNullOrWhiteSpace(key2Name)) sb.Append($@" AND [{key2Name}] = @Key2Val");
+            if (siteIdentity > 0) sb.Append($@" AND [{SQLGenericBase.SiteColumn}] = @{SQLGen.ValSiteIdentity}");
 
-        sb.Append($@"
+            sb.Append($@"
 ; --- result set
 ");
 
-        foreach (SubTableInfo subTable in subTables) {
-            List<PropertyData> subPropData = ObjectSupport.GetPropertyData(subTable.Type);
+            foreach (SubTableInfo subTable in subTables) {
+                List<PropertyData> subPropData = ObjectSupport.GetPropertyData(subTable.Type);
                 sb.Add($@"
     SELECT {GetColumnNameList(dbName, dbo, subTable.Name, subPropData, subTable.Type, Add: false, Prefix: null, TopMost: false, SiteSpecific: false, WithDerivedInfo: false, SubTable: true)}");
                 sb.RemoveLastComma();
@@ -105,15 +105,15 @@ BEGIN
     FROM {sb.BuildFullTableName(dbName, dbo, subTable.Name)}
     INNER JOIN {sb.BuildFullTableName(dbName, dbo, dataset)} ON {sb.BuildFullColumnName(dataset, GetIdentityNameOrDefault(identityName))} = {sb.BuildFullColumnName(subTable.Name, SQLGenericBase.SubTableKeyColumn)}
     WHERE {sb.BuildFullColumnName(dataset, key1Name)} = @Key1Val");
-        if (!string.IsNullOrWhiteSpace(key2Name)) sb.Append($@" AND {sb.BuildFullColumnName(dataset, key2Name)} = @Key2Val");
-        if (siteIdentity > 0) sb.Append($@" AND {sb.BuildFullColumnName(dataset, SQLGenericBase.SiteColumn)} = @{SQLGen.ValSiteIdentity}");
+                if (!string.IsNullOrWhiteSpace(key2Name)) sb.Append($@" AND {sb.BuildFullColumnName(dataset, key2Name)} = @Key2Val");
+                if (siteIdentity > 0) sb.Append($@" AND {sb.BuildFullColumnName(dataset, SQLGenericBase.SiteColumn)} = @{SQLGen.ValSiteIdentity}");
 
                 sb.Append($@"
 ;  --- result set
 ");
-        }
+            }
 
-        sb.Append($@"
+            sb.Append($@"
 END
 
 GO
@@ -137,35 +137,35 @@ GO
 CREATE PROCEDURE [{dbo}].[{dataset}__GetByIdentity]
 (
     @ValIdentity integer,");
-            sb.RemoveLastComma();
-            sb.Append($@"
+                sb.RemoveLastComma();
+                sb.Append($@"
 )
 AS
 BEGIN
     SELECT TOP 1 {GetColumnNameList(dbName, dbo, dataset, propData, objType, Add: false, Prefix: null, TopMost: false, IdentityName: identityName, SiteSpecific: siteIdentity > 0, WithDerivedInfo: false, SubTable: false)}");
-        if (calculatedPropertyCallbackAsync != null) sb.Append(await CalculatedPropertiesAsync(objType, calculatedPropertyCallbackAsync));
+                if (calculatedPropertyCallbackAsync != null) sb.Append(await CalculatedPropertiesAsync(objType, calculatedPropertyCallbackAsync));
 
-        sb.RemoveLastComma();
+                sb.RemoveLastComma();
 
-        sb.Append($@"
+                sb.Append($@"
     FROM {fullTableName}
     WHERE [{identityName}] = @ValIdentity
 ; --- result set
 ");
 
-        foreach (SubTableInfo subTable in subTables) {
-            List<PropertyData> subPropData = ObjectSupport.GetPropertyData(subTable.Type);
-                sb.Add($@"
+                foreach (SubTableInfo subTable in subTables) {
+                    List<PropertyData> subPropData = ObjectSupport.GetPropertyData(subTable.Type);
+                    sb.Add($@"
     SELECT {GetColumnNameList(dbName, dbo, subTable.Name, subPropData, subTable.Type, Add: false, Prefix: null, TopMost: false, SiteSpecific: false, WithDerivedInfo: false, SubTable: true)}");
-                sb.RemoveLastComma();
-                sb.Add($@"
+                    sb.RemoveLastComma();
+                    sb.Add($@"
     FROM {sb.BuildFullTableName(dbName, dbo, subTable.Name)}
     WHERE {sb.BuildFullColumnName(subTable.Name, SQLGenericBase.SubTableKeyColumn)} = @ValIdentity
 ;  --- result set
 ");
-        }
+                }
 
-        sb.Append($@"
+                sb.Append($@"
 END
 
 GO
@@ -238,116 +238,80 @@ GO
 ");
 
 
-#if NOTYET
             // UPDATE
             // UPDATE
             // UPDATE
 
             sb.Append($@"
-DROP FUNCTION IF EXISTS ""{schema}"".""{dataset}__Update"";
-CREATE OR REPLACE FUNCTION ""{schema}"".""{dataset}__Update""(""Key1Val"" {typeKey1},");
+IF EXISTS (
+    SELECT sys.procedures.name FROM sys.procedures WITH(NOLOCK) 
+    WHERE type = 'P' AND schema_id = SCHEMA_ID('{dbo}') AND name = '{dataset}__Update' 
+) DROP PROCEDURE [{dbo}].[{dataset}__Update]
+
+GO
+
+CREATE PROCEDURE [{dbo}].[{dataset}__Update]
+(
+    @Key1Val {typeKey1},");
             if (!string.IsNullOrWhiteSpace(key2Name))
-                sb.Append($@"""Key2Val"" {typeKey2},");
-            sb.Append($@"{GetArgumentNameList(dbName, schema, dataset, propData, objType, Prefix: null, TopMost: true, SiteSpecific: siteIdentity > 0, WithDerivedInfo: false, SubTable: false)}");
-
-            sb.RemoveLastComma();
-
-            sb.Append($@")
-    RETURNS integer
-    LANGUAGE 'plpgsql'
-AS $$
-DECLARE
-    __TOTAL integer;
-    __COUNT integer;
-    __VAR character varying;");
-
-            if (HasIdentity(identityName)) {
                 sb.Append($@"
-    __IDENTITY integer;");
-            }
-
+    @Key2Val {typeKey2},");
             sb.Append($@"
+    {GetArgumentNameList(dbName, dbo, dataset, propData, objType, Prefix: null, TopMost: true, SiteSpecific: siteIdentity > 0, WithDerivedInfo: false, SubTable: false)}");
+            sb.RemoveLastComma();
+            sb.Append($@"
+)
+AS
 BEGIN");
 
-            if ((SqlDbType)colKey1.DataType == SqlDbType.Varchar || (!string.IsNullOrWhiteSpace(key2Name) && (SqlDbType)colKey2.DataType == SqlDbType.Varchar)) {
-
+            if (HasIdentity(identityName)) {
                 sb.Append($@"
-
-	LOCK TABLE {fullTableName} IN ACCESS EXCLUSIVE MODE;
-
-    SELECT ""{key1Name}"" INTO __VAR
-    FROM {fullTableName}
-    WHERE ( 
-            {GenCompare(key1Name, (SqlDbType)colKey1.DataType, $@"""arg{key1Name}""")}");
-                if (!string.IsNullOrWhiteSpace(key2Name)) sb.Append($@" AND {GenCompare(key2Name, (SqlDbType)colKey2.DataType, $@"""arg{key2Name}""")}");
-
-                sb.Append($@"
-          ) AND (
-            ""{key1Name}"" <> ""Key1Val""");
-                if (!string.IsNullOrWhiteSpace(key2Name)) sb.Append($@" AND ""{key2Name}"" <> ""Key2Val""");
-
-                sb.Append($@"
-          )");
-                if (siteIdentity > 0) sb.Append($@" AND ""{SQLGenericBase.SiteColumn}"" = ""{SQLGen.ValSiteIdentity}""");
-
-                sb.Append($@"
-    LIMIT 1;
-
-    IF __VAR IS NOT NULL THEN
-        RETURN -1; -- Unique violation
-    END IF;
+    DECLARE @__IDENTITY int
 ");
             }
-            
 
             sb.Append($@"
     UPDATE {fullTableName}
-    SET {GetSetList(dbName, schema, dataset, propData, objType, Prefix: null, TopMost: true, SiteSpecific: siteIdentity > 0, WithDerivedInfo: false, SubTable: false)}");
+    SET {GetSetList(dbName, dbo, dataset, propData, objType, Prefix: null, TopMost: true, SiteSpecific: siteIdentity > 0, WithDerivedInfo: false, SubTable: false)}");
 
+            if (HasIdentity(identityName)) {
+                sb.Append($@"
+    @__IDENTITY=[{GetIdentityNameOrDefault(identityName)}],
+");
+            }
             sb.RemoveLastComma();
 
             sb.Append($@"
-    WHERE {GenCompare(key1Name, (SqlDbType)colKey1.DataType, $@"""Key1Val""")}");
-        if (!string.IsNullOrWhiteSpace(key2Name)) sb.Append($@" AND {GenCompare(key2Name, (SqlDbType)colKey2.DataType, $@"""Key2Val""")}");
-        if (siteIdentity > 0) sb.Append($@" AND ""{SQLGenericBase.SiteColumn}"" = ""{SQLGen.ValSiteIdentity}""");
+    WHERE [{key1Name}] = @Key1Val");
+            if (!string.IsNullOrWhiteSpace(key2Name)) sb.Append($@" AND [{key2Name}] = @Key2Val");
+            if (siteIdentity > 0) sb.Append($@" AND [{SQLGenericBase.SiteColumn}] = @{SQLGen.ValSiteIdentity}");
 
-            if (HasIdentity(identityName)) {
-                sb.Append($@"
-    RETURNING ""{identityName}"" INTO __IDENTITY");
-            }
             sb.Append($@"
-;
-    GET DIAGNOSTICS __TOTAL = ROW_COUNT
-;");
+
+    SELECT @@ROWCOUNT --- result set
+");
 
             foreach (SubTableInfo subTable in subTables) {
-
                 List<PropertyData> subPropData = ObjectSupport.GetPropertyData(subTable.Type);
                 sb.Add($@"
-    DELETE FROM {sb.BuildFullTableName(dbName, schema, subTable.Name)}
-        WHERE ""{SQLGenericBase.SubTableKeyColumn}"" = __IDENTITY ;
+    DELETE FROM {sb.BuildFullTableName(dbName, dbo, subTable.Name)} WITH(SERIALIZABLE) WHERE [{SQLBase.SubTableKeyColumn}] = @__IDENTITY ;
 
-    __COUNT = ARRAY_LENGTH(""arg{subTable.PropInfo.Name}"", 1);
-    IF __COUNT IS NOT NULL THEN
-        FOR ctr IN 1..__COUNT LOOP
-            INSERT INTO {sb.BuildFullTableName(dbName, schema, subTable.Name)} ({GetColumnNameList(dbName, schema, subTable.Name, subPropData, subTable.Type, Add: true, Prefix: null, TopMost: false, SiteSpecific: false, WithDerivedInfo: false, SubTable: true)}");
-
+    INSERT INTO {sb.BuildFullTableName(dbName, dbo, subTable.Name)} ({GetColumnNameList(dbName, dbo, subTable.Name, subPropData, subTable.Type, Add: true, Prefix: null, TopMost: false, SiteSpecific: false, WithDerivedInfo: false, SubTable: true)}");
                 sb.RemoveLastComma();
                 sb.Append($@")
-            VALUES({GetValueNameList(dbName, schema, subTable.Name, subPropData, subTable.Type, Prefix: $@"""arg{subTable.PropInfo.Name}""[ctr]", TopMost: false, SiteSpecific: false, WithDerivedInfo: false, SubTable: true)}");
+    SELECT {GetValueNameList(dbName, dbo, subTable.Name, subPropData, subTable.Type, Prefix: null, TopMost: false, SiteSpecific: false, WithDerivedInfo: false, SubTable: true)}");
                 sb.RemoveLastComma();
-                sb.Append($@");
-        END LOOP;
-    END IF
-;");
+                sb.Append($@"
+    FROM @arg{subTable.PropInfo.Name}
+");
             }
 
             sb.Append($@"
+END
 
-    RETURN (SELECT __TOTAL); --- result set
-END;
-$$;");
+GO
 
+");
 
             // UPDATE BY IDENTITY
             // UPDATE BY IDENTITY
@@ -356,62 +320,59 @@ $$;");
             if (HasIdentity(identityName)) {
 
                 sb.Append($@"
-DROP FUNCTION IF EXISTS ""{schema}"".""{dataset}__UpdateByIdentity"";
-CREATE OR REPLACE FUNCTION ""{schema}"".""{dataset}__UpdateByIdentity""({GetArgumentNameList(dbName, schema, dataset, propData, objType, Prefix: null, TopMost: true, SiteSpecific: false, WithDerivedInfo: false, SubTable: false)}""valIdentity"" integer,");
+IF EXISTS (
+    SELECT sys.procedures.name FROM sys.procedures WITH(NOLOCK) 
+    WHERE type = 'P' AND schema_id = SCHEMA_ID('{dbo}') AND name = '{dataset}__UpdateByIdentity' 
+) DROP PROCEDURE [{dbo}].[{dataset}__UpdateByIdentity]
 
+GO
+
+CREATE PROCEDURE [{dbo}].[{dataset}__UpdateByIdentity]
+(
+    {GetArgumentNameList(dbName, dbo, dataset, propData, objType, Prefix: null, TopMost: true, SiteSpecific: false, WithDerivedInfo: false, SubTable: false)}@valIdentity int,");
                 sb.RemoveLastComma();
-
-                sb.Append($@")
-    RETURNS integer
-    LANGUAGE 'plpgsql'
-AS $$
-DECLARE
-    __TOTAL integer;
-    __COUNT integer;
-    __IDENTITY integer;");
-
                 sb.Append($@"
+)
+AS
 BEGIN
-    __IDENTITY = ""valIdentity"";
 
+    DECLARE @__IDENTITY int = @valIdentity
+");
+
+                sb.Append($@"
     UPDATE {fullTableName}
-    SET {GetSetList(dbName, schema, dataset, propData, objType, Prefix: null, TopMost: true, SiteSpecific: false, WithDerivedInfo: false, SubTable: false)}");
-
+    SET {GetSetList(dbName, dbo, dataset, propData, objType, Prefix: null, TopMost: true, SiteSpecific: false, WithDerivedInfo: false, SubTable: false)}");
                 sb.RemoveLastComma();
 
                 sb.Append($@"
-    WHERE ""{identityName}"" = __IDENTITY
-;
-    GET DIAGNOSTICS __TOTAL = ROW_COUNT
-;");
+    WHERE [{identityName}] = @__IDENTITY");
+
+                sb.Append($@"
+
+    SELECT @@ROWCOUNT --- result set
+");
 
                 foreach (SubTableInfo subTable in subTables) {
-
                     List<PropertyData> subPropData = ObjectSupport.GetPropertyData(subTable.Type);
                     sb.Add($@"
-    DELETE FROM {sb.BuildFullTableName(dbName, schema, subTable.Name)}
-        WHERE ""{SQLGenericBase.SubTableKeyColumn}"" = __IDENTITY;
+    DELETE FROM {sb.BuildFullTableName(dbName, dbo, subTable.Name)} WITH(SERIALIZABLE) WHERE [{SQLBase.SubTableKeyColumn}] = @__IDENTITY ;
 
-    __COUNT = ARRAY_LENGTH(""arg{subTable.PropInfo.Name}"", 1);
-    IF __COUNT IS NOT NULL THEN
-        FOR ctr IN 1..__COUNT LOOP
-            INSERT INTO {sb.BuildFullTableName(dbName, schema, subTable.Name)} ({GetColumnNameList(dbName, schema, subTable.Name, subPropData, subTable.Type, Add: true, Prefix: null, TopMost: false, SiteSpecific: false, WithDerivedInfo: false, SubTable: true)}");
-
+    INSERT INTO {sb.BuildFullTableName(dbName, dbo, subTable.Name)} ({GetColumnNameList(dbName, dbo, subTable.Name, subPropData, subTable.Type, Add: true, Prefix: null, TopMost: false, SiteSpecific: false, WithDerivedInfo: false, SubTable: true)}");
                     sb.RemoveLastComma();
                     sb.Append($@")
-            VALUES({GetValueNameList(dbName, schema, subTable.Name, subPropData, subTable.Type, Prefix: $@"""arg{subTable.PropInfo.Name}""[ctr]", TopMost: false, SiteSpecific: false, WithDerivedInfo: false, SubTable: true)}");
+    SELECT {GetValueNameList(dbName, dbo, subTable.Name, subPropData, subTable.Type, Prefix: null, TopMost: false, SiteSpecific: false, WithDerivedInfo: false, SubTable: true)}");
                     sb.RemoveLastComma();
-                    sb.Append($@");
-        END LOOP;
-    END IF
-;");
+                    sb.Append($@"
+    FROM @arg{subTable.PropInfo.Name}
+");
                 }
 
                 sb.Append($@"
+END
 
-    RETURN (SELECT __TOTAL); --- result set
-END;
-$$;");
+GO
+
+");
             }
 
             // REMOVE
@@ -419,61 +380,73 @@ $$;");
             // REMOVE
 
             sb.Append($@"
-DROP FUNCTION IF EXISTS ""{schema}"".""{dataset}__Remove"";
-CREATE OR REPLACE FUNCTION ""{schema}"".""{dataset}__Remove""(""Key1Val"" {typeKey1},");
-            if (!string.IsNullOrWhiteSpace(key2Name))
-                sb.Append($@"""Key2Val"" {typeKey2},");
-            if (siteIdentity > 0)
-                sb.Append($@"""{SQLGen.ValSiteIdentity}"" integer,");
+IF EXISTS (
+    SELECT sys.procedures.name FROM sys.procedures WITH(NOLOCK) 
+    WHERE type = 'P' AND schema_id = SCHEMA_ID('{dbo}') AND name = '{dataset}__Remove' 
+) DROP PROCEDURE [{dbo}].[{dataset}__Remove]
 
+GO
+
+CREATE PROCEDURE [{dbo}].[{dataset}__Remove]
+(
+    @Key1Val { typeKey1},");
+            if (!string.IsNullOrWhiteSpace(key2Name))
+                sb.Append($@"
+    @Key2Val {typeKey2},");
+            if (siteIdentity > 0)
+                sb.Append($@"
+    @{SQLGen.ValSiteIdentity} integer,");
             sb.RemoveLastComma();
-            sb.Append($@")
-    RETURNS integer
-    LANGUAGE 'plpgsql'
-AS $$
-    DECLARE __TOTAL integer;");
+
+            sb.Append($@"
+)
+AS
+BEGIN");
 
             if (subTables.Count == 0) {
 
                 sb.Append($@"
-BEGIN
     DELETE FROM {fullTableName}
-    WHERE {GenCompare(key1Name, (SqlDbType)colKey1.DataType, $@"""Key1Val""")}");
-                if (!string.IsNullOrWhiteSpace(key2Name)) sb.Append($@" AND {GenCompare(key2Name, (SqlDbType)colKey2.DataType, $@"""Key2Val""")}");
-                if (siteIdentity > 0) sb.Append($@" AND ""{SQLGenericBase.SiteColumn}"" = ""{SQLGen.ValSiteIdentity}""");
+    WHERE [{key1Name}] = @Key1Val");
+                if (!string.IsNullOrWhiteSpace(key2Name)) sb.Append($@" AND [{key2Name}] = @Key2Val");
+                if (siteIdentity > 0) sb.Append($@" AND [{SQLGenericBase.SiteColumn}] = @{SQLGen.ValSiteIdentity}");
 
                 sb.Append($@"
-;");
+
+    SELECT @@ROWCOUNT --- result set
+");
 
             } else {
 
                 sb.Append($@"
-    DECLARE __IDENTITY integer;
-BEGIN
-    SELECT ""{GetIdentityNameOrDefault(identityName)}"" INTO __IDENTITY FROM {fullTableName}
-    WHERE {GenCompare(key1Name, (SqlDbType)colKey1.DataType, $@"""Key1Val""")}");
-    if (!string.IsNullOrWhiteSpace(key2Name)) sb.Append($@" AND {GenCompare(key2Name, (SqlDbType)colKey2.DataType, $@"""Key2Val""")}");
-    if (siteIdentity > 0) sb.Append($@" AND ""{SQLGenericBase.SiteColumn}"" = ""{SQLGen.ValSiteIdentity}""");
+    DECLARE @__IDENTITY integer;
+
+    SELECT @__IDENTITY = [{GetIdentityNameOrDefault(identityName)}] FROM {fullTableName}
+    WHERE [{key1Name}] = @Key1Val");
+            if (!string.IsNullOrWhiteSpace(key2Name)) sb.Append($@" AND [{key2Name}] = @Key2Val");
+            if (siteIdentity > 0) sb.Append($@" AND [{SQLGenericBase.SiteColumn}] = @{SQLGen.ValSiteIdentity}");
                 sb.Append($@"
 ;");
 
                 foreach (SubTableInfo subTable in subTables) {
                     sb.Add($@"
-    DELETE FROM {sb.BuildFullTableName(dbName, schema, subTable.Name)} WHERE {sb.BuildFullColumnName(subTable.Name, SQLGenericBase.SubTableKeyColumn)} = __IDENTITY
+    DELETE FROM {sb.BuildFullTableName(dbName, dbo, subTable.Name)} WHERE {sb.BuildFullColumnName(subTable.Name, SQLGenericBase.SubTableKeyColumn)} = @__IDENTITY
 ;");
                 }
                 sb.Add($@"
-    DELETE FROM {fullTableName} WHERE ""{GetIdentityNameOrDefault(identityName)}"" = __IDENTITY
+    DELETE FROM {fullTableName} WHERE ""{GetIdentityNameOrDefault(identityName)}"" = @__IDENTITY
+
+    SELECT @@ROWCOUNT --- result set
 ;");
                 
             }
 
             sb.Append($@"
-    GET DIAGNOSTICS __TOTAL = ROW_COUNT
-;
-    RETURN (SELECT __TOTAL); --- result set
-END;
-$$;");
+END
+
+GO 
+
+");
 
             // REMOVE BY IDENTITY
             // REMOVE BY IDENTITY
@@ -482,32 +455,42 @@ $$;");
             if (HasIdentity(identityName)) {
 
                 sb.Append($@"
-DROP FUNCTION IF EXISTS ""{schema}"".""{dataset}__RemoveByIdentity"";
-CREATE OR REPLACE FUNCTION ""{schema}"".""{dataset}__RemoveByIdentity""(""valIdentity"" integer)
-    RETURNS integer
-    LANGUAGE 'plpgsql'
-AS $$
-    DECLARE __TOTAL integer;
-    DECLARE __IDENTITY integer;
-BEGIN
-    __IDENTITY = ""valIdentity"";");
+IF EXISTS (
+    SELECT sys.procedures.name FROM sys.procedures WITH(NOLOCK) 
+    WHERE type = 'P' AND schema_id = SCHEMA_ID('{dbo}') AND name = '{dataset}__RemoveByIdentity' 
+) DROP PROCEDURE [{dbo}].[{dataset}__RemoveByIdentity]
 
+GO
+
+CREATE PROCEDURE [{dbo}].[{dataset}__RemoveByIdentity]
+(
+    @valIdentity integer
+)
+AS
+BEGIN");
+
+                sb.Append($@"
+    DECLARE @__IDENTITY integer = @valIdentity;
+
+;");
                 foreach (SubTableInfo subTable in subTables) {
                     sb.Add($@"
-    DELETE FROM {sb.BuildFullTableName(dbName, schema, subTable.Name)} WHERE {sb.BuildFullColumnName(subTable.Name, SQLGenericBase.SubTableKeyColumn)} = __IDENTITY
+    DELETE FROM {sb.BuildFullTableName(dbName, dbo, subTable.Name)} WHERE {sb.BuildFullColumnName(subTable.Name, SQLGenericBase.SubTableKeyColumn)} = @__IDENTITY
 ;");
                 }
                 sb.Add($@"
-    DELETE FROM {fullTableName} WHERE ""{identityName}"" = __IDENTITY
-;
-    GET DIAGNOSTICS __TOTAL = ROW_COUNT
-;
-    RETURN (SELECT __TOTAL); --- result set
-END;
-$$;");
-            }
+    DELETE FROM {fullTableName} WHERE ""{GetIdentityNameOrDefault(identityName)}"" = @__IDENTITY
 
-#endif
+    SELECT @@ROWCOUNT --- result set
+;");
+
+                sb.Append($@"
+END
+
+GO 
+
+");
+            }
 
             // Add to database
             await ExecuteBatchesAsync(sb.ToString());
@@ -773,29 +756,7 @@ IF EXISTS (
                     }
                 },
                 (prefix, container, prop, subPropData, subType, subtableName) => { // Subtable
-                    if (Add) return null;
-
-                    StringBuilder sbldr = new StringBuilder();
-            //$$$        sbldr.Append($@"
-            //(
-            //    SELECT CAST(ARRAY_AGG((");
-
-            //        sbldr.Append(GetColumnNameList(dbName, schema, subtableName, subPropData, subType, Add: false, Prefix: null, TopMost: false, SiteSpecific: false, WithDerivedInfo: false, SubTable: true));
-            //        sbldr.RemoveLastComma();
-
-            //        string colType;
-            //        if (subPropData.Count == 1) {
-            //            Column col = sqlManager.GetColumn(Conn, dbName, schema, subtableName, subPropData[0].ColumnName);
-            //            colType = GetDataTypeArgumentString(col);
-            //        } else {
-            //            colType = $@"""{subtableName}_T""";
-            //        }
-
-            //        sbldr.Append($@")::{colType}) AS {colType}[])
-            //    FROM ""{schema}"".""{subtableName}""
-            //    WHERE ""{schema}"".""{subtableName}"".""{SQLGenericBase.SubTableKeyColumn}"" = ""{schema}"".""{dataset}"".""{GetIdentityNameOrDefault(IdentityName)}""
-            //) AS ""{prop.Name}"",");
-                    return sbldr.ToString();
+                    return null;
                 },
                 dbName, schema, dataset, null, propData, tpContainer, Prefix, TopMost, SiteSpecific, WithDerivedInfo, SubTable);
         }
@@ -849,15 +810,15 @@ IF EXISTS (
         internal string GetSetList(string dbName, string schema, string dataset, List<PropertyData> propData, Type tpContainer, bool Add = false, string Prefix = null, bool TopMost = true, bool SiteSpecific = false, bool WithDerivedInfo = false, bool SubTable = false) {
             if (SubTable) throw new InternalError($"{nameof(GetSetList)} called for subtable which is not supported");
             return ProcessColumns(
-                (prefix, container, prop) => { return $@"""{prefix}{prop.ColumnName}""=""arg{prefix}{prop.Name}"","; },
+                (prefix, container, prop) => { return $@"[{prefix}{prop.ColumnName}]=@arg{prefix}{prop.Name},"; },
                 (prefix, container, prop) => { return null; }, // Identity
-                (prefix, container, prop) => { return $@"""{prefix}{prop.ColumnName}""=""arg{prefix}{prop.Name}"","; },
-                (prefix, container, prop) => { return $@"""{prefix}{prop.ColumnName}""=""arg{prefix}{prop.Name}"","; },
+                (prefix, container, prop) => { return $@"[{prefix}{prop.ColumnName}]=@arg{prefix}{prop.Name},"; },
+                (prefix, container, prop) => { return $@"[{prefix}{prop.ColumnName}]=@arg{prefix}{prop.Name},"; },
                 (prefix, container, prop) => {
                     if (Languages.Count == 0) throw new InternalError("We need Languages for MultiString support");
                     StringBuilder sb = new StringBuilder();
                     foreach (LanguageData lang in Languages)
-                        sb.Append($@"""{prefix}{SQLGenericBase.ColumnFromPropertyWithLanguage(lang.Id, prop.Name)}""=""arg{prefix}{SQLGenericBase.ColumnFromPropertyWithLanguage(lang.Id, prop.Name)}"",");
+                        sb.Append($@"[{prefix}{SQLGenericBase.ColumnFromPropertyWithLanguage(lang.Id, prop.Name)}]=@arg{prefix}{SQLGenericBase.ColumnFromPropertyWithLanguage(lang.Id, prop.Name)},");
                     return sb.ToString();
                 },
                 (prefix, container, name) => {

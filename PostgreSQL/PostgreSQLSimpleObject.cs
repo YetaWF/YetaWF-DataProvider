@@ -187,11 +187,13 @@ namespace YetaWF.DataProvider.PostgreSQL {
                         throw new InternalError($"Update failed - {changed} records updated");
                 }
             } catch (Exception exc) {
-                Npgsql.PostgresException sqlExc = exc as Npgsql.PostgresException;
-                if (sqlExc != null && sqlExc.SqlState == PostgresErrorCodes.UniqueViolation) // already exists
-                    return UpdateStatusEnum.NewKeyExists;
-                if (sqlExc != null)
-                    throw new InternalError($"{nameof(UpdateAsync)} failed for type {typeof(OBJTYPE).FullName} - {sqlExc.Detail} - {ErrorHandling.FormatExceptionMessage(exc)}");
+                if (!newKey.Equals(origKey)) {
+                    Npgsql.PostgresException sqlExc = exc as Npgsql.PostgresException;
+                    if (sqlExc != null && sqlExc.SqlState == PostgresErrorCodes.UniqueViolation) // already exists
+                        return UpdateStatusEnum.NewKeyExists;
+                    if (sqlExc != null)
+                        throw new InternalError($"{nameof(UpdateAsync)} failed for type {typeof(OBJTYPE).FullName} - {sqlExc.Detail} - {ErrorHandling.FormatExceptionMessage(exc)}");
+                }
                 throw new InternalError($"{nameof(UpdateAsync)} failed for type {typeof(OBJTYPE).FullName} - {ErrorHandling.FormatExceptionMessage(exc)}");
             }
             return UpdateStatusEnum.OK;
@@ -267,18 +269,17 @@ namespace YetaWF.DataProvider.PostgreSQL {
 
             await EnsureOpenAsync();
 
-            filters = NormalizeFilter(typeof(OBJTYPE), filters);
-            sorts = NormalizeSort(typeof(OBJTYPE), sorts);
-
             SQLManager sqlManager = new SQLManager();
             SQLHelper sqlHelper = new SQLHelper(Conn, null, Languages);
             SQLGen sqlCreate = new SQLGen(Conn, Languages, IdentitySeed, Logging);
+
+            filters = NormalizeFilter(typeof(OBJTYPE), filters);
+            sorts = NormalizeSort(typeof(OBJTYPE), sorts);
 
             SQLBuilder sb;
 
             sb = new SQLBuilder();
             string fullTableName = sb.GetTable(Database, Schema, Dataset);
-            int total = 0;
 
             Dictionary<string, string> visibleColumns = Joins.Count > 0 ? new Dictionary<string, string>() : null;
             string columnList = sqlCreate.GetColumnNameList(Database, Schema, Dataset, GetPropertyData(), typeof(OBJTYPE), Add: false, Prefix: null, TopMost: true, IdentityName: IdentityName, SiteSpecific: SiteIdentity > 0, WithDerivedInfo: false, SubTable: false,
@@ -321,6 +322,7 @@ namespace YetaWF.DataProvider.PostgreSQL {
             string filterExpr = MakeFilter(sqlHelper, filters, visibleColumns);
 
             // get total # of records (only if a subset is requested)
+            int total = 0;
             if (skip != 0 || take != 0) {
 
                 sb = new SQLBuilder();
