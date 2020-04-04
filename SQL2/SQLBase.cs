@@ -69,7 +69,7 @@ namespace YetaWF.DataProvider.SQL2 {
         /// </summary>
         public bool ConnDynamic { get; private set; }
 
-        internal string AndSiteIdentity { get; private set; }
+        internal string AndSiteIdentity { get; private set; }//$$$$REMOVE
 
         /// <summary>
         /// Constructor.
@@ -317,77 +317,12 @@ namespace YetaWF.DataProvider.SQL2 {
             }
             return sb.ToString();
         }
-        internal string MakeColumnList(SQLHelper sqlHelper, Dictionary<string, string> visibleColumns, List<JoinData> joins) {
-            SQLBuilder sb = new SQLBuilder();
-            if (joins != null && joins.Count > 0) {
-                foreach (string col in visibleColumns.Values) {
-                    sb.Add($"{col},");
-                }
-                sb.RemoveLastCharacter();
-            } else {
-                sb.Add("*");
-            }
-            return sb.ToString();
-        }
 
         // Visible columns
         // Visible columns
         // Visible columns
 
-        // Flatten the current table(with joins) and create a lookup table for all fields.
-        // If a joined table has a field with the same name as the lookup table, it is not accessible.
-        internal async Task<Dictionary<string, string>> GetVisibleColumnsAsync(string databaseName, string dbOwner, string tableName, Type objType, List<JoinData> joins) {
-            SQLManager sqlManager = new SQLManager();
-            Dictionary<string, string> visibleColumns = new Dictionary<string, string>();
-            tableName = tableName.Trim(new char[] { '[', ']' });
-            List<string> columns = sqlManager.GetColumnsOnly(Conn, databaseName, dbOwner, tableName);
-            AddVisibleColumns(visibleColumns, databaseName, dbOwner, tableName, columns);
-            if (CalculatedPropertyCallbackAsync != null) {
-                List<PropertyData> props = ObjectSupport.GetPropertyData(objType);
-                props = (from p in props where p.CalculatedProperty select p).ToList();
-                foreach (PropertyData prop in props)
-                    visibleColumns.Add(prop.ColumnName, prop.ColumnName);
-            }
-            if (joins != null) {
-                // no support for calculated properties in joined tables
-                foreach (JoinData join in joins) {
-                    ISQLTableInfo mainInfo = await join.MainDP.GetDataProvider().GetISQLTableInfoAsync();
-                    databaseName = mainInfo.GetDatabaseName();
-                    dbOwner = mainInfo.GetDbOwner();
-                    tableName = mainInfo.GetTableName();
-                    tableName = tableName.Split(new char[] { '.' }).Last().Trim(new char[] { '[', ']' });
-                    columns = sqlManager.GetColumnsOnly(Conn, databaseName, dbOwner, tableName);
-                    AddVisibleColumns(visibleColumns, databaseName, dbOwner, tableName, columns);
-                    ISQLTableInfo joinInfo = await join.JoinDP.GetDataProvider().GetISQLTableInfoAsync();
-                    databaseName = joinInfo.GetDatabaseName();
-                    dbOwner = joinInfo.GetDbOwner();
-                    tableName = joinInfo.GetTableName();
-                    tableName = tableName.Split(new char[] { '.' }).Last().Trim(new char[] { '[', ']' });
-                    columns = sqlManager.GetColumnsOnly(join.JoinDP.GetDataProvider().Conn, databaseName, dbOwner, tableName);
-                    AddVisibleColumns(visibleColumns, databaseName, dbOwner, tableName, columns);
-                }
-            }
-            return visibleColumns;
-        }
-        private void AddVisibleColumns(Dictionary<string, string> visibleColumns, string databaseName, string dbOwner, string tableName, List<string> columns) {
-            SQLBuilder sb = new SQLBuilder();
-            foreach (string column in columns) {
-                if (!visibleColumns.ContainsKey(column))
-                    visibleColumns.Add(column, sb.BuildFullColumnName(databaseName, dbOwner, tableName, column));
-            }
-        }
-
-        internal async Task<string> CalculatedPropertiesAsync(Type objType) {
-            if (CalculatedPropertyCallbackAsync == null) return null;
-            SQLBuilder sb = new SQLBuilder();
-            List<PropertyData> props = ObjectSupport.GetPropertyData(objType);
-            props = (from p in props where p.CalculatedProperty select p).ToList();
-            foreach (PropertyData prop in props) {
-                string calcProp = await CalculatedPropertyCallbackAsync(prop.Name);
-                sb.Add($", ({calcProp}) AS [{prop.Name}]");
-            }
-            return sb.ToString();
-        }
+        //$$$$remove
         internal string GetColumnList(List<PropertyData> propData, Type tpContainer,
                 string prefix, bool topMost,
                 bool SiteSpecific = false,

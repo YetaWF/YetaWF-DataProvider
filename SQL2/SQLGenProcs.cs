@@ -23,7 +23,6 @@ namespace YetaWF.DataProvider.SQL2 {
 
         public const string ValSiteIdentity = "valSiteIdentity"; // sproc argument with site identity
 
-
         //$$$$$ MOVE
         internal const string ValDerivedTableName = "valDerivedTableName"; // sproc argument for derived table name
         internal const string ValDerivedDataType = "valDerivedDataType"; // sproc argument for derived type 
