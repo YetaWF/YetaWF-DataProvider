@@ -37,7 +37,7 @@ namespace YetaWF.DataProvider.PostgreSQL {
 #if DEBUG
                 SQLBuilder sb = new SQLBuilder();
                 sb.Add("-- Debug"); sb.Add(Environment.NewLine);
-                foreach (var p in Params) {
+                foreach (NpgsqlParameter p in Params) {
                     string val = p.Value?.ToString();
                     if (val != null) val = val.Replace('\r', ' ').Replace('\n', ' ');
                     sb.Add($"-- {p.ParameterName} - {val}"); sb.Add(Environment.NewLine);
@@ -352,7 +352,7 @@ namespace YetaWF.DataProvider.PostgreSQL {
         }
         private void AddFiltersExpr(SQLBuilder sb, string tableName, List<DataProviderFilterInfo> filter, string logic, Dictionary<string, string> visibleColumns) {
             bool firstDone = false;
-            foreach (var f in filter) {
+            foreach (DataProviderFilterInfo f in filter) {
                 if (firstDone) {
                     if (logic == "and" || logic == "&&") sb.Add(" AND ");
                     else if (logic == "or" || logic == "||") sb.Add(" OR ");

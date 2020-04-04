@@ -227,7 +227,6 @@ namespace YetaWF.DataProvider.PostgreSQL {
             // TODO: Improve by moving into proc
 
             sqlHelper = new SQLHelper(Conn, null, Languages);
-            sqlHelper = new SQLHelper(Conn, null, Languages);
             sqlHelper.AddParam("Key1Val", key);
             sqlHelper.AddParam(SQLGen.ValSiteIdentity, SiteIdentity);
             AddCompositeMapping(typeof(DerivedInfo), DerivedInfoType);
@@ -279,6 +278,7 @@ namespace YetaWF.DataProvider.PostgreSQL {
 
             } else {
 
+                // an explicit type is requested
                 if (Joins != null && Joins.Count > 0)
                     throw new NotImplementedException($"Joins not implemented for {nameof(GetRecordsAsync)} in {GetType().FullName}");
 
@@ -441,8 +441,7 @@ LEFT JOIN {fullTableName} ON {fullBaseTableName}.""{Key1Name}"" = {fullTableName
         public new async Task<bool> InstallModelAsync(List<string> errorList) {
             await EnsureOpenAsync();
             if (Dataset == BaseDataset) throw new InternalError("Base dataset is not supported");
-            bool success = CreateTableWithBaseType(Conn, Database, errorList);
-            return success;
+            return CreateTableWithBaseType(Conn, Database, errorList);
         }
         private bool CreateTableWithBaseType(NpgsqlConnection conn, string dbName, List<string> errorList) {
             Type baseType = typeof(ModuleDefinition);

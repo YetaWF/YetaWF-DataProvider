@@ -55,6 +55,7 @@ namespace YetaWF.DataProvider.PostgreSQL {
                 return false;
 
             MakeTables(dbName, schema, tableInfo, propData, tpProps, WithDerivedInfo);
+
             return true;
         }
 
@@ -65,8 +66,8 @@ namespace YetaWF.DataProvider.PostgreSQL {
                 string ForeignKeyTable = null,
                 bool WithDerivedInfo = false,
                 bool SubTable = false) {
-            try {
 
+            try {
                 SQLManager sqlManager = new SQLManager();
                 Table currentTable = null;
                 Table newTable = new Table {
@@ -88,7 +89,7 @@ namespace YetaWF.DataProvider.PostgreSQL {
                 }
 
                 if (!SubTable) {
-                    DropFunctionsAsync(dbName, schema, tableName);// drop functions so we can recreate types
+                    DropFunctions(dbName, schema, tableName);// drop functions so we can recreate types
                     DropType(dbName, schema, tableInfo.NewTable.Name, propData, tpProps, SubTable: false);// drop this type so we can recreate types for subtables
                 }
 
@@ -268,6 +269,7 @@ namespace YetaWF.DataProvider.PostgreSQL {
 
             Table newTable = tableInfo.NewTable;
             Table currentTable = tableInfo.CurrentTable;
+
             string result = ProcessColumns(
                 (prefix, container, prop) => { // regular property
                     PropertyInfo pi = prop.PropInfo;

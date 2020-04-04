@@ -135,6 +135,7 @@ namespace YetaWF.DataProvider.SQL {
                 }
             }
         }
+
         private bool ComplexTypeInColumns(List<string> columns, string prefix) {
             foreach (string column in columns) {
                 if (column.StartsWith(prefix))

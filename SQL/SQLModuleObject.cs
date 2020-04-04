@@ -22,6 +22,22 @@ using System.Data.SqlClient;
 namespace YetaWF.DataProvider.SQL {
 
     /// <summary>
+    /// An instance of this class describes one designed module.
+    /// Used during startup to retrieve all designed modules.
+    /// </summary>
+    public class TempDesignedModule {
+        [Data_PrimaryKey]
+        public Guid ModuleGuid { get; set; }
+        public string Name { get; set; }
+        public MultiString Description { get; set; }
+        public string DerivedAssemblyName { get; set; }
+
+        public TempDesignedModule() {
+            Description = new MultiString();
+        }
+    }
+
+    /// <summary>
     /// This class implements the base functionality to access the repository containing YetaWF modules.
     /// It is only used by the YetaWF.DataProvider.ModuleDefinition package and is not intended for application use.
     /// </summary>
@@ -41,8 +57,9 @@ namespace YetaWF.DataProvider.SQL {
         /// </remarks>
         public SQLModuleObject(Dictionary<string, object> options) : base(options) {
             if (typeof(KEY) != typeof(Guid)) throw new InternalError("Only Guid is supported as Key");
-            BaseDataset = BaseDatasetName;
-            if (typeof(OBJTYPE) != typeof(ModuleDefinition))
+            BaseDataset = BaseDatasetName;// use a short name due to length limitations in PG
+            Dataset = BaseDatasetName;
+            if (typeof(OBJTYPE) != typeof(ModuleDefinition) && typeof(OBJTYPE) != typeof(TempDesignedModule))
                 Dataset = $"{BaseDatasetName}_{Package.AreaName}_{typeof(OBJTYPE).Name}";
         }
 
@@ -59,69 +76,33 @@ namespace YetaWF.DataProvider.SQL {
         /// <param name="key">The primary key value.</param>
         /// <returns>Returns the record that satisfies the specified primary key. If no record exists null is returned.</returns>
         public new async Task<OBJTYPE> GetAsync(KEY key) {
+
             await EnsureOpenAsync();
 
-            SQLHelper sqlHelper = new SQLHelper(Conn, null, Languages);
-            SQLBuilder sb = new SQLBuilder();
-
-            string fullBaseTableName = sb.GetTable(Database, Dbo, BaseDataset);
-
             if (Dataset == BaseDataset) {
+
                 // we're reading the base and have to find the derived table
 
-                string script = $@"
-DECLARE @Table nvarchar(80);
-DECLARE @Type nvarchar(200);
-DECLARE @Asm nvarchar(200);
+                SQLHelper sqlHelper = new SQLHelper(Conn, null, Languages);
 
-SELECT TOP 1 @Table=[DerivedDataTableName], @Type=[DerivedDataType], @Asm=[DerivedAssemblyName]
-FROM {fullBaseTableName} WITH(NOLOCK)
-WHERE {sqlHelper.Expr(Key1Name, "=", key)} {AndSiteIdentity}
-
-IF @@ROWCOUNT > 0
-BEGIN
-
-SELECT @Table, @Type, @Asm  --- result set
-;
-
-EXEC ('SELECT TOP 1 * FROM {fullBaseTableName} AS A WITH(NOLOCK)
-        LEFT JOIN [' + @Table + '] AS B ON
-        A.[{Key1Name}] = B.[{Key1Name}] AND A.[{SiteColumn}] = B.[{SiteColumn}]
-        WHERE A.[{Key1Name}] = ''{key}'' AND A.[{SiteColumn}] = {SiteIdentity}')   --- result set
-
-END
-
-{sqlHelper.DebugInfo}";
-
-                using (SqlDataReader reader = await sqlHelper.ExecuteReaderAsync(script)) {
+                sqlHelper.AddParam("Key1Val", key);
+                sqlHelper.AddParam(SQLGen.ValSiteIdentity, SiteIdentity);
+                using (SqlDataReader reader = await sqlHelper.ExecuteReaderStoredProcAsync($@"""{Dbo}"".""{BaseDataset}__GetBase""")) {
                     if (!(YetaWFManager.IsSync() ? reader.Read() : await reader.ReadAsync())) return default(OBJTYPE);
-                    string derivedTableName = (string)reader[0];
-                    string derivedDataType = (string)reader[1];
-                    string derivedAssemblyName = (string)reader[2];
-                    if (string.IsNullOrWhiteSpace(derivedTableName))
-                        return default(OBJTYPE);
-                    if (!(YetaWFManager.IsSync() ? reader.NextResult() : await reader.NextResultAsync()))
-                        return default(OBJTYPE);
-                    if (!(YetaWFManager.IsSync() ? reader.Read() : await reader.ReadAsync())) return default(OBJTYPE);
-                    OBJTYPE obj = sqlHelper.CreateObject<OBJTYPE>(reader, derivedDataType, derivedAssemblyName);
-                    return obj;
+                    return sqlHelper.CreateObject<OBJTYPE>(reader);
                 }
 
             } else {
+
                 // we're reading the derived table
-                string fullTableName = sb.GetTable(Database, Dbo, Dataset);
-                string scriptMain = $@"
-SELECT TOP 1 * FROM {fullBaseTableName} AS A WITH(NOLOCK)
-LEFT JOIN {fullTableName} AS B ON
-    A.[{Key1Name}] = B.[{Key1Name}] AND A.[{SiteColumn}] = B.[{SiteColumn}]
-WHERE {sqlHelper.Expr($"A.[{Key1Name}]", " =", key)} AND A.[{SiteColumn}] = {SiteIdentity}
 
-{sqlHelper.DebugInfo}";
+                SQLHelper sqlHelper = new SQLHelper(Conn, null, Languages);
 
-                using (SqlDataReader reader = await sqlHelper.ExecuteReaderAsync(scriptMain)) {
+                sqlHelper.AddParam("Key1Val", key);
+                sqlHelper.AddParam(SQLGen.ValSiteIdentity, SiteIdentity);
+                using (SqlDataReader reader = await sqlHelper.ExecuteReaderStoredProcAsync($@"""{Dbo}"".""{Dataset}__Get""")) {
                     if (!(YetaWFManager.IsSync() ? reader.Read() : await reader.ReadAsync())) return default(OBJTYPE);
-                    OBJTYPE obj = sqlHelper.CreateObject<OBJTYPE>(reader);
-                    return obj;
+                    return sqlHelper.CreateObject<OBJTYPE>(reader);
                 }
             }
         }
@@ -135,46 +116,35 @@ WHERE {sqlHelper.Expr($"A.[{Key1Name}]", " =", key)} AND A.[{SiteColumn}] = {Sit
         /// For all other errors, an exception occurs.
         /// </returns>
         public new async Task<bool> AddAsync(OBJTYPE obj) {
-            SQLBuilder sb = new SQLBuilder();
-            await EnsureOpenAsync();
+
             if (Dataset == BaseDataset) throw new InternalError("Only derived types are supported");
 
+            await EnsureOpenAsync();
+
             SQLHelper sqlHelper = new SQLHelper(Conn, null, Languages);
-
-            string fullBaseTableName = sb.GetTable(Database, Dbo, BaseDataset);
-            List<PropertyData> propBaseData = GetBasePropertyData();
-            string baseColumns = GetColumnList(propBaseData, typeof(ModuleDefinition), "", true, SiteSpecific: SiteIdentity > 0, WithDerivedInfo: true);
-            string baseValues = GetValueList(sqlHelper, Dataset, obj, propBaseData, typeof(ModuleDefinition), SiteSpecific: SiteIdentity > 0, DerivedType: typeof(OBJTYPE), DerivedTableName: Dataset);
-            string fullTableName = sb.GetTable(Database, Dbo, Dataset);
+            List<PropertyData> basePropData = GetBasePropertyData();
             List<PropertyData> propData = GetPropertyData();
-            string columns = GetColumnList(propData, obj.GetType(), "", true, SiteSpecific: SiteIdentity > 0);
-            string values = GetValueList(sqlHelper, Dataset, obj, propData, typeof(OBJTYPE), SiteSpecific: SiteIdentity > 0);
+            List<PropertyData> propDataNoDups = propData.Except(basePropData, new PropertyDataComparer()).ToList();
 
-            string scriptMain = $@"
-INSERT INTO {fullBaseTableName} ({baseColumns})
-VALUES ({baseValues})
-;
-INSERT INTO {fullTableName} ({columns})
-VALUES ({values})
-;
-{sqlHelper.DebugInfo}";
+            GetParameterList(sqlHelper, obj, Database, Dbo, BaseDataset, basePropData, Prefix: null, TopMost: false, SiteSpecific: false, WithDerivedInfo: false, SubTable: false);
+            GetParameterList(sqlHelper, obj, Database, Dbo, Dataset, propDataNoDups, Prefix: null, TopMost: false, SiteSpecific: false, WithDerivedInfo: false, SubTable: false);
+            sqlHelper.AddParam(SQLGen.ValDerivedTableName, Dataset);
+            sqlHelper.AddParam(SQLGen.ValDerivedDataType, typeof(OBJTYPE).FullName);
+            sqlHelper.AddParam(SQLGen.ValDerivedAssemblyName, typeof(OBJTYPE).Assembly.FullName.Split(new char[] { ',' }, 2).First());
+            sqlHelper.AddParam(SQLGen.ValSiteIdentity, SiteIdentity);
 
-            int identity = 0;
             try {
-                await sqlHelper.ExecuteNonQueryAsync(scriptMain);
+                using (SqlDataReader reader = await sqlHelper.ExecuteReaderStoredProcAsync($@"""{Dbo}"".""{Dataset}__Add""")) {
+                    if (!(YetaWFManager.IsSync() ? reader.Read() : await reader.ReadAsync())) return false;
+                    int added = Convert.ToInt32(reader[0]);
+                    return added > 0;
+                }
             } catch (Exception exc) {
                 SqlException sqlExc = exc as SqlException;
                 if (sqlExc != null && sqlExc.Number == 2627) // already exists
                     return false;
-                throw new InternalError("Add failed for type {0} - {1}", typeof(OBJTYPE).FullName, ErrorHandling.FormatExceptionMessage(exc));
+                throw new InternalError($"Add failed for type {typeof(OBJTYPE).FullName} - {ErrorHandling.FormatExceptionMessage(exc)}");
             }
-
-            if (HasIdentity(IdentityName)) {
-                PropertyInfo piIdent = ObjectSupport.GetProperty(typeof(OBJTYPE), IdentityName);
-                if (piIdent.PropertyType != typeof(int)) throw new InternalError($"Object identities must be of type int in {typeof(OBJTYPE).FullName}");
-                piIdent.SetValue(obj, identity);
-            }
-            return true;
         }
 
         /// <summary>
@@ -186,53 +156,41 @@ VALUES ({values})
         /// <param name="obj">The object being updated.</param>
         /// <returns>Returns a status indicator.</returns>
         public new async Task<UpdateStatusEnum> UpdateAsync(KEY origKey, KEY newKey, OBJTYPE obj) {
-            SQLBuilder sb = new SQLBuilder();
-            await EnsureOpenAsync();
-            if (Dataset == BaseDataset) throw new InternalError("Only derived types are supported");
 
+            if (Dataset == BaseDataset) throw new InternalError("Only derived types are supported");
             if (!origKey.Equals(newKey)) throw new InternalError("Can't change key");
 
+            await EnsureOpenAsync();
+
             SQLHelper sqlHelper = new SQLHelper(Conn, null, Languages);
-
-            string fullBaseTableName = sb.GetTable(Database, Dbo, BaseDataset);
-            string fullTableName = sb.GetTable(Database, Dbo, Dataset);
-
-            List<PropertyData> propBaseData = GetBasePropertyData();
-            string setBaseColumns = SetColumns(sqlHelper, Dataset, propBaseData, obj, typeof(ModuleDefinition));
+            List<PropertyData> basePropData = GetBasePropertyData();
             List<PropertyData> propData = GetPropertyData();
-            string setColumns = SetColumns(sqlHelper, Dataset, propData, obj, typeof(OBJTYPE));
+            List<PropertyData> propDataNoDups = propData.Except(basePropData, new PropertyDataComparer()).ToList();
 
-            string scriptMain = $@"
-UPDATE {fullBaseTableName}
-SET {setBaseColumns}
-WHERE {sqlHelper.Expr(Key1Name, "=", origKey)} {AndSiteIdentity}
-;
-SELECT @@ROWCOUNT --- result set
-;
-UPDATE {fullTableName}
-SET {setColumns}
-WHERE {sqlHelper.Expr(Key1Name, "=", origKey)} {AndSiteIdentity}
-;
-{sqlHelper.DebugInfo}";
+            GetParameterList(sqlHelper, obj, Database, Dbo, BaseDataset, basePropData, Prefix: null, TopMost: false, SiteSpecific: false, WithDerivedInfo: false, SubTable: false);
+            GetParameterList(sqlHelper, obj, Database, Dbo, Dataset, propDataNoDups, Prefix: null, TopMost: false, SiteSpecific: false, WithDerivedInfo: false, SubTable: false);
+            sqlHelper.AddParam(SQLGen.ValDerivedTableName, Dataset);
+            sqlHelper.AddParam(SQLGen.ValDerivedDataType, typeof(OBJTYPE).FullName);
+            sqlHelper.AddParam(SQLGen.ValDerivedAssemblyName, typeof(OBJTYPE).Assembly.FullName.Split(new char[] { ',' }, 2).First());
+            sqlHelper.AddParam(SQLGen.ValSiteIdentity, SiteIdentity);
 
             try {
-                object val = await sqlHelper.ExecuteScalarAsync(scriptMain);
-                int changed = Convert.ToInt32(val);
-                if (changed == 0)
-                    return UpdateStatusEnum.RecordDeleted;
-                if (changed > 1)
-                    throw new InternalError($"Update failed - {changed} records updated");
+                using (SqlDataReader reader = await sqlHelper.ExecuteReaderStoredProcAsync($@"""{Dbo}"".""{Dataset}__Update""")) {
+                    if (!(YetaWFManager.IsSync() ? reader.Read() : await reader.ReadAsync())) return UpdateStatusEnum.RecordDeleted;
+                    int updated = Convert.ToInt32(reader[0]);
+                    if (updated <= 0)
+                        return UpdateStatusEnum.RecordDeleted;
+                    return updated > 0 ? UpdateStatusEnum.OK : UpdateStatusEnum.NewKeyExists;
+                }
             } catch (Exception exc) {
                 if (!newKey.Equals(origKey)) {
                     SqlException sqlExc = exc as SqlException;
-                    if (sqlExc != null && sqlExc.Number == 2627) {
-                        // duplicate key violation, meaning the new key already exists
+                    if (sqlExc != null && sqlExc.Number == 2627) { // duplicate key violation, meaning the new key already exists
                         return UpdateStatusEnum.NewKeyExists;
                     }
                 }
                 throw new InternalError($"Update failed for type {typeof(OBJTYPE).FullName} - {ErrorHandling.FormatExceptionMessage(exc)}");
             }
-            return UpdateStatusEnum.OK;
         }
 
         /// <summary>
@@ -241,49 +199,19 @@ WHERE {sqlHelper.Expr(Key1Name, "=", origKey)} {AndSiteIdentity}
         /// <param name="key">The primary key value of the record to remove.</param>
         /// <returns>Returns true if the record was removed, or false if the record was not found. Other errors cause an exception.</returns>
         public new async Task<bool> RemoveAsync(KEY key) {
-            SQLBuilder sb = new SQLBuilder();
-            await EnsureOpenAsync();
+
             if (Dataset != BaseDataset) throw new InternalError("Only base types are supported");
 
+            await EnsureOpenAsync();
+
             SQLHelper sqlHelper = new SQLHelper(Conn, null, Languages);
-
-            string fullBaseTableName = sb.GetTable(Database, Dbo, BaseDataset);
-
-            List<PropertyData> propData = GetPropertyData();
-
-            string scriptMain = $@"
-SELECT *
-INTO #BASETABLE
-FROM {fullBaseTableName} WITH(NOLOCK)
-WHERE {sqlHelper.Expr(Key1Name, "=", key)} {AndSiteIdentity}
-
-SELECT @@ROWCOUNT --- result set
-;
-
-IF @@ROWCOUNT > 0
-BEGIN
-
-DECLARE @Table nvarchar(80);
-
-SELECT @Table=[DerivedDataTableName] FROM #BASETABLE
-;
-EXEC ('DELETE FROM [' + @Table + '] B WHERE B.[{Key1Name}] = ''{key}'' {AndSiteIdentity}')
-;
-DELETE
-FROM {fullBaseTableName}
-WHERE {sqlHelper.Expr(Key1Name, "=", key)} {AndSiteIdentity}
-;
-END
-
-DROP TABLE #BASETABLE
-
-{sqlHelper.DebugInfo}
-";
-            object val = await sqlHelper.ExecuteScalarAsync(scriptMain);
-            int deleted = Convert.ToInt32(val);
-            if (deleted > 1)
-                throw new InternalError($"More than 1 record deleted by {nameof(RemoveAsync)} method");
-            return deleted > 0;
+            sqlHelper.AddParam("Key1Val", key);
+            sqlHelper.AddParam(SQLGen.ValSiteIdentity, SiteIdentity);
+            using (SqlDataReader reader = await sqlHelper.ExecuteReaderStoredProcAsync($@"""{Dbo}"".""{Dataset}__Remove""")) {
+                if (!(YetaWFManager.IsSync() ? reader.Read() : await reader.ReadAsync())) return false;
+                int removed = Convert.ToInt32(reader[0]);
+                return removed > 0;
+            }
         }
 
         /// <summary>
@@ -310,12 +238,19 @@ DROP TABLE #BASETABLE
         /// <param name="Joins">A collection describing the dataset joins.</param>
         /// <returns>Returns a YetaWF.Core.DataProvider.DataProviderGetRecords object describing the data returned.</returns>
         public new async Task<DataProviderGetRecords<OBJTYPE>> GetRecordsAsync(int skip, int take, List<DataProviderSortInfo> sorts, List<DataProviderFilterInfo> filters, List<JoinData> Joins = null) {
-            SQLBuilder sb = new SQLBuilder();
-            await EnsureOpenAsync();
+
             if (Dataset == BaseDataset) {
+
                 // we're reading the base table
                 return await base.GetRecordsAsync(skip, take, sorts, filters, Joins: Joins);
+
             } else {
+
+                throw new NotImplementedException();
+
+#if NOTYET
+                await EnsureOpenAsync();    
+
                 // an explicit type is requested
                 SQLHelper sqlHelper = new SQLHelper(Conn, null, Languages);
 
@@ -373,6 +308,7 @@ WHERE {fullBaseTableName}.[DerivedDataTableName] = '{Dataset}' AND {fullBaseTabl
                         recs.Total = recs.Data.Count;
                     return recs;
                 }
+#endif
             }
         }
 
@@ -387,6 +323,8 @@ WHERE {fullBaseTableName}.[DerivedDataTableName] = '{Dataset}' AND {fullBaseTabl
         public new Task<int> RemoveRecordsAsync(List<DataProviderFilterInfo> filters) {
             throw new NotImplementedException();
         }
+
+        // Helpers
 
         internal List<PropertyData> GetBasePropertyData() {
             if (_basePropertyData == null)
@@ -447,22 +385,35 @@ WHERE {fullBaseTableName}.[DerivedDataTableName] = '{Dataset}' AND {fullBaseTabl
         public new async Task<bool> InstallModelAsync(List<string> errorList) {
             await EnsureOpenAsync();
             if (Dataset == BaseDataset) throw new InternalError("Base dataset is not supported");
-            bool success = CreateTableWithBaseType(Conn, Database, errorList);
-            SQLGenericManagerCache.ClearCache();
-            return success;
+            return CreateTableWithBaseType(Conn, Database, errorList);
         }
         private bool CreateTableWithBaseType(SqlConnection conn, string dbName, List<string> errorList) {
             Type baseType = typeof(ModuleDefinition);
             SQLGen sqlCreate = new SQLGen(conn, Languages, IdentitySeed, Logging);
-            if (!sqlCreate.CreateTableFromModel(dbName, Dbo, BaseDataset, Key1Name, null, IdentityName, GetBasePropertyData(), baseType, errorList,
+
+            List<PropertyData> propData = GetPropertyData();
+            List<PropertyData> basePropData = GetBasePropertyData();
+
+            if (!sqlCreate.CreateTableFromModel(dbName, Dbo, BaseDataset, Key1Name, null, IdentityName, basePropData, baseType, errorList,
                     TopMost: true,
                     SiteSpecific: SiteIdentity > 0,
-                    DerivedDataTableName: "DerivedDataTableName", DerivedDataTypeName: "DerivedDataType", DerivedAssemblyName: "DerivedAssemblyName"))
+                    WithDerivedInfo: true))
                 return false;
-            return sqlCreate.CreateTableFromModel(dbName, Dbo, Dataset, Key1Name, null, SQLBase.IdentityColumn, GetPropertyData(), typeof(OBJTYPE), errorList,
+            if (!sqlCreate.CreateTableFromModel(dbName, Dbo, Dataset, Key1Name, null, SQLBase.IdentityColumn, propData, typeof(OBJTYPE), errorList,
                 TopMost: true,
                 SiteSpecific: SiteIdentity > 0,
-                ForeignKeyTable: BaseDataset);
+                ForeignKeyTable: BaseDataset))
+                return false;
+
+            // update cache
+            SQLGenericManagerCache.ClearCache();
+            SQLManager sqlManager = new SQLManager();
+            sqlManager.GetColumns(conn, dbName, Dbo, BaseDataset);
+            sqlManager.GetColumns(conn, dbName, Dbo, Dataset);
+
+            List<PropertyData> combinedProps = ObjectSupport.GetPropertyData(typeof(OBJTYPE));
+
+            return sqlCreate.MakeFunctionsWithBaseTypeAsync(dbName, Dbo, BaseDataset, Dataset, Key1Name, IdentityName, combinedProps, basePropData, propData, baseType, typeof(OBJTYPE), SiteIdentity);
         }
 
         /// <summary>
@@ -526,17 +477,19 @@ SELECT COUNT(*) FROM  {BaseDataset}
         /// When a site is deleted, the RemoveSiteDataAsync method is called for all data providers.
         /// Data providers can then remove site-specific data as the site is removed.</remarks>
         public new async Task RemoveSiteDataAsync() { // remove site-specific data
+
             await EnsureOpenAsync();
+
             if (Dataset == BaseDataset) throw new InternalError("Base dataset is not supported");
-            if (SiteIdentity > 0) {
-                SQLHelper sqlHelper = new SQLHelper(Conn, null, Languages);
-                SQLBuilder sb = new SQLBuilder();
-                sb.Add($@"
+
+            SQLHelper sqlHelper = new SQLHelper(Conn, null, Languages);
+            SQLBuilder sb = new SQLBuilder();
+
+            sb.Add($@"
 DELETE FROM {Dataset} WHERE [{SiteColumn}] = {SiteIdentity}
 DELETE FROM {BaseDataset} WHERE [DerivedDataTableName] = '{Dataset}' AND [{SiteColumn}] = {SiteIdentity}
 ");
-                await sqlHelper.ExecuteNonQueryAsync(sb.ToString());
-            }
+            await sqlHelper.ExecuteNonQueryAsync(sb.ToString());
         }
 
         /// <summary>
@@ -556,7 +509,9 @@ DELETE FROM {BaseDataset} WHERE [DerivedDataTableName] = '{Dataset}' AND [{SiteC
         /// YetaWF.Core.Serializers.SerializableList&lt;OBJTYPE&gt; as it is a collection of records to import. All records in the collection must be imported.
         /// </remarks>
         public new async Task ImportChunkAsync(int chunk, SerializableList<SerializableFile> fileList, object obj) {
+
             await EnsureOpenAsync();
+
             if (Dataset == BaseDataset) throw new InternalError("Base dataset is not supported");
             if (SiteIdentity > 0 || YetaWFManager.Manager.ImportChunksNonSiteSpecifics) {
                 SerializableList<OBJTYPE> serList = (SerializableList<OBJTYPE>)obj;
@@ -590,7 +545,9 @@ DELETE FROM {BaseDataset} WHERE [DerivedDataTableName] = '{Dataset}' AND [{SiteC
         /// Only data records need to be added to the returned YetaWF.Core.DataProvider.DataProviderExportChunk object.
         /// </remarks>
         public new async Task<DataProviderExportChunk> ExportChunkAsync(int chunk, SerializableList<SerializableFile> fileList) {
+
             await EnsureOpenAsync();
+
             if (Dataset == BaseDataset) throw new InternalError("Base dataset is not supported");
 
             List<DataProviderSortInfo> sorts = new List<DataProviderSortInfo> { new DataProviderSortInfo { Field = Key1Name, Order = DataProviderSortInfo.SortDirection.Ascending } };
@@ -626,7 +583,9 @@ DELETE FROM {BaseDataset} WHERE [DerivedDataTableName] = '{Dataset}' AND [{SiteC
         /// Using the <paramref name="language"/> parameter, a different folder should be used to store the translated data.
         /// </remarks>
         public new async Task LocalizeModelAsync(string language, Func<string, bool> isHtml, Func<List<string>, Task<List<string>>> translateStringsAsync, Func<string, Task<string>> translateComplexStringAsync) {
+
             await EnsureOpenAsync();
+
             await LocalizeModelAsync(language, isHtml, translateStringsAsync, translateComplexStringAsync,
                 async (int offset, int skip) => {
                     return await GetRecordsAsync(offset, skip, null, null);

@@ -3,12 +3,12 @@
 using System.Reflection;
 using YetaWF.PackageAttributes;
 
-[assembly: AssemblyTitle("SQL")]
+[assembly: AssemblyTitle("SQLGeneric")]
 [assembly: AssemblyDescription("YetaWF Base Classes For All SQL-Based Data Provider")]
 [assembly: AssemblyConfiguration("")]
 [assembly: AssemblyCompany("Softel vdm, Inc.")]
 [assembly: AssemblyCopyright("Copyright © 2020 - Softel vdm, Inc.")]
-[assembly: AssemblyProduct("SQL")]
+[assembly: AssemblyProduct("SQLGeneric")]
 [assembly: AssemblyTrademark("")]
 [assembly: AssemblyCulture("")]
 

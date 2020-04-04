@@ -495,7 +495,7 @@ $$;");
             }
         }
 
-        internal Task<bool> DropFunctionsAsync(string dbName, string schema, string dataset) {
+        internal bool DropFunctions(string dbName, string schema, string dataset) {
 
             SQLBuilder sb = new SQLBuilder();
 
@@ -515,7 +515,7 @@ DROP FUNCTION IF EXISTS ""{schema}"".""{dataset}__RemoveByIdentity"";
                 YetaWF.Core.Log.Logging.AddTraceLog(cmd.CommandText);
                 cmd.ExecuteNonQuery();
             }
-            return Task.FromResult(true);
+            return true;
         }
 
         internal static async Task<string> CalculatedPropertiesAsync(Type objType, Func<string, Task<string>> calculatedPropertyCallbackAsync) {

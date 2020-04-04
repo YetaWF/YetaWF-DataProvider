@@ -11,6 +11,7 @@ using YetaWF.Core.IO;
 using YetaWF.Core.Packages;
 using YetaWF.Core.Serializers;
 using YetaWF.Core.Support;
+using YetaWF.Core.Site;
 #if MVC6
 using Microsoft.Data.SqlClient;
 #else
@@ -20,13 +21,18 @@ using System.Data.SqlClient;
 namespace YetaWF.DataProvider.SQL {
 
     /// <summary>
+    /// Opt-in to indicate Addons/_Main/Sql folder has sql procs that need to be executed.
+    /// </summary>
+    public class SQLInitialization : SQLPackageInit { }
+
+    /// <summary>
     /// Base class to implement executing all SQL procedures that are located in a package's Addons/_Main/Sql folder.
     /// </summary>
     /// <remarks>This is used to execute SQL procedures that are located in a package's Addons/_Main/Sql folder.
     ///
     /// Can be used to create tables, add stored procedures, etc.
     ///
-    /// All files in the package's Addons/_Main/Sql folder with the extension Sql are executed when package models are installed.</remarks>
+    /// All files in the package's Addons/_Main/Sql folder with the extension .Sql are executed when package models are installed.</remarks>
     public abstract class SQLPackageInit : IDisposable, IInstallableModel {
 
         /// <summary>
@@ -41,9 +47,12 @@ namespace YetaWF.DataProvider.SQL {
         /// <param name="package">The package.</param>
         public async Task InitializeAsync(Package package) {
 
-            string connString = WebConfigHelper.GetValue<string>(package.AreaName, SQLBase.SQLConnectString);
-            if (string.IsNullOrWhiteSpace(connString))
+            string connString = GetConnectionString(package);
+            if (string.IsNullOrWhiteSpace(connString)) {
+                if ((SiteDefinition.INITIAL_INSTALL || !YetaWF.Core.Support.Startup.Started) && GetType() == typeof(SQLInitialization)) // for sql initialization, ignore if there is no connection string
+                    return;
                 throw new InternalError($"No {SQLBase.SQLConnectString} connection string found for package {package.AreaName} - must be explicitly specified");
+            }
 
             string path = Path.Combine(package.AddonsFolder, "_Main", "Sql");
             if (!await FileSystem.FileSystemProvider.DirectoryExistsAsync(path))
@@ -64,19 +73,21 @@ namespace YetaWF.DataProvider.SQL {
                     using (SqlCommand cmd = new SqlCommand()) {
 
                         foreach (string batch in batches) {
-                            cmd.Connection = conn;
-                            cmd.CommandText = batch;
-                            cmd.CommandTimeout = 300;
-                            cmd.CommandType = System.Data.CommandType.Text;
+                            if (!string.IsNullOrWhiteSpace(batch)) {
+                                cmd.Connection = conn;
+                                cmd.CommandText = batch;
+                                cmd.CommandTimeout = 300;
+                                cmd.CommandType = System.Data.CommandType.Text;
 
-                            YetaWF.Core.Log.Logging.AddTraceLog(cmd.CommandText);
-                            try {
-                                if (YetaWFManager.IsSync())
-                                    cmd.ExecuteNonQuery();
-                                else
-                                    await cmd.ExecuteNonQueryAsync();
-                            } catch (Exception exc) {
-                                throw new InternalError($"{Path.GetFileName(file)} in package {package.Name}: {ErrorHandling.FormatExceptionMessage(exc)}");
+                                YetaWF.Core.Log.Logging.AddTraceLog(cmd.CommandText);
+                                try {
+                                    if (YetaWFManager.IsSync())
+                                        cmd.ExecuteNonQuery();
+                                    else
+                                        await cmd.ExecuteNonQueryAsync();
+                                } catch (Exception exc) {
+                                    throw new InternalError($"{Path.GetFileName(file)} in package {package.Name}: {ErrorHandling.FormatExceptionMessage(exc)}");
+                                }
                             }
                         }
                     }
@@ -85,6 +96,27 @@ namespace YetaWF.DataProvider.SQL {
         }
 
         private Regex reGo = new Regex(@"^\s*GO\s*$", RegexOptions.Compiled | RegexOptions.Multiline);
+
+        private string GetConnectionString(Package package) {
+
+            // verify correct I/O mode
+            string ioMode = WebConfigHelper.GetValue<string>(package.AreaName, DataProviderImpl.IOModeString);
+            if (string.IsNullOrWhiteSpace(ioMode))
+                ioMode = WebConfigHelper.GetValue<string>(DataProviderImpl.DefaultString, DataProviderImpl.IOModeString);
+            if (string.IsNullOrWhiteSpace(ioMode))
+                return null;
+            if (string.Compare(ioMode, SQLBase.ExternalName, true) != 0)
+                return null;
+
+            // retrieve connection string
+            string connString = WebConfigHelper.GetValue<string>(package.AreaName, SQLBase.SQLConnectString);
+            if (string.IsNullOrWhiteSpace(connString))
+                connString = WebConfigHelper.GetValue<string>(DataProviderImpl.DefaultString, SQLBase.SQLConnectString);
+            if (string.IsNullOrWhiteSpace(connString))
+                throw new InternalError($"No {SQLBase.SQLConnectString} connection string found, but {DataProviderImpl.IOModeString} present for default or package {package.AreaName}");
+
+            return connString;
+        }
 
         /// <summary>
         /// Adds data for a new site.
@@ -146,7 +178,9 @@ namespace YetaWF.DataProvider.SQL {
         /// Returns whether the data provider is installed and available.
         /// </summary>
         /// <returns>true if the data provider is installed and available, false otherwise.</returns>
-        public Task<bool> IsInstalledAsync() { return Task.FromResult(true); }
+        public Task<bool> IsInstalledAsync() {
+            return Task.FromResult(true);
+        }
         /// <summary>
         /// Called to translate the data managed by the data provider to another language.
         /// </summary>
