@@ -290,7 +290,10 @@ namespace YetaWF.DataProvider.PostgreSQL {
             SQLBuilder sbCols = new SQLBuilder();
             foreach (JoinData join in Joins) {
                 IPostgreSQLTableInfo joinInfo = await join.JoinDP.GetDataProvider().GetIPostgreSQLTableInfoAsync();
+                string joinDatabase = joinInfo.GetDatabaseName();
+                string joinSchema = joinInfo.GetSchema();
                 string joinTable = joinInfo.GetTableName();
+
                 IPostgreSQLTableInfo mainInfo = await join.MainDP.GetDataProvider().GetIPostgreSQLTableInfoAsync();
                 string mainTable = mainInfo.GetTableName();
                 if (join.JoinType == JoinData.JoinTypeEnum.Left)
@@ -304,14 +307,11 @@ namespace YetaWF.DataProvider.PostgreSQL {
                 if (join.UseSite && SiteIdentity > 0)
                     sb.Add($") AND {sb.BuildFullColumnName(mainTable, SiteColumn)} = {sb.BuildFullColumnName(joinTable, SiteColumn)}");
 
-                string databaseName = joinInfo.GetDatabaseName();
-                string schema = joinInfo.GetSchema();
-                string tableName = joinInfo.GetTableName();
-                tableName = tableName.Split(new char[] { '.' }).Last().Trim(new char[] { '\"', '\"' });
-                List<string> joinCols = sqlManager.GetColumnsOnly(join.JoinDP.GetDataProvider().Conn, databaseName, schema, tableName);
+                joinTable = joinTable.Split(new char[] { '.' }).Last().Trim(new char[] { '\"', '\"' });
+                List<string> joinCols = sqlManager.GetColumnsOnly(join.JoinDP.GetDataProvider().Conn, joinDatabase, joinSchema, joinTable);
                 foreach (string col in joinCols) {
                     if (!visibleColumns.ContainsKey(col)) {
-                        string fullCol = sb.BuildFullColumnName(Database, schema, tableName, col);
+                        string fullCol = sb.BuildFullColumnName(joinDatabase, joinSchema, joinTable, col);
                         visibleColumns.Add(col, fullCol);
                         columnList += $"{fullCol},";
                     }

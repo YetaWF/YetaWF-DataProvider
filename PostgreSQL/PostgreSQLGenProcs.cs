@@ -131,7 +131,7 @@ DECLARE
     __COUNT integer;
     __VAR character varying;");
 
-            if (HasIdentity(identityName)) {
+            if (HasIdentity(identityName) || subTables.Count > 0) {
 
                 sb.Append($@"
     __IDENTITY integer;");
@@ -171,9 +171,9 @@ BEGIN");
             sb.RemoveLastComma();
             sb.Append($@")");
 
-            if (HasIdentity(identityName)) {
+            if (HasIdentity(identityName) || subTables.Count > 0) {
                 sb.Append($@"
-    RETURNING ""{identityName}"" INTO __IDENTITY");
+    RETURNING ""{GetIdentityNameOrDefault(identityName)}"" INTO __IDENTITY");
             }
             sb.Append($@"
 ;");
@@ -196,7 +196,7 @@ BEGIN");
 ;");
             }
 
-            if (HasIdentity(identityName)) {
+            if (HasIdentity(identityName) || subTables.Count > 0) {
                 sb.Append($@"
     RETURN (SELECT __IDENTITY); --- result set");
             } else {
@@ -230,7 +230,7 @@ DECLARE
     __COUNT integer;
     __VAR character varying;");
 
-            if (HasIdentity(identityName)) {
+            if (HasIdentity(identityName) || subTables.Count > 0) {
                 sb.Append($@"
     __IDENTITY integer;");
             }
@@ -280,9 +280,9 @@ BEGIN");
         if (!string.IsNullOrWhiteSpace(key2Name)) sb.Append($@" AND {GenCompare(key2Name, (NpgsqlDbType)colKey2.DataType, $@"""Key2Val""")}");
         if (siteIdentity > 0) sb.Append($@" AND ""{SQLGenericBase.SiteColumn}"" = ""{SQLGen.ValSiteIdentity}""");
 
-            if (HasIdentity(identityName)) {
+            if (HasIdentity(identityName) || subTables.Count > 0) {
                 sb.Append($@"
-    RETURNING ""{identityName}"" INTO __IDENTITY");
+    RETURNING ""{GetIdentityNameOrDefault(identityName)}"" INTO __IDENTITY");
             }
             sb.Append($@"
 ;

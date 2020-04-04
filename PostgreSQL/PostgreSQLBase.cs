@@ -540,7 +540,7 @@ namespace YetaWF.DataProvider.PostgreSQL {
         /// <summary>
         /// Returns the table name used by the data provider.
         /// </summary>
-        /// <returns>Returns the table name used by the data provider.</returns>
+        /// <returns>Returns the fully qualified table name used by the data provider.</returns>
         public string GetTableName() {
             SQLBuilder sb = new SQLBuilder();
             return sb.BuildFullTableName(Database, Schema, Dataset);

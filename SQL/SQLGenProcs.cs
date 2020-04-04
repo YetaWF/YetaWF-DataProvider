@@ -17,7 +17,7 @@ using YetaWF.Core.Models;
 using YetaWF.Core.Support;
 using YetaWF.DataProvider.SQLGeneric;
 
-namespace YetaWF.DataProvider.SQL2 {
+namespace YetaWF.DataProvider.SQL {
 
     internal partial class SQLGen {
 
@@ -203,14 +203,14 @@ BEGIN
             sb.Append($@")
 ");
 
-            if (HasIdentity(identityName)) {
+            if (HasIdentity(identityName) || subTables.Count > 0) {
                 sb.Append($@"
     DECLARE @__IDENTITY int = @@IDENTITY
     SELECT @__IDENTITY  --- result set
 ");
             } else {
                 sb.Append($@"
-    SELECT 0  --- result set");
+    SELECT @@ROWCOUNT --- result set");
             }
 
             foreach (SubTableInfo subTable in subTables) {
@@ -263,7 +263,7 @@ CREATE PROCEDURE [{dbo}].[{dataset}__Update]
 AS
 BEGIN");
 
-            if (HasIdentity(identityName)) {
+            if (HasIdentity(identityName) || subTables.Count > 0) {
                 sb.Append($@"
     DECLARE @__IDENTITY int
 ");
@@ -273,7 +273,7 @@ BEGIN");
     UPDATE {fullTableName}
     SET {GetSetList(dbName, dbo, dataset, propData, objType, Prefix: null, TopMost: true, SiteSpecific: siteIdentity > 0, WithDerivedInfo: false, SubTable: false)}");
 
-            if (HasIdentity(identityName)) {
+            if (HasIdentity(identityName) || subTables.Count > 0) {
                 sb.Append($@"
     @__IDENTITY=[{GetIdentityNameOrDefault(identityName)}],
 ");

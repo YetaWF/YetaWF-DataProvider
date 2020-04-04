@@ -443,8 +443,10 @@ namespace YetaWF.DataProvider.SQL {
         /// <param name="name">The name of the parameter</param>
         /// <param name="value">The value of the parameter</param>
         /// <param name="direction">The direction of the parameter (input or output).</param>
-        public void AddParam(string name, object value, ParameterDirection direction = ParameterDirection.Input)/*<<<*/ {
-            if (name.StartsWith("@")) name = name.Substring(1);
+        public void AddParam(string name, object value, ParameterDirection direction = ParameterDirection.Input, SqlDbType? DbType = null, string DataTypeName = null)/*<<<*/ {
+
+            if (name.StartsWith("@")) 
+                name = name.Substring(1);
 
             SqlParameter parm;
 
@@ -465,7 +467,24 @@ namespace YetaWF.DataProvider.SQL {
                 parm = new SqlParameter(name, SqlDbType.DateTime2);
                 parm.Value = value;
             } else {
-                parm = new SqlParameter(name, value);
+                if (DataTypeName != null) {
+                    parm = new SqlParameter {
+                        ParameterName = name,
+                        TypeName = DataTypeName,
+                        SqlDbType = SqlDbType.Structured,
+                        SqlValue = value,                         
+                    };
+                } else {
+                    if (DbType == null)
+                        parm = new SqlParameter(name, value);
+                    else {
+                        parm = new SqlParameter {
+                            Value = value,
+                            ParameterName = name,
+                            SqlDbType = (SqlDbType)DbType,
+                        };
+                    }
+                }
             }
             parm.Direction = direction;//<<<
             Params.Add(parm);

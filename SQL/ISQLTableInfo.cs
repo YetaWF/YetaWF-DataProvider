@@ -31,7 +31,7 @@ namespace YetaWF.DataProvider.SQL {
         /// <summary>
         /// Returns the table name used by the data provider.
         /// </summary>
-        /// <returns>Returns the table name used by the data provider.</returns>
+        /// <returns>Returns the fully qualified table name used by the data provider.</returns>
         string GetTableName();
         /// <summary>
         /// Replaces search text in a SQL string fragment with the table name used by the data provider.

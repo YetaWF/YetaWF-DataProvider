@@ -3,10 +3,9 @@
 using System;
 using System.Collections.Generic;
 using YetaWF.Core.Support;
-using YetaWF.DataProvider.SQL;
 using YetaWF.DataProvider.SQLGeneric;
 
-namespace YetaWF.DataProvider {
+namespace YetaWF.DataProvider.SQL {
 
     internal partial class SQLGen {
 

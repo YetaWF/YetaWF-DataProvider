@@ -14,7 +14,6 @@ using YetaWF.Core.Language;
 using YetaWF.Core.Models;
 using YetaWF.Core.Models.Attributes;
 using YetaWF.Core.Support;
-using YetaWF.DataProvider.SQL;
 using YetaWF.DataProvider.SQLGeneric;
 #if MVC6
 using Microsoft.Data.SqlClient;
@@ -22,7 +21,7 @@ using Microsoft.Data.SqlClient;
 using System.Data.SqlClient;
 #endif
 
-namespace YetaWF.DataProvider {
+namespace YetaWF.DataProvider.SQL {
 
     internal partial class SQLGen : SQLGenericGen {
 
@@ -64,7 +63,7 @@ namespace YetaWF.DataProvider {
             return true;
         }
 
-        private TableInfo CreateSimpleTableFromModel(string dbName, string dbOwner, string tableName, string key1Name, string key2Name, string identityName, List<PropertyData> propData, Type tpProps,
+        private TableInfo CreateSimpleTableFromModel(string dbName, string schema, string tableName, string key1Name, string key2Name, string identityName, List<PropertyData> propData, Type tpProps,
                 List<string> errorList,
                 bool TopMost = false,
                 bool SiteSpecific = false,
@@ -83,15 +82,21 @@ namespace YetaWF.DataProvider {
                     SubTables = new List<TableInfo>(),
                 };
 
-                if (sqlManager.HasTable(Conn, dbName, dbOwner, tableName)) {
+                if (sqlManager.HasTable(Conn, dbName, schema, tableName)) {
                     currentTable = tableInfo.CurrentTable = new Table() {
                         Name = tableName,
-                        Indexes = SQLManager.GetInfoIndexes(Conn, dbName, dbOwner, tableName),
-                        ForeignKeys = SQLManager.GetInfoForeignKeys(Conn, dbName, dbOwner, tableName),
-                        Columns = sqlManager.GetColumns(Conn, dbName, dbOwner, tableName),
+                        Indexes = SQLManager.GetInfoIndexes(Conn, dbName, schema, tableName),
+                        ForeignKeys = SQLManager.GetInfoForeignKeys(Conn, dbName, schema, tableName),
+                        Columns = sqlManager.GetColumns(Conn, dbName, schema, tableName),
                     };
                 }
-                bool hasSubTable = AddTableColumns(dbName, dbOwner, tableInfo, key1Name, key2Name, identityName, propData, tpProps, "", true, errorList, SubTable: SubTable);
+
+                if (!SubTable) {
+                    DropFunctions(dbName, schema, tableName);// drop functions so we can recreate types
+                    DropType(dbName, schema, tableInfo.NewTable.Name, propData, tpProps, SubTable: false);// drop this type so we can recreate types for subtables
+                }
+
+                bool hasSubTable = AddTableColumns(dbName, schema, tableInfo, key1Name, key2Name, identityName, propData, tpProps, "", true, errorList, SubTable: SubTable);
 
                 // if this table (base class) has a derived type, add its table name and its derived type as a column
                 if (DerivedDataTableName != null) {
@@ -425,6 +430,27 @@ namespace YetaWF.DataProvider {
                 MakeTable(dbName, dbOwner, subtableInfo);
         }
 
+        internal void MakeTypes(string dbName, string dbo, string tableName, List<PropertyData> propData, Type tpProps) {
+
+            List<SubTableInfo> subTables = GetSubTables(tableName, propData);
+
+            // Update cached info for new table and subtables
+            SQLManager sqlManager = new SQLManager();
+            SQLGenericManagerCache.ClearCache();
+            sqlManager.GetColumns(Conn, dbName, dbo, tableName);
+            foreach (SubTableInfo subtable in subTables) {
+                sqlManager.GetColumns(Conn, dbName, dbo, subtable.Name);
+            }
+
+            // Make all types for subtables and table
+            foreach (SubTableInfo subtable in subTables) {
+                List<PropertyData> subPropData = ObjectSupport.GetPropertyData(subtable.Type);
+                MakeType(dbName, dbo, subtable.Name, subPropData, subtable.Type, SubTable: true);
+            }
+
+            //$$$$ not yet  MakeType(dbName, dbo, tableName, propData, tpProps, SubTable: false);
+        }
+
         private void MakeForeignKeys(string dbName, string dbOwner, TableInfo tableInfo) {
             if (tableInfo.CurrentTable != null)
                 UpdateForeignKeys(dbName, dbOwner, tableInfo.CurrentTable, tableInfo.NewTable);
@@ -649,7 +675,7 @@ ELSE
                 return SqlDbType.NVarChar;
             throw new InternalError("Unsupported property type {0} for property {1}", tp.FullName, pi.Name);
         }
-        private string GetDataTypeString(Column col) {
+        internal string GetDataTypeString(Column col) {
             switch (col.DataType) {
                 case SqlDbType.BigInt:
                     return "[bigint]";
@@ -672,6 +698,33 @@ ELSE
                         return "[nvarchar](max)";
                     else
                         return $"[nvarchar]({col.Length})";
+                default:
+                    throw new InternalError($"Column {col.Name} has unsupported type name {col.DataType.ToString()}");
+            }
+        }
+        internal string GetDataTypeArgumentString(Column col) {
+            switch (col.DataType) {
+                case SqlDbType.BigInt:
+                    return "bigint";
+                case SqlDbType.Bit:
+                    return "bit";
+                case SqlDbType.DateTime2:
+                    return "datetime2(7)";
+                case SqlDbType.Money:
+                    return "money";
+                case SqlDbType.UniqueIdentifier:
+                    return "uniqueidentifier";
+                case SqlDbType.VarBinary:
+                    return "varbinary(max)";
+                case SqlDbType.Int:
+                    return "int";
+                case SqlDbType.Float:
+                    return "float";
+                case SqlDbType.NVarChar:
+                    if (col.Length == 0)
+                        return "nvarchar(max)";
+                    else
+                        return $"nvarchar({col.Length})";
                 default:
                     throw new InternalError($"Column {col.Name} has unsupported type name {col.DataType.ToString()}");
             }
@@ -767,6 +820,59 @@ ELSE
             sb.Append($"  ON DELETE CASCADE;\r\n\r\n");
 
             sb.Append($"ALTER TABLE [{dbOwner}].[{newTable.Name}] CHECK CONSTRAINT [{fk.Name}];\r\n\r\n");
+            return sb.ToString();
+        }
+
+        private void MakeType(string dbName, string schema, string dataset, List<PropertyData> propData, Type tpType, bool SubTable = false, bool WithDerivedInfo = false) {
+
+            SQLBuilder sb = new SQLBuilder();
+
+            string typeName = $"{dataset}_T";
+
+            sb.Append($@"
+{GetDropType(schema, typeName)}
+
+GO
+
+CREATE TYPE [{schema}].[{typeName}] AS TABLE
+(");
+            sb.Append($@"
+{GetTypeNameList(dbName, schema, dataset, propData, tpType, Prefix: null, TopMost: false, SiteSpecific: false, WithDerivedInfo: WithDerivedInfo, SubTable: SubTable)}");
+
+            sb.RemoveLastComma();
+
+            sb.Append($@"
+);
+
+GO
+");
+            // Add to database
+            ExecuteBatches(sb.ToString());
+        }
+
+        private void DropType(string dbName, string schema, string dataset, List<PropertyData> propData, Type tpType, bool SubTable = false) {
+
+            SQLBuilder sb = new SQLBuilder();
+            SQLHelper sqlHelper = new SQLHelper(Conn, null, Languages);
+
+            string typeName = $"{dataset}_T";
+
+            sb.Append(GetDropType(schema, typeName));
+
+            // Add to database
+            ExecuteBatches(sb.ToString());
+        }
+
+        private string GetDropType(string dbo, string typeName) {
+
+            SQLBuilder sb = new SQLBuilder();
+
+            sb.Append($@"
+IF EXISTS (
+    SELECT sys.types.name FROM sys.types WITH(NOLOCK) 
+    WHERE is_table_type = 1 AND SCHEMA_ID('{dbo}') = schema_id AND name = '{typeName}' 
+) DROP TYPE [{dbo}].[{typeName}]");
+
             return sb.ToString();
         }
     }
