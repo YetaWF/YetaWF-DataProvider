@@ -16,7 +16,7 @@ namespace YetaWF.DataProvider.SQL {
             public ModuleDefinitionDataProvider(Dictionary<string, object> options) : base(options) { }
 
             public async Task<SerializableList<DesignedModule>> GetDesignedModulesAsync() {
-                using (SQLSimpleObject<Guid, TempDesignedModule> dp = new SQLSimpleObject<Guid, TempDesignedModule>(Options)) {
+                using (SQLModuleObject<Guid, TempDesignedModule> dp = new SQLModuleObject<Guid, TempDesignedModule>(Options)) {
                     DataProviderGetRecords<TempDesignedModule> modules = await dp.GetRecordsAsync(0, 0, null, null);
                     SerializableList<DesignedModule> list = new SerializableList<DesignedModule>();
                     foreach (TempDesignedModule mod in modules.Data) {

@@ -6,17 +6,11 @@ using System.Linq;
 using System.Threading.Tasks;
 using YetaWF.Core.Audit;
 using YetaWF.Core.DataProvider;
-using YetaWF.Core.DataProvider.Attributes;
 using YetaWF.Core.IO;
-using YetaWF.Core.Models;
 using YetaWF.Core.Modules;
 using YetaWF.Core.Packages;
 using YetaWF.Core.Serializers;
 using YetaWF.Core.Support;
-#if MVC6
-using Microsoft.Extensions.Caching.Memory;
-#else
-#endif
 
 namespace YetaWF.DataProvider {
 
@@ -148,17 +142,6 @@ namespace YetaWF.DataProvider {
 
     internal interface ModuleDefinitionDataProviderIOMode {
         Task<SerializableList<DesignedModule>> GetDesignedModulesAsync();
-    }
-    internal class TempDesignedModule {
-        [Data_PrimaryKey]
-        public Guid ModuleGuid { get; set; }
-        public string Name { get; set; }
-        public MultiString Description { get; set; }
-        public string DerivedAssemblyName { get; set; }
-
-        public TempDesignedModule() {
-            Description = new MultiString();
-        }
     }
 
     /// <summary>
