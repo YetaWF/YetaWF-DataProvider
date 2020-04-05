@@ -429,18 +429,6 @@ namespace YetaWF.DataProvider.SQL {
             return "@" + name;
         }
         /// <summary>
-        /// Adds a null value parameter and returns the created parameter name
-        /// Used when creating dynamic queries and the parameter is not important outside of the immediate query
-        /// </summary>
-        /// <returns>The generated name for the parameter</returns>
-        public string AddNullTempParam(ParameterDirection direction = ParameterDirection.Input) {
-            string name = "_tempParam" + Params.Count;
-            SqlParameter parm = new SqlParameter(name, SqlDbType.Binary);
-            parm.Direction = direction;
-            Params.Add(parm);
-            return "@" + name;
-        }
-        /// <summary>
         /// Adds a named parameter to the query
         /// </summary>
         /// <param name="name">The name of the parameter</param>

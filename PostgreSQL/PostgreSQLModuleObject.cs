@@ -113,7 +113,7 @@ namespace YetaWF.DataProvider.PostgreSQL {
 
             } else {
 
-                // we're reading the derived table
+                // we're reading the derived table directly
 
                 SQLHelper sqlHelper = new SQLHelper(Conn, null, Languages);
 

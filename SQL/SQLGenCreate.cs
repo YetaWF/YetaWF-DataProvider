@@ -436,8 +436,6 @@ namespace YetaWF.DataProvider.SQL {
                 List<PropertyData> subPropData = ObjectSupport.GetPropertyData(subtable.Type);
                 MakeType(dbName, schema, subtable.Name, subPropData, subtable.Type, SubTable: true);
             }
-
-            //$$$$ not yet  MakeType(dbName, schema, tableName, propData, tpProps, SubTable: false);
         }
 
         private void MakeForeignKeys(string dbName, string schema, TableInfo tableInfo) {

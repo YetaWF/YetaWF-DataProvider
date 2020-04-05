@@ -45,6 +45,7 @@ namespace YetaWF.DataProvider.SQL {
         internal void AddOrderBy(Dictionary<string, string> visibleColumns, List<DataProviderSortInfo> sorts, int Offset = 0, int Next = 0) {
             Add(GetOrderBy(visibleColumns, sorts, Offset:Offset, Next: Next));
         }
+
         /// <summary>
         /// Returns a fully formatted ORDER BY clause based on the provided sort criteria and paging info.
         /// </summary>
@@ -76,12 +77,13 @@ namespace YetaWF.DataProvider.SQL {
         /// <param name="value">The value to search for.</param>
         /// <param name="escapeApostrophe">Defines whether to escape an apostrophe. Can be used to prevent double escaping of apostrophes.</param>
         /// <returns>Returns the translated value ready to be used in a LIKE statement.</returns>
-        internal string EscapeForLike(string value, bool escapeApostrophe = true) {
+        public string EscapeForLike(string value, bool escapeApostrophe = true) {
             string[] specialChars = { "%", "_", "-", "^" };
-            string newChars;
+            string newChars = value;
 
             // Escape the [ bracket
-            newChars = value.Replace("[", "[[]");
+            if (escapeApostrophe)
+	            newChars = value.Replace("[", "[[]");
 
             // Replace the special chars
             foreach (string t in specialChars) {
@@ -99,7 +101,7 @@ namespace YetaWF.DataProvider.SQL {
         /// </summary>
         /// <param name="sql">A SQL statement fragment.</param>
         /// <returns>Returns the clean SQL fragment, with escaped apostrophes.</returns>
-        internal string EscapeApostrophe(string sql) {
+        public static string EscapeApostrophe(string sql) {
             sql = sql.Replace("'", "''");
             return sql;
         }

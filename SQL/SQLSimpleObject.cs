@@ -799,7 +799,7 @@ DELETE FROM {fullTableName} WHERE [{SiteColumn}] = {SiteIdentity}
                     if (val != null) {
                         PropertyInfo pi = prop.PropInfo;
                         if (pi.PropertyType == typeof(byte[])) {
-                            data = (byte[])val;
+                            data = (byte[]) val;
                         } else {
                             data = new GeneralFormatter().Serialize(val);
                         }
@@ -823,7 +823,7 @@ DELETE FROM {fullTableName} WHERE [{SiteColumn}] = {SiteIdentity}
                     return null;
                 },
                 (prefix, container, name) => { // predef
-                    if (name == SQLGenericBase.SiteColumn)//$$$needed?
+                    if (name == SQLGenericBase.SiteColumn)
                         sqlHelper.AddParam(SQLGen.ValSiteIdentity, SiteIdentity, DbType: SqlDbType.Int);
                     return null;
                 },
