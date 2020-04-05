@@ -70,6 +70,12 @@ namespace YetaWF.DataProvider.SQL {
         /// data provider's dataset defined by BaseDataset. All data for the derived class is stored in the data provider's dataset defined by Dataset.</remarks>
         public string BaseDataset { get; protected set; }
 
+        internal class DerivedInfo {
+            public string DerivedTableName { get; set; }
+            public string DerivedDataType { get; set; }
+            public string DerivedAssemblyName { get; set; }
+        }
+
         /// <summary>
         /// Retrieves one record from the database table that satisfies the specified primary key <paramref name="key"/>.
         /// </summary>
@@ -87,21 +93,29 @@ namespace YetaWF.DataProvider.SQL {
 
                 sqlHelper.AddParam("Key1Val", key);
                 sqlHelper.AddParam(SQLGen.ValSiteIdentity, SiteIdentity);
+                DerivedInfo info = null;
                 using (SqlDataReader reader = await sqlHelper.ExecuteReaderStoredProcAsync($@"""{Dbo}"".""{BaseDataset}__GetBase""")) {
-                    if (!(YetaWFManager.IsSync() ? reader.Read() : await reader.ReadAsync())) return default(OBJTYPE);
-                    return sqlHelper.CreateObject<OBJTYPE>(reader);
+                    if (!(YetaWFManager.IsSync() ? reader.Read() : await reader.ReadAsync())) 
+                        return default(OBJTYPE);
+                    info = sqlHelper.CreateObject<DerivedInfo>(reader);
+                    if (!(YetaWFManager.IsSync() ? reader.NextResult() : await reader.NextResultAsync()))
+                        throw new InternalError("Expected next result set (module)");
+                    if (!(YetaWFManager.IsSync() ? reader.Read() : await reader.ReadAsync()))
+                        return default(OBJTYPE);
+                    return sqlHelper.CreateObject<OBJTYPE>(reader, info.DerivedDataType, info.DerivedAssemblyName);
                 }
 
             } else {
 
-                // we're reading the derived table
+                // we're reading the derived table directly
 
                 SQLHelper sqlHelper = new SQLHelper(Conn, null, Languages);
 
                 sqlHelper.AddParam("Key1Val", key);
                 sqlHelper.AddParam(SQLGen.ValSiteIdentity, SiteIdentity);
                 using (SqlDataReader reader = await sqlHelper.ExecuteReaderStoredProcAsync($@"""{Dbo}"".""{Dataset}__Get""")) {
-                    if (!(YetaWFManager.IsSync() ? reader.Read() : await reader.ReadAsync())) return default(OBJTYPE);
+                    if (!(YetaWFManager.IsSync() ? reader.Read() : await reader.ReadAsync())) 
+                        return default(OBJTYPE);
                     return sqlHelper.CreateObject<OBJTYPE>(reader);
                 }
             }

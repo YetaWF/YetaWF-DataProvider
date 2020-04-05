@@ -56,31 +56,33 @@ namespace YetaWF.DataProvider.SQL {
         // Create,Fill
         // Create,Fill
 
-        public T CreateObject<T>(IDataReader dr) {
-            return (T) CreateObject(dr, typeof(T));
-        }
-        public T CreateObject<T>(IDataReader dr, string dataType, string assemblyName) {
-            Type t = null;
+        public Type GetDerivedType(string dataType, string assemblyName) {
             try {
                 Assembly asm = Assemblies.Load(assemblyName);
-                t = asm.GetType(dataType, true);
+                return asm.GetType(dataType, true);
             } catch (Exception exc) {
                 throw new InternalError($"Invalid Type {dataType}/{assemblyName} requested - {ErrorHandling.FormatExceptionMessage(exc)}");
             }
+        }
+        public T CreateObject<T>(SqlDataReader dr) {
+            return (T) CreateObject(dr, typeof(T));
+        }
+        public T CreateObject<T>(SqlDataReader dr, string dataType, string assemblyName) {
+            Type t = GetDerivedType(dataType, assemblyName);
             return (T)CreateObject(dr, t);
         }
-        public object CreateObject(IDataReader dr, Type tp) {
+        public object CreateObject(SqlDataReader dr, Type tp) {
             object obj = Activator.CreateInstance(tp);
             FillObject(dr, obj);
             return obj;
         }
-        public void FillObject(IDataReader dr, object obj) {
+        public void FillObject(SqlDataReader dr, object obj) {
             List<string> columns = new List<string>();
             for (int ci = 0; ci < dr.FieldCount; ci++)
                 columns.Add(dr.GetName(ci));
             FillObject(dr, obj, columns);
         }
-        private void FillObject(IDataReader dr, object container, List<string> columns, string prefix = "") {
+        private void FillObject(SqlDataReader dr, object container, List<string> columns, string prefix = "") {
             Type tpContainer = container.GetType();
             List<PropertyData> propData = ObjectSupport.GetPropertyData(tpContainer);
             foreach (PropertyData prop in propData) {

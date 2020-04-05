@@ -71,7 +71,7 @@ namespace YetaWF.DataProvider.PostgreSQL {
         /// data provider's dataset defined by BaseDataset. All data for the derived class is stored in the data provider's dataset defined by Dataset.</remarks>
         public string BaseDataset { get; protected set; }
 
-        public class DerivedInfo {
+        internal class DerivedInfo {
             public string DerivedTableName { get; set; }
             public string DerivedDataType { get; set; }
             public string DerivedAssemblyName { get; set; }

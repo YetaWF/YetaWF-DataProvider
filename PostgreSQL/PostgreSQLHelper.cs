@@ -63,9 +63,7 @@ namespace YetaWF.DataProvider.PostgreSQL {
             }
         }
         public T CreateObject<T>(NpgsqlDataReader dr) {
-            T obj = Activator.CreateInstance<T>();
-            FillObject(dr, obj);
-            return obj;
+            return (T)CreateObject(dr, typeof(T));
         }
         public T CreateObject<T>(NpgsqlDataReader dr, string dataType, string assemblyName) {
             Type t = GetDerivedType(dataType, assemblyName);

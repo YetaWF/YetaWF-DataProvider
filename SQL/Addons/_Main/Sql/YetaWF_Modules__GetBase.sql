@@ -24,10 +24,10 @@ BEGIN
     IF @@ROWCOUNT > 0
     BEGIN
 
-        SELECT @Table, @Type, @Asm
+        SELECT @Table as [DerivedTableName], @Type as [DerivedDataType], @Asm as [DerivedAssemblyName]
 ; --- result set
 
-        DECLARE @Sproc nvarchar = '[dbo].' + @Table + '_Get';
+        DECLARE @Sproc nvarchar(200) = '[dbo].[' + @Table + '__Get]';
 
         EXEC @Sproc @Key1Val=@Key1Val,@valSiteIdentity=@valSiteIdentity
 ; --- result set
