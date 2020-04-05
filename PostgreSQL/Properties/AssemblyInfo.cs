@@ -14,7 +14,7 @@ using YetaWF.PackageAttributes;
 
 [assembly: AssemblyVersion("5.1.0.0")]
 
-[assembly: Package(PackageTypeEnum.DataProvider, "YetaWF")]
+[assembly: Package(PackageTypeEnum.DataProvider, "YetaWF.DataProvider")]
 
 
 // PostgreSQL is not well suited for YetaWF. We need case insensitive collation, so grid filters, etc. work "better". Translating to lowercase in queries 

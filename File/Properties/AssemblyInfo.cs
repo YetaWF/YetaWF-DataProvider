@@ -14,4 +14,4 @@ using YetaWF.PackageAttributes;
 
 [assembly: AssemblyVersion("5.1.0.0")]
 
-[assembly: Package(PackageTypeEnum.DataProvider, "YetaWF")]
+[assembly: Package(PackageTypeEnum.DataProvider, "YetaWF.DataProvider")]
