@@ -1,23 +1,15 @@
 ﻿/* Copyright © 2020 Softel vdm, Inc. - https://yetawf.com/Documentation/YetaWF/Licensing */
 
 using System;
-using System.Collections;
 using System.Collections.Generic;
-using System.Drawing;
-using System.IO;
 using System.Linq;
 using System.Reflection;
-using System.Runtime.Serialization.Formatters.Binary;
 using System.Threading.Tasks;
 using System.Transactions;
 using YetaWF.Core.DataProvider;
-using YetaWF.Core.DataProvider.Attributes;
-using YetaWF.Core.Models;
 using YetaWF.Core.Packages;
 using YetaWF.Core.Support;
-using YetaWF.Core.Support.Serializers;
 using YetaWF.DataProvider.SQLGeneric;
-using YetaWF.Core.Language;
 #if MVC6
 using Microsoft.Data.SqlClient;
 #else

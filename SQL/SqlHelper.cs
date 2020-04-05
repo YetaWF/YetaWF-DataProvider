@@ -457,6 +457,9 @@ namespace YetaWF.DataProvider.SQL {
             } else if (value is DateTime) {
                 parm = new SqlParameter(name, SqlDbType.DateTime2);
                 parm.Value = value;
+            } else if (value is TimeSpan) {
+                parm = new SqlParameter(name, SqlDbType.BigInt);
+                parm.Value = ((TimeSpan)value).Ticks;
             } else {
                 if (DataTypeName != null) {
                     parm = new SqlParameter {

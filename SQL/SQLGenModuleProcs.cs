@@ -102,8 +102,7 @@ BEGIN
             sb.RemoveLastComma();
             sb.Append($@")
 ;
-    DECLARE @__IDENTITY int = @@IDENTITY
-    SELECT @__IDENTITY  --- result set
+    SELECT @@ROWCOUNT --- result set
 ;");
 
             sb.Append($@"
