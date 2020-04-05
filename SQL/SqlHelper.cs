@@ -469,14 +469,18 @@ namespace YetaWF.DataProvider.SQL {
                         SqlValue = value,                         
                     };
                 } else {
-                    if (DbType == null)
+                    if (DbType == null) {
                         parm = new SqlParameter(name, value);
-                    else {
-                        parm = new SqlParameter {
-                            Value = value,
-                            ParameterName = name,
-                            SqlDbType = (SqlDbType)DbType,
-                        };
+                    } else {
+                        if (value == null) {
+                            parm = new SqlParameter(name, (SqlDbType)DbType);
+                        } else {
+                            parm = new SqlParameter {
+                                Value = value,
+                                ParameterName = name,
+                                SqlDbType = (SqlDbType)DbType,
+                            };
+                        }
                     }
                 }
             }
