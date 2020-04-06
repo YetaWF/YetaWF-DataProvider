@@ -102,17 +102,21 @@ BEGIN
             sb.RemoveLastComma();
             sb.Append($@")
 ;
-    DECLARE @__IDENTITY int = @@IDENTITY
-    SELECT @__IDENTITY  --- result set
+    DECLARE @__ROWCOUNT int = @@ROWCOUNT;
+    SELECT @@ROWCOUNT  --- result set
 ;");
 
             sb.Append($@"
-    INSERT INTO {fullTableName} ({GetColumnNameList(dbName, schema, dataset, propData, type, Add: true, Prefix: null, TopMost: true, SiteSpecific: siteIdentity > 0, WithDerivedInfo: false, SubTable: false)}");
+
+    IF @__ROWCOUNT IS NOT NULL
+    BEGIN
+        INSERT INTO {fullTableName} ({GetColumnNameList(dbName, schema, dataset, propData, type, Add: true, Prefix: null, TopMost: true, SiteSpecific: siteIdentity > 0, WithDerivedInfo: false, SubTable: false)}");
             sb.RemoveLastComma();
             sb.Append($@")
-    VALUES({GetValueNameList(dbName, schema, dataset, propData, type, Prefix: null, TopMost: true, SiteSpecific: siteIdentity > 0, WithDerivedInfo: false, SubTable: false)}");
+        VALUES({GetValueNameList(dbName, schema, dataset, propData, type, Prefix: null, TopMost: true, SiteSpecific: siteIdentity > 0, WithDerivedInfo: false, SubTable: false)}");
             sb.RemoveLastComma();
             sb.Append($@")
+    END
 END
 
 GO
@@ -150,19 +154,24 @@ BEGIN");
             sb.Append($@"
     WHERE [{key1Name}] = @arg{key1Name} AND [{SQLGenericBase.SiteColumn}] = @{SQLGen.ValSiteIdentity}
 ;
-    SELECT @@ROWCOUNT --- result set
+    DECLARE @__ROWCOUNT int = @@ROWCOUNT;
+    SELECT @@ROWCOUNT  --- result set
 ;");
 
             string setList = GetSetList(dbName, schema, dataset, propData, type, Prefix: null, TopMost: true, SiteSpecific: siteIdentity > 0, WithDerivedInfo: false, SubTable: false);
             if (!string.IsNullOrWhiteSpace(setList)) {
 
                 sb.Append($@"
-    UPDATE {fullTableName}
-    SET {setList}");
+
+    IF @__ROWCOUNT IS NOT NULL
+    BEGIN
+        UPDATE {fullTableName}
+        SET {setList}");
                 sb.RemoveLastComma();
 
                 sb.Append($@"
-    WHERE [{key1Name}] = @arg{key1Name} AND [{SQLGenericBase.SiteColumn}] = @{SQLGen.ValSiteIdentity}
+        WHERE [{key1Name}] = @arg{key1Name} AND [{SQLGenericBase.SiteColumn}] = @{SQLGen.ValSiteIdentity}
+    END
 ;");
             }
 

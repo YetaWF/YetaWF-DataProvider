@@ -114,20 +114,10 @@ namespace YetaWF.DataProvider.SQL {
         /// Returns a formatted table name or a formatted database name, database owner and table name, with brackets.
         /// </summary>
         /// <param name="tableName">The table name.</param>
-        /// <returns>Returns a formatted table or a formatted name database name, database owner and table name, with brackets.</returns>
+        /// <returns>Returns a formatted table name or a formatted name database name, database owner and table name, with brackets.</returns>
         /// <remarks>The result is bracketed. This method considers whether any of the parameters is already bracketed in which case no further brackets are added.</remarks>
         public override string BuildFullTableName(string tableName) {
             return WrapIdentifier(tableName);
-        }
-        /// <summary>
-        /// Returns a formatted table name and column name, with brackets.
-        /// </summary>
-        /// <param name="tableName">The table name.</param>
-        /// <param name="column">The column name.</param>
-        /// <returns>Returns a formatted table name and column name, with brackets.</returns>
-        /// <remarks>The result is bracketed. This method considers whether either parameter is already bracketed in which case no further brackets are added.</remarks>
-        public override string BuildFullColumnName(string tableName, string column) {
-            return BuildFullTableName(tableName) + "." + WrapIdentifier(column);
         }
         /// <summary>
         /// Returns a formatted table name or a formatted database name, database owner and table name, with brackets.
@@ -135,10 +125,20 @@ namespace YetaWF.DataProvider.SQL {
         /// <param name="database">The database name.</param>
         /// <param name="dbo">The database owner.</param>
         /// <param name="tableName">The table name.</param>
-        /// <returns>Returns a formatted table or a formatted name database name, database owner and table name, with brackets.</returns>
+        /// <returns>Returns a formatted table name or a formatted name database name, database owner and table name, with brackets.</returns>
         /// <remarks>The result is bracketed. This method considers whether any of the parameters is already bracketed in which case no further brackets are added.</remarks>
         public override string BuildFullTableName(string database, string dbo, string tableName) {
             return $"{WrapIdentifier(database)}.{WrapIdentifier(dbo)}.{WrapIdentifier(tableName)}";
+        }
+        /// <summary>
+        /// Returns a formatted column name or a formatted database name, database owner, table name and column name, with brackets.
+        /// </summary>
+        /// <param name="tableName">The table name.</param>
+        /// <param name="column">The column name.</param>
+        /// <returns>Returns a formatted name, with brackets.</returns>
+        /// <remarks>The result is bracketed. This method considers whether any of the parameters is already bracketed in which case no further brackets are added.</remarks>
+        public override string BuildFullColumnName(string tableName, string column) {
+            return BuildFullTableName(tableName) + "." + WrapIdentifier(column);
         }
         /// <summary>
         /// Returns a formatted column name or a formatted database name, database owner, table name and column name, with brackets.
@@ -147,7 +147,7 @@ namespace YetaWF.DataProvider.SQL {
         /// <param name="dbOwner">The database owner.</param>
         /// <param name="tableName">The table name.</param>
         /// <param name="column">The column name.</param>
-        /// <returns>Returns a formatted column name or a formatted database name, database owner, table name and column name, with brackets.</returns>
+        /// <returns>Returns a formatted name, with brackets.</returns>
         /// <remarks>The result is bracketed. This method considers whether any of the parameters is already bracketed in which case no further brackets are added.</remarks>
         public override string BuildFullColumnName(string database, string dbOwner, string tableName, string column) {
             return $"{WrapIdentifier(database)}.{WrapIdentifier(dbOwner)}.{BuildFullColumnName(tableName, column)}";
@@ -157,7 +157,7 @@ namespace YetaWF.DataProvider.SQL {
         /// </summary>
         /// <param name="column">The column name.</param>
         /// <param name="visibleColumns">The collection of columns visible in the table.</param>
-        /// <returns>Returns a formatted column name or a formatted database name, database owner, table name and column name, with brackets.</returns>
+        /// <returns>Returns a formatted name, with brackets.</returns>
         /// <remarks>The result is bracketed. This method considers whether any of the parameters is already bracketed in which case no further brackets are added.</remarks>
         internal string BuildFullColumnName(string column, Dictionary<string, string> visibleColumns) {
             if (visibleColumns != null) {

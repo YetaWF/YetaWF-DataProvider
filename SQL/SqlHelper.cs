@@ -431,8 +431,10 @@ namespace YetaWF.DataProvider.SQL {
         /// <summary>
         /// Adds a named parameter to the query
         /// </summary>
-        /// <param name="name">The name of the parameter</param>
-        /// <param name="value">The value of the parameter</param>
+        /// <param name="name">The name of the parameter.</param>
+        /// <param name="value">The value of the parameter.</param>
+        /// <param name="DbType">The optional type of the parameter value.</param>
+        /// <param name="DataTypeName">The optional SQL type of the parameter value. A corresponding User-Defined Type must exist in the database.</param>
         /// <param name="direction">The direction of the parameter (input or output).</param>
         public void AddParam(string name, object value, ParameterDirection direction = ParameterDirection.Input, SqlDbType? DbType = null, string DataTypeName = null)/*<<<*/ {
 

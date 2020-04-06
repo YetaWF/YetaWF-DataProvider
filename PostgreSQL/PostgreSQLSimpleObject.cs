@@ -439,9 +439,9 @@ FROM {fullTableName}
             }
         }
 
-        // IINSTALLMODEL
-        // IINSTALLMODEL
-        // IINSTALLMODEL
+        // IINSTALLABLEMODEL
+        // IINSTALLABLEMODEL
+        // IINSTALLABLEMODEL
 
         /// <summary>
         /// Returns whether the data provider is installed and available.

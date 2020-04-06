@@ -140,6 +140,10 @@ namespace YetaWF.DataProvider.SQLGeneric {
         }
         private string _identityOrDefault;
 
+        /// <summary>
+        /// Retrieves the property information for the model used.
+        /// </summary>
+        /// <returns>List of property information.</returns>
         protected abstract List<PropertyData> GetPropertyData();
 
         /// <summary>

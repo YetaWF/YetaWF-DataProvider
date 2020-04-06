@@ -196,30 +196,48 @@ BEGIN
             if (HasIdentity(identityName) || subTables.Count > 0) {
                 sb.Append($@"
     DECLARE @__IDENTITY int = @@IDENTITY
-    SELECT @__IDENTITY  --- result set
+    SELECT @__IDENTITY  --- result set");
+
+                if (subTables.Count > 0) {
+                    sb.Append($@"
+    IF @__IDENTITY IS NOT NULL
+    BEGIN
 ");
+                }
             } else {
                 sb.Append($@"
-    SELECT @@ROWCOUNT --- result set");
+    DECLARE @__ROWCOUNT int = @@ROWCOUNT;
+    SELECT @@ROWCOUNT  --- result set");
+
+            if (subTables.Count > 0) {
+                    sb.Append($@"
+    IF @__ROWCOUNT IS NOT NULL
+    BEGIN");
+                }
             }
 
             foreach (SubTableInfo subTable in subTables) {
                 List<PropertyData> subPropData = ObjectSupport.GetPropertyData(subTable.Type);
                 sb.Add($@"
 
-    INSERT INTO {sb.BuildFullTableName(dbName, schema, subTable.Name)} ({GetColumnNameList(dbName, schema, subTable.Name, subPropData, subTable.Type, Add: true, Prefix: null, TopMost: false, SiteSpecific: false, WithDerivedInfo: false, SubTable: true)}");
+        INSERT INTO {sb.BuildFullTableName(dbName, schema, subTable.Name)} ({GetColumnNameList(dbName, schema, subTable.Name, subPropData, subTable.Type, Add: true, Prefix: null, TopMost: false, SiteSpecific: false, WithDerivedInfo: false, SubTable: true)}");
 
 
                 sb.RemoveLastComma();
                 sb.Append($@")
-    SELECT {GetValueNameList(dbName, schema, subTable.Name, subPropData, subTable.Type, Prefix: null, TopMost: false, SiteSpecific: false, WithDerivedInfo: false, SubTable: true)}");
+        SELECT {GetValueNameList(dbName, schema, subTable.Name, subPropData, subTable.Type, Prefix: null, TopMost: false, SiteSpecific: false, WithDerivedInfo: false, SubTable: true)}");
                 sb.RemoveLastComma();
                 sb.Append($@"
-    FROM @arg{subTable.PropInfo.Name}
+        FROM @arg{subTable.PropInfo.Name}
 ");
             }
 
-            sb.Append($@"
+            if (subTables.Count > 0) {
+                sb.Append($@"
+    END");
+            }
+
+                sb.Append($@"
 END
 
 GO
@@ -277,22 +295,34 @@ BEGIN");
 
             sb.Append($@"
 
-    SELECT @@ROWCOUNT --- result set
+    DECLARE @__ROWCOUNT int = @@ROWCOUNT;
+    SELECT @@ROWCOUNT  --- result set");
+
+            if (subTables.Count > 0) {
+                sb.Append($@"
+    IF @__ROWCOUNT IS NOT NULL
+    BEGIN
 ");
+            }
 
             foreach (SubTableInfo subTable in subTables) {
                 List<PropertyData> subPropData = ObjectSupport.GetPropertyData(subTable.Type);
                 sb.Add($@"
-    DELETE FROM {sb.BuildFullTableName(dbName, schema, subTable.Name)} WITH(SERIALIZABLE) WHERE [{SQLBase.SubTableKeyColumn}] = @__IDENTITY ;
+        DELETE FROM {sb.BuildFullTableName(dbName, schema, subTable.Name)} WITH(SERIALIZABLE) WHERE [{SQLBase.SubTableKeyColumn}] = @__IDENTITY ;
 
-    INSERT INTO {sb.BuildFullTableName(dbName, schema, subTable.Name)} ({GetColumnNameList(dbName, schema, subTable.Name, subPropData, subTable.Type, Add: true, Prefix: null, TopMost: false, SiteSpecific: false, WithDerivedInfo: false, SubTable: true)}");
+        INSERT INTO {sb.BuildFullTableName(dbName, schema, subTable.Name)} ({GetColumnNameList(dbName, schema, subTable.Name, subPropData, subTable.Type, Add: true, Prefix: null, TopMost: false, SiteSpecific: false, WithDerivedInfo: false, SubTable: true)}");
                 sb.RemoveLastComma();
                 sb.Append($@")
-    SELECT {GetValueNameList(dbName, schema, subTable.Name, subPropData, subTable.Type, Prefix: null, TopMost: false, SiteSpecific: false, WithDerivedInfo: false, SubTable: true)}");
+        SELECT {GetValueNameList(dbName, schema, subTable.Name, subPropData, subTable.Type, Prefix: null, TopMost: false, SiteSpecific: false, WithDerivedInfo: false, SubTable: true)}");
                 sb.RemoveLastComma();
                 sb.Append($@"
-    FROM @arg{subTable.PropInfo.Name}
+        FROM @arg{subTable.PropInfo.Name}
 ");
+            }
+
+            if (subTables.Count > 0) {
+                sb.Append($@"
+    END");
             }
 
             sb.Append($@"
@@ -338,22 +368,34 @@ BEGIN
 
                 sb.Append($@"
 
-    SELECT @@ROWCOUNT --- result set
+    DECLARE @__ROWCOUNT int = @@ROWCOUNT;
+    SELECT @@ROWCOUNT  --- result set");
+
+                if (subTables.Count > 0) {
+                    sb.Append($@"
+    IF @__ROWCOUNT IS NOT NULL
+    BEGIN
 ");
+                }
 
                 foreach (SubTableInfo subTable in subTables) {
                     List<PropertyData> subPropData = ObjectSupport.GetPropertyData(subTable.Type);
                     sb.Add($@"
-    DELETE FROM {sb.BuildFullTableName(dbName, schema, subTable.Name)} WITH(SERIALIZABLE) WHERE [{SQLBase.SubTableKeyColumn}] = @__IDENTITY ;
+        DELETE FROM {sb.BuildFullTableName(dbName, schema, subTable.Name)} WITH(SERIALIZABLE) WHERE [{SQLBase.SubTableKeyColumn}] = @__IDENTITY ;
 
-    INSERT INTO {sb.BuildFullTableName(dbName, schema, subTable.Name)} ({GetColumnNameList(dbName, schema, subTable.Name, subPropData, subTable.Type, Add: true, Prefix: null, TopMost: false, SiteSpecific: false, WithDerivedInfo: false, SubTable: true)}");
+        INSERT INTO {sb.BuildFullTableName(dbName, schema, subTable.Name)} ({GetColumnNameList(dbName, schema, subTable.Name, subPropData, subTable.Type, Add: true, Prefix: null, TopMost: false, SiteSpecific: false, WithDerivedInfo: false, SubTable: true)}");
                     sb.RemoveLastComma();
                     sb.Append($@")
-    SELECT {GetValueNameList(dbName, schema, subTable.Name, subPropData, subTable.Type, Prefix: null, TopMost: false, SiteSpecific: false, WithDerivedInfo: false, SubTable: true)}");
+        SELECT {GetValueNameList(dbName, schema, subTable.Name, subPropData, subTable.Type, Prefix: null, TopMost: false, SiteSpecific: false, WithDerivedInfo: false, SubTable: true)}");
                     sb.RemoveLastComma();
                     sb.Append($@"
-    FROM @arg{subTable.PropInfo.Name}
+        FROM @arg{subTable.PropInfo.Name}
 ");
+                }
+
+                if (subTables.Count > 0) {
+                    sb.Append($@"
+    END");
                 }
 
                 sb.Append($@"

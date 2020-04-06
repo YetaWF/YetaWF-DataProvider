@@ -24,14 +24,30 @@ namespace YetaWF.DataProvider.SQL {
     /// <summary>
     /// An instance of this class describes one designed module.
     /// Used during startup to retrieve all designed modules.
+    /// Not used by applications.
     /// </summary>
     public class TempDesignedModule {
+        /// <summary>
+        /// The module's unique identitfier.
+        /// </summary>
         [Data_PrimaryKey]
         public Guid ModuleGuid { get; set; }
+        /// <summary>
+        /// The defined name of the module.
+        /// </summary>
         public string Name { get; set; }
+        /// <summary>
+        /// The module's description.
+        /// </summary>
         public MultiString Description { get; set; }
+        /// <summary>
+        /// The name of the assembly implementing the module type.
+        /// </summary>
         public string DerivedAssemblyName { get; set; }
 
+        /// <summary>
+        /// Consstructor
+        /// </summary>
         public TempDesignedModule() {
             Description = new MultiString();
         }
@@ -368,9 +384,9 @@ WHERE {fullBaseTableName}.[DerivedDataTableName] = '{Dataset}' AND {fullBaseTabl
         }
         List<PropertyData> _propertyData;
 
-        // IINSTALLMODEL
-        // IINSTALLMODEL
-        // IINSTALLMODEL
+        // IINSTALLABLEMODEL
+        // IINSTALLABLEMODEL
+        // IINSTALLABLEMODEL
 
         /// <summary>
         /// Returns whether the data provider is installed and available.

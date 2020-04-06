@@ -54,6 +54,10 @@ namespace YetaWF.DataProvider.SQL {
 
         internal bool Warnings = true;
 
+        /// <summary>
+        /// Retrieves the property information for the model used.
+        /// </summary>
+        /// <returns>List of property information.</returns>
         protected override List<PropertyData> GetPropertyData() {
             if (_propertyData == null)
                 _propertyData = ObjectSupport.GetPropertyData(typeof(OBJTYPE));
@@ -62,10 +66,10 @@ namespace YetaWF.DataProvider.SQL {
         List<PropertyData> _propertyData;
 
         /// <summary>
-        /// Retrieves one record from the database table that satisfies the specified primary key <paramref name="key"/>.
+        /// Retrieves one record from the database table that satisfies the specified keys.
         /// </summary>
         /// <param name="key">The primary key value.</param>
-        /// <returns>Returns the record that satisfies the specified primary key. If no record exists null is returned.</returns>
+        /// <returns>Returns the record that satisfies the specified keys. If no record exists null is returned.</returns>
         public Task<OBJTYPE> GetAsync(KEYTYPE key) {
             return GetAsync(key, default(KEYTYPE2));
         }
@@ -74,7 +78,7 @@ namespace YetaWF.DataProvider.SQL {
         /// </summary>
         /// <param name="key">The primary key value.</param>
         /// <param name="key2">The secondary key value.</param>
-        /// <returns>Returns the record that satisfies the specified primary and secondary keys. If no record exists null is returned.</returns>
+        /// <returns>Returns the record that satisfies the specified keys. If no record exists null is returned.</returns>
         public async Task<OBJTYPE> GetAsync(KEYTYPE key, KEYTYPE2 key2) {
 
             await EnsureOpenAsync();
@@ -133,8 +137,8 @@ namespace YetaWF.DataProvider.SQL {
         }
 
         /// <summary>
-        /// Updates an existing record with the specified existing primary key <paramref name="origKey"/> in the database table.
-        /// The primary key can be changed to the new value in <paramref name="newKey"/>.
+        /// Updates an existing record with the specified existing primary keys in the database table.
+        /// The primary keys can be changed to new values.
         /// </summary>
         /// <param name="origKey">The original primary key value of the record.</param>
         /// <param name="newKey">The new primary key value of the record. This may be the same value as <paramref name="origKey"/>. </param>
@@ -145,8 +149,8 @@ namespace YetaWF.DataProvider.SQL {
         }
 
         /// <summary>
-        /// Updates an existing record with the specified existing primary and secondary keys <paramref name="origKey"/> in the database table.
-        /// The primary and secondary keys can be changed to the new values in <paramref name="newKey"/> and <paramref name="newKey2"/>.
+        /// Updates an existing record with the specified existing primary keys in the database table.
+        /// The primary keys can be changed to new values.
         /// </summary>
         /// <param name="origKey">The original primary key value of the record.</param>
         /// <param name="origKey2">The original secondary key value of the record.</param>
@@ -186,7 +190,7 @@ namespace YetaWF.DataProvider.SQL {
         }
 
         /// <summary>
-        /// Removes an existing record with the specified primary key.
+        /// Removes an existing record with the specified keys.
         /// </summary>
         /// <param name="key">The primary key value of the record to remove.</param>
         /// <returns>Returns true if the record was removed, or false if the record was not found. Other errors cause an exception.</returns>
@@ -194,7 +198,7 @@ namespace YetaWF.DataProvider.SQL {
             return await RemoveAsync(key, default(KEYTYPE2));
         }
         /// <summary>
-        /// Removes an existing record with the specified primary and secondary keys.
+        /// Removes an existing record with the specified keys.
         /// </summary>
         /// <param name="key">The primary key value of the record to remove.</param>
         /// <param name="key2">The secondary key value of the record to remove.</param>
@@ -261,18 +265,14 @@ namespace YetaWF.DataProvider.SQL {
             filters = NormalizeFilter(typeof(OBJTYPE), filters);
             sorts = NormalizeSort(typeof(OBJTYPE), sorts);
 
-            SQLBuilder sb;
-            
-            sb = new SQLBuilder();
+            SQLBuilder sb = new SQLBuilder();
             string fullTableName = sb.GetTable(Database, Dbo, Dataset);
 
             Dictionary<string, string> visibleColumns = Joins.Count > 0 ? new Dictionary<string, string>() : null;
             string columnList = sqlCreate.GetColumnNameList(Database, Dbo, Dataset, GetPropertyData(), typeof(OBJTYPE), Add: false, Prefix: null, TopMost: true, IdentityName: IdentityName, SiteSpecific: SiteIdentity > 0, WithDerivedInfo: false, SubTable: false,
                 VisibleColumns: visibleColumns);
 
-            string joinExpr = null;
-            sb = new SQLBuilder();
-            SQLBuilder sbCols = new SQLBuilder();
+            SQLBuilder sbJoins = new SQLBuilder();
             foreach (JoinData join in Joins) {
                 ISQLTableInfo joinInfo = await join.JoinDP.GetDataProvider().GetISQLTableInfoAsync();
                 string joinDatabase = joinInfo.GetDatabaseName();
@@ -282,46 +282,39 @@ namespace YetaWF.DataProvider.SQL {
                 ISQLTableInfo mainInfo = await join.MainDP.GetDataProvider().GetISQLTableInfoAsync();
                 string mainTable = mainInfo.GetTableName();
                 if (join.JoinType == JoinData.JoinTypeEnum.Left)
-                    sb.Add($"LEFT JOIN {joinTable}");
+                    sbJoins.Add($"LEFT JOIN {joinTable}");
                 else
-                    sb.Add($"INNER JOIN {joinTable}");
-                sb.Add(" ON ");
+                    sbJoins.Add($"INNER JOIN {joinTable}");
+                sbJoins.Add(" ON ");
                 if (join.UseSite && SiteIdentity > 0)
-                    sb.Add("(");
-                sb.Add($"{sb.BuildFullColumnName(mainTable, join.MainColumn)} = {sb.BuildFullColumnName(joinTable, join.JoinColumn)}");
+                    sbJoins.Add("(");
+                sbJoins.Add($"{sbJoins.BuildFullColumnName(mainTable, join.MainColumn)} = {sbJoins.BuildFullColumnName(joinTable, join.JoinColumn)}");
                 if (join.UseSite && SiteIdentity > 0)
-                    sb.Add($") AND {sb.BuildFullColumnName(mainTable, SiteColumn)} = {sb.BuildFullColumnName(joinTable, SiteColumn)}");
+                    sbJoins.Add($") AND {sbJoins.BuildFullColumnName(mainTable, SiteColumn)} = {sbJoins.BuildFullColumnName(joinTable, SiteColumn)}");
 
                 joinTable = joinTable.Split(new char[] { '.' }).Last().Trim(new char[] { '[', ']' });
                 List<string> joinCols = sqlManager.GetColumnsOnly(join.JoinDP.GetDataProvider().Conn, joinDatabase, joinDbo, joinTable);
                 foreach (string col in joinCols) {
                     if (!visibleColumns.ContainsKey(col)) {
-                        string fullCol = sb.BuildFullColumnName(joinDatabase, joinDbo, joinTable, col);
+                        string fullCol = sbJoins.BuildFullColumnName(joinDatabase, joinDbo, joinTable, col);
                         visibleColumns.Add(col, fullCol);
                         columnList += $"{fullCol},";
                     }
                 }
             }
-            joinExpr = sb.ToString();
+            string joinExpr = sbJoins.ToString();
 
             string filterExpr = MakeFilter(sqlHelper, filters, visibleColumns);
 
             // get total # of records (only if a subset is requested)
-            int total = 0;
             if (skip != 0 || take != 0) {
 
-                sb = new SQLBuilder();
                 sb.Append($@"
 SELECT COUNT(*)
 FROM {fullTableName} WITH(NOLOCK)
 {joinExpr}
 {filterExpr}
 ; --- result set");
-
-                object scalar = await sqlHelper.ExecuteScalarAsync(sb.ToString());
-                total = Convert.ToInt32(scalar);
-                if (total == 0)
-                    return new DataProviderGetRecords<OBJTYPE> { Total = 0, };
             }
 
             sqlHelper = new SQLHelper(Conn, null, Languages);
@@ -329,16 +322,14 @@ FROM {fullTableName} WITH(NOLOCK)
 
             string orderByExpr;
             {
-                sb = new SQLBuilder();
+                SQLBuilder sbOrder = new SQLBuilder();
                 if (sorts == null || sorts.Count == 0)
                     sorts = new List<DataProviderSortInfo> { new DataProviderSortInfo { Field = Key1Name, Order = DataProviderSortInfo.SortDirection.Ascending } };
-                sb.AddOrderBy(visibleColumns, sorts, skip, take);
-                orderByExpr = sb.ToString();
+                sbOrder.AddOrderBy(visibleColumns, sorts, skip, take);
+                orderByExpr = sbOrder.ToString();
             }
 
             // Get records
-
-            sb = new SQLBuilder();
 
             if (skip > 0 || take > 0) {
                 sb.Append($@"
@@ -390,6 +381,14 @@ DROP TABLE #Temp
             DataProviderGetRecords<OBJTYPE> recs = new DataProviderGetRecords<OBJTYPE>();
 
             using (SqlDataReader reader = await sqlHelper.ExecuteReaderAsync(sb.ToString())) {
+                if (skip != 0 || take != 0) {
+                    if (!(YetaWFManager.IsSync() ? reader.Read() : await reader.ReadAsync()))
+                        return new DataProviderGetRecords<OBJTYPE>();
+                    int total = Convert.ToInt32(reader[0]);
+                    if (!(YetaWFManager.IsSync() ? reader.NextResult() : await reader.NextResultAsync()))
+                        throw new InternalError($"Expected records after count");
+                    recs.Total = total;
+                }
                 while ((YetaWFManager.IsSync() ? reader.Read() : await reader.ReadAsync())) {
                     OBJTYPE o = sqlHelper.CreateObject<OBJTYPE>(reader);
                     recs.Data.Add(o);
@@ -399,11 +398,9 @@ DROP TABLE #Temp
                         throw new InternalError($"Expected additional recordsets");
                     await ReadSubTablesMatchupAsync(sqlHelper, reader, subTables, Dataset, recs.Data, propData, typeof(OBJTYPE));
                 }
+                if (skip == 0 && take == 0)
+                    recs.Total = recs.Data.Count;
             }
-            if (skip == 0 && take == 0)
-                recs.Total = recs.Data.Count;
-            else
-                recs.Total = total;
             return recs;
         }
 
@@ -480,7 +477,7 @@ FROM {fullTableName}
             // extract identities from container list so we can match sub-objects more easily
             List<int> identities = GetIdentities(containers);
 
-            for ( ; ; ) {
+            for (; ; ) {
                 foreach (SQLGenericGen.SubTableInfo subTable in subTables) {
 
                     while ((YetaWFManager.IsSync() ? reader.Read() : await reader.ReadAsync())) {
@@ -523,9 +520,9 @@ FROM {fullTableName}
             addMethod.Invoke(subContainer, new object[] { obj });
         }
 
-        // IINSTALLMODEL
-        // IINSTALLMODEL
-        // IINSTALLMODEL
+        // IINSTALLABLEMODEL
+        // IINSTALLABLEMODEL
+        // IINSTALLABLEMODEL
 
         /// <summary>
         /// Returns whether the data provider is installed and available.
@@ -693,6 +690,7 @@ DELETE FROM {fullTableName} WHERE [{SiteColumn}] = {SiteIdentity}
                 };
             }
         }
+#pragma warning disable 1734 // ignore getRecordsAsync, saveRecordAsync
         /// <summary>
         /// Called to translate the data managed by the data provider to another language.
         /// </summary>
@@ -708,7 +706,13 @@ DELETE FROM {fullTableName} WHERE [{SiteColumn}] = {SiteIdentity}
         ///
         /// The translated data should be stored separately from the default language (except MultiString, which is part of the record).
         /// Using the <paramref name="language"/> parameter, a different folder should be used to store the translated data.
+        /// 
+        /// The YetaWF.Core.Models.ObjectSupport.TranslateObject method is to translate all YetaWF.Core.Models.MultiString instances.
+        ///
+        /// The method providing <paramref name="getRecordsAsync"/> and <paramref name="saveRecordAsync"/> methods is used by derived classes to translate the data managed by the data provider to another language.
+        /// The derived class provides <paramref name="getRecordsAsync"/> and <paramref name="saveRecordAsync"/> methods, which are used to retrieve, translate and save the data.
         /// </remarks>
+#pragma warning restore 1734
         public async Task LocalizeModelAsync(string language, Func<string, bool> isHtml, Func<List<string>, Task<List<string>>> translateStringsAsync, Func<string, Task<string>> translateComplexStringAsync) {
             await EnsureOpenAsync();
             await LocalizeModelAsync(language, isHtml, translateStringsAsync, translateComplexStringAsync,
@@ -734,6 +738,7 @@ DELETE FROM {fullTableName} WHERE [{SiteColumn}] = {SiteIdentity}
                     return status;
                 });
         }
+#pragma warning disable 1734 // ignore getRecordsAsync, saveRecordAsync
         /// <summary>
         /// Called to translate the data managed by the data provider to another language.
         /// </summary>
@@ -741,16 +746,26 @@ DELETE FROM {fullTableName} WHERE [{SiteColumn}] = {SiteIdentity}
         /// <param name="isHtml">A method that can be called by the data provider to test whether a string contains HTML.</param>
         /// <param name="translateStringsAsync">A method that can be called to translate a collection of simple strings into the new language. A simple string does not contain HTML or newline characters.</param>
         /// <param name="translateComplexStringAsync">A method that can be called to translate a collection of complex strings into the new language. A complex string can contain HTML and newline characters.</param>
-        /// <param name="getRecords"></param>
-        /// <param name="saveRecordAsync"></param>
+        /// <param name="getRecordsAsync">Used by derived classes to retrieve the records to translate.</param>
+        /// <param name="saveRecordAsync">Used by derived classes to save the translated records.</param>
         /// <remarks>
-        /// This is used by derived classes to translate the data managed by the data provider to another language.
-        /// The derived class provides <paramref name="getRecords"/> and <paramref name="saveRecordAsync"/> methods, which are used to retrieve, translate and save the data.
+        /// The data provider has to retrieve all records and translate them as needed using the
+        /// provided <paramref name="translateStringsAsync"/> and <paramref name="translateComplexStringAsync"/> methods, and save the translated data.
+        ///
+        /// The YetaWF.Core.Models.ObjectSupport.TranslateObject method can be used to translate all YetaWF.Core.Models.MultiString instances.
+        ///
+        /// The translated data should be stored separately from the default language (except MultiString, which is part of the record).
+        /// Using the <paramref name="language"/> parameter, a different folder should be used to store the translated data.
+        /// 
         /// The YetaWF.Core.Models.ObjectSupport.TranslateObject method is to translate all YetaWF.Core.Models.MultiString instances.
+        ///
+        /// The method providing <paramref name="getRecordsAsync"/> and <paramref name="saveRecordAsync"/> methods is used by derived classes to translate the data managed by the data provider to another language.
+        /// The derived class provides <paramref name="getRecordsAsync"/> and <paramref name="saveRecordAsync"/> methods, which are used to retrieve, translate and save the data.
         /// </remarks>
+#pragma warning restore 1734
         protected async Task LocalizeModelAsync(string language,
                 Func<string, bool> isHtml,
-                Func<List<string>, Task<List<string>>> translateStringsAsync, Func<string, Task<string>> translateComplexStringAsync, Func<int, int, Task<DataProviderGetRecords<OBJTYPE>>> getRecords, Func<OBJTYPE, PropertyInfo, PropertyInfo, Task<UpdateStatusEnum>> saveRecordAsync) {
+                Func<List<string>, Task<List<string>>> translateStringsAsync, Func<string, Task<string>> translateComplexStringAsync, Func<int, int, Task<DataProviderGetRecords<OBJTYPE>>> getRecordsAsync, Func<OBJTYPE, PropertyInfo, PropertyInfo, Task<UpdateStatusEnum>> saveRecordAsync) {
 
             const int RECORDS = 20;
 
@@ -761,7 +776,7 @@ DELETE FROM {fullTableName} WHERE [{SiteColumn}] = {SiteIdentity}
                 key2Prop = ObjectSupport.GetProperty(typeof(OBJTYPE), Key2Name);
 
             for (int offset = 0; ;) {
-                DataProviderGetRecords<OBJTYPE> data = await getRecords(offset, RECORDS);
+                DataProviderGetRecords<OBJTYPE> data = await getRecordsAsync(offset, RECORDS);
                 if (data.Data.Count == 0)
                     break;
                 foreach (OBJTYPE record in data.Data) {
@@ -799,7 +814,7 @@ DELETE FROM {fullTableName} WHERE [{SiteColumn}] = {SiteIdentity}
                     if (val != null) {
                         PropertyInfo pi = prop.PropInfo;
                         if (pi.PropertyType == typeof(byte[])) {
-                            data = (byte[]) val;
+                            data = (byte[])val;
                         } else {
                             data = new GeneralFormatter().Serialize(val);
                         }
