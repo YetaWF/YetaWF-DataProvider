@@ -18,7 +18,7 @@ BEGIN
     DECLARE @Asm nvarchar(200);
 
     SELECT TOP 1 @Table=[DerivedDataTableName], @Type=[DerivedDataType], @Asm=[DerivedAssemblyName]
-    FROM [yetawf].[dbo].[YetaWF_Modules] WITH(NOLOCK)
+    FROM [Var,SQL-Dbo].[YetaWF_Modules] WITH(NOLOCK)
     WHERE [ModuleGuid] = @Key1Val AND [__Site] = @valSiteIdentity
     
     IF @@ROWCOUNT > 0

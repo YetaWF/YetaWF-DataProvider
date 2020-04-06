@@ -103,7 +103,7 @@ BEGIN
             sb.Append($@")
 ;
     DECLARE @__ROWCOUNT int = @@ROWCOUNT;
-    SELECT @@ROWCOUNT  --- result set
+    SELECT @__ROWCOUNT  --- result set
 ;");
 
             sb.Append($@"

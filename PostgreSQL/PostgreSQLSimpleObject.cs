@@ -121,9 +121,9 @@ namespace YetaWF.DataProvider.PostgreSQL {
                     int identity = Convert.ToInt32(reader[0]);
                     if (identity == -1)
                         return false;// already exists
-                    if (identity <= 0)
-                        throw new InternalError($"{nameof(AddAsync)} invalid identity {identity} returned");
                     if (HasIdentity(IdentityName)) {
+                        if (identity <= 0)
+                            throw new InternalError($"{nameof(AddAsync)} invalid identity {identity} returned");
                         PropertyInfo piIdent = ObjectSupport.GetProperty(typeof(OBJTYPE), IdentityName);
                         if (piIdent.PropertyType != typeof(int)) throw new InternalError($"Object identities must be of type int in {typeof(OBJTYPE).FullName}");
                         piIdent.SetValue(obj, identity);

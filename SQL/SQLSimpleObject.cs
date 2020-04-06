@@ -814,7 +814,8 @@ DELETE FROM {fullTableName} WHERE [{SiteColumn}] = {SiteIdentity}
                     if (val != null) {
                         PropertyInfo pi = prop.PropInfo;
                         if (pi.PropertyType == typeof(byte[])) {
-                            data = (byte[])val;
+                            if (((byte[])val).Length > 0)
+                                data = (byte[]) val;
                         } else {
                             data = new GeneralFormatter().Serialize(val);
                         }

@@ -639,17 +639,16 @@ IF EXISTS (
                     if (name == SQLGenericBase.SubTableKeyColumn)
                         return null;
                     if (name == SQLGen.DerivedTableName)
-                        return $@"@{SQLGen.ValDerivedTableName} character varying,";
+                        return $@"@{SQLGen.ValDerivedTableName} nvarchar(80),";
                     if (name == SQLGen.DerivedDataType) 
-                        return $@"@{SQLGen.ValDerivedDataType} character varying,";
+                        return $@"@{SQLGen.ValDerivedDataType} nvarchar(200),";
                     if (name == SQLGen.DerivedAssemblyName) 
-                        return $@"@{SQLGen.ValDerivedAssemblyName} character varying,";
-                    string colType = "character varying";
+                        return $@"@{SQLGen.ValDerivedAssemblyName} nvarchar(200),";
                     if (name == SQLGenericBase.SiteColumn) {
                         name = SQLGen.ValSiteIdentity;
-                        colType = "integer";
+                        return $@"@{prefix}{name} int,";
                     }
-                    return $@"@{prefix}{name} {colType},";
+                    return null;
                 },
                 (prefix, container, prop, subPropData, subType, subtableName) => { // Subtable
                     return $@"@arg{prefix}{prop.ColumnName} AS [{schema}].[{subtableName}_T] READONLY,";
@@ -696,12 +695,11 @@ IF EXISTS (
                 (prefix, container, name) => { // predef
                     if (name == SQLGenericBase.SubTableKeyColumn)
                         return null;
-                    string colType = "character varying";
                     if (name == SQLGenericBase.SiteColumn) {
                         name = SQLGen.ValSiteIdentity;
-                        colType = "integer";
+                        return $@"[{prefix}{name}] int,";
                     }
-                    return $@"[{prefix}{name}] {colType},";
+                    return null;
                 },
                 (prefix, container, prop, subPropData, subType, subtableName) => { // Subtable
                     return null;
