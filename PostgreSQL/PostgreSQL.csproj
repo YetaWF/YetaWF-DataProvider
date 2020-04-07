@@ -17,6 +17,10 @@
     <RootNamespace>YetaWF.DataProvider.PostgreSQL</RootNamespace>
   </PropertyGroup>
 
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|AnyCPU'">
+    <DocumentationFile>bin\Debug\netcoreapp3.1\YetaWF.DataProvider.PostgreSQL.xml</DocumentationFile>
+  </PropertyGroup>
+
   <ItemGroup>
     <Compile Remove="UnmappedCompositeClassMemberHandler.cs" />
     <Compile Remove="UnmappedCompositeConstructorHandler.cs" />

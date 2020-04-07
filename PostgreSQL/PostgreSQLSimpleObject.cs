@@ -431,7 +431,7 @@ FROM {fullTableName}
             return 1;// because Postgres...
         }
 
-        protected void AddSubtableMapping() {
+        internal void AddSubtableMapping() {
             List<PropertyData> propData = GetPropertyData();
             List<SQLGenericGen.SubTableInfo> subTables = SQLGen.GetSubTables(Dataset, propData);
             foreach (SQLGenericGen.SubTableInfo subTable in subTables) {

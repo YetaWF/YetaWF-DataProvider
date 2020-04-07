@@ -450,6 +450,7 @@ namespace YetaWF.DataProvider.PostgreSQL {
         /// <param name="wherecolumn">The name of the column</param>
         /// <param name="operator">The operator, e.g. = &lt;= LIKE &lt;&gt; etc.</param>
         /// <param name="value">The value. If it is a string it is properly escaped etc.</param>
+        /// <param name="cast">An optional string used to cast the PostgreSQL value type.</param>
         /// <param name="isSet">Identifies this comparison as a set statement. Needed for setting null values.</param>
         internal void AddExpr(SQLBuilder sb, string wherecolumn, string @operator, object value, string cast = null, bool isSet = false) {
             if (!wherecolumn.Contains(".") && !wherecolumn.StartsWith("\""))
@@ -487,6 +488,8 @@ namespace YetaWF.DataProvider.PostgreSQL {
         /// </summary>
         /// <param name="name">The name of the parameter</param>
         /// <param name="value">The value of the parameter</param>
+        /// <param name="DbType">The optional type of the parameter value.</param>
+        /// <param name="DataTypeName">The optional PostgreSQL type of the parameter value. A corresponding User-Defined Type must exist in the database.</param>
         /// <param name="Direction">The direction of the parameter (input or output).</param>
         public void AddParam(string name, object value, ParameterDirection Direction = ParameterDirection.Input, NpgsqlDbType DbType = NpgsqlDbType.Unknown, string DataTypeName = null)/*<<<*/ {
 

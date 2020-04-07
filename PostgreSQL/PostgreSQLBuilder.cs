@@ -114,20 +114,10 @@ namespace YetaWF.DataProvider.PostgreSQL {
         /// Returns a formatted table name or a formatted database name, database owner and table name, with brackets.
         /// </summary>
         /// <param name="tableName">The table name.</param>
-        /// <returns>Returns a formatted table or a formatted name database name, database owner and table name, with brackets.</returns>
+        /// <returns>Returns a formatted table name or a formatted name database name, database owner and table name, with brackets.</returns>
         /// <remarks>The result is bracketed. This method considers whether any of the parameters is already bracketed in which case no further brackets are added.</remarks>
         public override string BuildFullTableName(string tableName) {
             return WrapIdentifier(tableName);
-        }
-        /// <summary>
-        /// Returns a formatted table name and column name, with brackets.
-        /// </summary>
-        /// <param name="tableName">The table name.</param>
-        /// <param name="column">The column name.</param>
-        /// <returns>Returns a formatted table name and column name, with brackets.</returns>
-        /// <remarks>The result is bracketed. This method considers whether either parameter is already bracketed in which case no further brackets are added.</remarks>
-        public override string BuildFullColumnName(string tableName, string column) {
-            return BuildFullTableName(tableName) + "." + WrapIdentifier(column);
         }
         /// <summary>
         /// Returns a formatted table name or a formatted database name, database owner and table name, with brackets.
@@ -135,10 +125,20 @@ namespace YetaWF.DataProvider.PostgreSQL {
         /// <param name="database">The database name.</param>
         /// <param name="schema">The database schema.</param>
         /// <param name="tableName">The table name.</param>
-        /// <returns>Returns a formatted table or a formatted name database name, database owner and table name, with brackets.</returns>
+        /// <returns>Returns a formatted table name or a formatted name database name, database owner and table name, with brackets.</returns>
         /// <remarks>The result is bracketed. This method considers whether any of the parameters is already bracketed in which case no further brackets are added.</remarks>
         public override string BuildFullTableName(string database, string schema, string tableName) {
             return $@"""{schema}"".{WrapIdentifier(tableName)}";
+        }
+        /// <summary>
+        /// Returns a formatted column name or a formatted database name, database owner, table name and column name, with brackets.
+        /// </summary>
+        /// <param name="tableName">The table name.</param>
+        /// <param name="column">The column name.</param>
+        /// <returns>Returns a formatted name, with brackets.</returns>
+        /// <remarks>The result is bracketed. This method considers whether any of the parameters is already bracketed in which case no further brackets are added.</remarks>
+        public override string BuildFullColumnName(string tableName, string column) {
+            return BuildFullTableName(tableName) + "." + WrapIdentifier(column);
         }
         /// <summary>
         /// Returns a formatted column name or a formatted database name, database owner, table name and column name, with brackets.
@@ -147,7 +147,7 @@ namespace YetaWF.DataProvider.PostgreSQL {
         /// <param name="schema">The database schema.</param>
         /// <param name="tableName">The table name.</param>
         /// <param name="column">The column name.</param>
-        /// <returns>Returns a formatted column name or a formatted database name, database owner, table name and column name, with brackets.</returns>
+        /// <returns>Returns a formatted name, with brackets.</returns>
         /// <remarks>The result is bracketed. This method considers whether any of the parameters is already bracketed in which case no further brackets are added.</remarks>
         public override string BuildFullColumnName(string database, string schema, string tableName, string column) {
             return $@"""{schema}"".{BuildFullColumnName(tableName, column)}";
@@ -157,7 +157,7 @@ namespace YetaWF.DataProvider.PostgreSQL {
         /// </summary>
         /// <param name="column">The column name.</param>
         /// <param name="visibleColumns">The collection of columns visible in the table.</param>
-        /// <returns>Returns a formatted column name or a formatted database name, database owner, table name and column name, with brackets.</returns>
+        /// <returns>Returns a formatted name, with brackets.</returns>
         /// <remarks>The result is bracketed. This method considers whether any of the parameters is already bracketed in which case no further brackets are added.</remarks>
         internal string BuildFullColumnName(string column, Dictionary<string, string> visibleColumns) {
             if (visibleColumns != null) {
