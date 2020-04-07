@@ -11,6 +11,9 @@ namespace YetaWF.DataProvider.SQLGeneric {
     /// </summary>
     public abstract class SQLGenericBuilder {
 
+        /// <summary>
+        /// Used to hold the SQL string being built.
+        /// </summary>
         protected readonly StringBuilder _sb;
 
         /// <summary>
@@ -46,6 +49,10 @@ namespace YetaWF.DataProvider.SQLGeneric {
             if (_sb.Length > 0)
                 _sb.Remove(_sb.Length - 1, 1);// remove last character
         }
+        /// <summary>
+        /// Removes the last comma.
+        /// </summary>
+        /// <remarks>Skips \r and \n to find the comma. If another character is encountered, nothing is removed.</remarks>
         public void RemoveLastComma() {
             _sb.RemoveLastComma();
         }
@@ -55,37 +62,37 @@ namespace YetaWF.DataProvider.SQLGeneric {
         // TABLE, COLUMN FORMATTING
 
         /// <summary>
-        /// Returns a formatted table name or a formatted database name, database schema and table name, with brackets.
+        /// Returns a formatted table name or a formatted database name, database owner and table name, with brackets.
         /// </summary>
         /// <param name="tableName">The table name.</param>
-        /// <returns>Returns a formatted table or a formatted name database name, database schema and table name, with brackets.</returns>
+        /// <returns>Returns a formatted table name or a formatted name database name, database owner and table name, with brackets.</returns>
         /// <remarks>The result is bracketed. This method considers whether any of the parameters is already bracketed in which case no further brackets are added.</remarks>
         public abstract string BuildFullTableName(string tableName);
         /// <summary>
-        /// Returns a formatted table name and column name, with brackets.
-        /// </summary>
-        /// <param name="tableName">The table name.</param>
-        /// <param name="column">The column name.</param>
-        /// <returns>Returns a formatted table name and column name, with brackets.</returns>
-        /// <remarks>The result is bracketed. This method considers whether either parameter is already bracketed in which case no further brackets are added.</remarks>
-        public abstract string BuildFullColumnName(string tableName, string column);
-        /// <summary>
-        /// Returns a formatted table name or a formatted database name, database schema and table name, with brackets.
+        /// Returns a formatted table name or a formatted database name, database owner and table name, with brackets.
         /// </summary>
         /// <param name="database">The database name.</param>
-        /// <param name="schema">The database schema.</param>
+        /// <param name="schema">The schema.</param>
         /// <param name="tableName">The table name.</param>
-        /// <returns>Returns a formatted table or a formatted name database name, database schema and table name, with brackets.</returns>
+        /// <returns>Returns a formatted table name or a formatted name database name, database owner and table name, with brackets.</returns>
         /// <remarks>The result is bracketed. This method considers whether any of the parameters is already bracketed in which case no further brackets are added.</remarks>
         public abstract string BuildFullTableName(string database, string schema, string tableName);
         /// <summary>
-        /// Returns a formatted column name or a formatted database name, database schema, table name and column name, with brackets.
+        /// Returns a formatted column name or a formatted database name, database owner, table name and column name, with brackets.
         /// </summary>
-        /// <param name="database">The database name.</param>
-        /// <param name="schema">The database schema.</param>
         /// <param name="tableName">The table name.</param>
         /// <param name="column">The column name.</param>
-        /// <returns>Returns a formatted column name or a formatted database name, database schema, table name and column name, with brackets.</returns>
+        /// <returns>Returns a formatted name, with brackets.</returns>
+        /// <remarks>The result is bracketed. This method considers whether any of the parameters is already bracketed in which case no further brackets are added.</remarks>
+        public abstract string BuildFullColumnName(string tableName, string column);
+        /// <summary>
+        /// Returns a formatted column name or a formatted database name, database owner, table name and column name, with brackets.
+        /// </summary>
+        /// <param name="database">The database name.</param>
+        /// <param name="dbOwner">The database owner.</param>
+        /// <param name="tableName">The table name.</param>
+        /// <param name="column">The column name.</param>
+        /// <returns>Returns a formatted name, with brackets.</returns>
         /// <remarks>The result is bracketed. This method considers whether any of the parameters is already bracketed in which case no further brackets are added.</remarks>
         public abstract string BuildFullColumnName(string database, string schema, string tableName, string column);
     }

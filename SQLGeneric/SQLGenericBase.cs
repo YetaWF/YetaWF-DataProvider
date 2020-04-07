@@ -129,6 +129,10 @@ namespace YetaWF.DataProvider.SQLGeneric {
         /// <remarks>If no identity column is defined for the specified table, an empty string is returned.</remarks>
         public string IdentityName { get { return GetIdentityName(Dataset, GetPropertyData()); } }
 
+        /// <summary>
+        /// Returns the identity column name or the default identity column name for the current object type.
+        /// </summary>
+        /// <remarks>This should only be used for objects that are known to have an identity column.</remarks>
         protected string IdentityNameOrDefault {
             get {
                 if (string.IsNullOrWhiteSpace(_identityOrDefault))
@@ -150,6 +154,7 @@ namespace YetaWF.DataProvider.SQLGeneric {
         /// Constructor.
         /// </summary>
         /// <param name="options">A dictionary of options and optional parameters as provided to the YetaWF.Core.DataProvider.DataProviderImpl.MakeDataProvider method when the data provider is created.</param>
+        /// <param name="HasKey2">Defines whether the object has a secondary key.</param>
         /// <remarks>
         /// Data providers are instantiated when the YetaWF.Core.DataProvider.DataProviderImpl.MakeDataProvider method is called, usually by an application data provider.
         ///
@@ -325,7 +330,12 @@ namespace YetaWF.DataProvider.SQLGeneric {
         // SORTS, FILTERS
         // SORTS, FILTERS
 
-        // Update column names for constructed names (as used in MultiString)
+        /// <summary>
+        /// Normalizes filters and updates column names for constructed names (as used in MultiString).
+        /// </summary>
+        /// <param name="type">The target object type for which filters are normalized.</param>
+        /// <param name="filters">The filters to be normalized, may be null.</param>
+        /// <returns>Returns normalized filters.</returns>
         protected List<DataProviderFilterInfo> NormalizeFilter(Type type, List<DataProviderFilterInfo> filters) {
             if (filters == null) 
                 return null;
@@ -354,6 +364,12 @@ namespace YetaWF.DataProvider.SQLGeneric {
             }
             return propData.ColumnName;
         }
+        /// <summary>
+        /// Normalizes sort filters.
+        /// </summary>
+        /// <param name="type">The target object type for which filters are normalized.</param>
+        /// <param name="sorts">The filters to be normalized, may be null.</param>
+        /// <returns>Returns normalized filters.</returns>
         protected List<DataProviderSortInfo> NormalizeSort(Type type, List<DataProviderSortInfo> sorts) {
             if (sorts == null) 
                 return null;
@@ -369,9 +385,19 @@ namespace YetaWF.DataProvider.SQLGeneric {
             }
             return sorts;
         }
+        /// <summary>
+        /// Returns a column name based on language id.
+        /// </summary>
+        /// <param name="langId">The language id.</param>
+        /// <param name="field">The original column name.</param>
+        /// <returns>Returns a column name based on language id.</returns>
         public static string ColumnFromPropertyWithLanguage(string langId, string field) {
             return field + "_" + langId.Replace("-", "_");
         }
+        /// <summary>
+        /// Returns the suffix appended to language dependent columns using the active language.
+        /// </summary>
+        /// <returns>Returns the suffix appended to language dependent columns using the active language.</returns>
         public static string GetLanguageSuffix() {
             return ColumnFromPropertyWithLanguage(MultiString.ActiveLanguage, "");
         }
