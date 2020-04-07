@@ -465,7 +465,7 @@ BEGIN");
 ;");
                 }
                 sb.Add($@"
-    DELETE FROM {fullTableName} WHERE ""{GetIdentityNameOrDefault(identityName)}"" = @__IDENTITY
+    DELETE FROM {fullTableName} WHERE [{GetIdentityNameOrDefault(identityName)}] = @__IDENTITY
 
     SELECT @@ROWCOUNT --- result set
 ;");
@@ -510,7 +510,7 @@ BEGIN");
 ;");
                 }
                 sb.Add($@"
-    DELETE FROM {fullTableName} WHERE ""{GetIdentityNameOrDefault(identityName)}"" = @__IDENTITY
+    DELETE FROM {fullTableName} WHERE [{GetIdentityNameOrDefault(identityName)}] = @__IDENTITY
 
     SELECT @@ROWCOUNT --- result set
 ;");

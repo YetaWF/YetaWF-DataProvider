@@ -89,7 +89,7 @@ namespace YetaWF.DataProvider.SQL {
             sqlHelper.AddParam("ValIdentity", identity);
 
             try {
-                using (SqlDataReader reader = await sqlHelper.ExecuteReaderStoredProcAsync($@"""{Dbo}"".""{Dataset}__UpdateByIdentity""")) {
+                using (SqlDataReader reader = await sqlHelper.ExecuteReaderStoredProcAsync($@"[{Dbo}].[{Dataset}__UpdateByIdentity]")) {
                     if (!(YetaWFManager.IsSync() ? reader.Read() : await reader.ReadAsync()))
                         throw new InternalError($"No result set received from {Dataset}__UpdateByIdentity");
                     int changed = Convert.ToInt32(reader[0]);
