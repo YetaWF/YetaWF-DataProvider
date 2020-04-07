@@ -189,6 +189,7 @@ namespace YetaWF.DataProvider.SQL {
 
             if (Dataset == BaseDataset) throw new InternalError("Only derived types are supported");
             if (!origKey.Equals(newKey)) throw new InternalError("Can't change key");
+            if (!origKey.Equals(((ModuleDefinition)(object)obj).ModuleGuid)) throw new InternalError("Key mismatch");
 
             await EnsureOpenAsync();
 
@@ -237,8 +238,9 @@ namespace YetaWF.DataProvider.SQL {
             SQLHelper sqlHelper = new SQLHelper(Conn, null, Languages);
             sqlHelper.AddParam("Key1Val", key);
             sqlHelper.AddParam(SQLGen.ValSiteIdentity, SiteIdentity);
-            using (SqlDataReader reader = await sqlHelper.ExecuteReaderStoredProcAsync($@"""{Dbo}"".""{Dataset}__Remove""")) {
-                if (!(YetaWFManager.IsSync() ? reader.Read() : await reader.ReadAsync())) return false;
+            using (SqlDataReader reader = await sqlHelper.ExecuteReaderStoredProcAsync($@"""{Dbo}"".""{Dataset}__RemoveBase""")) {
+                if (!(YetaWFManager.IsSync() ? reader.Read() : await reader.ReadAsync())) 
+                    return false;
                 int removed = Convert.ToInt32(reader[0]);
                 return removed > 0;
             }

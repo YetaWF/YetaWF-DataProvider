@@ -207,11 +207,11 @@ BEGIN
             } else {
                 sb.Append($@"
     DECLARE @__ROWCOUNT int = @@ROWCOUNT;
-    SELECT @@ROWCOUNT  --- result set");
+    SELECT @__ROWCOUNT  --- result set");
 
             if (subTables.Count > 0) {
                     sb.Append($@"
-    IF @__ROWCOUNT IS NOT NULL
+    IF @__ROWCOUNT > 0
     BEGIN");
                 }
             }
@@ -296,11 +296,11 @@ BEGIN");
             sb.Append($@"
 
     DECLARE @__ROWCOUNT int = @@ROWCOUNT;
-    SELECT @@ROWCOUNT  --- result set");
+    SELECT @__ROWCOUNT  --- result set");
 
             if (subTables.Count > 0) {
                 sb.Append($@"
-    IF @__ROWCOUNT IS NOT NULL
+    IF @__ROWCOUNT > 0
     BEGIN
 ");
             }
@@ -369,11 +369,11 @@ BEGIN
                 sb.Append($@"
 
     DECLARE @__ROWCOUNT int = @@ROWCOUNT;
-    SELECT @@ROWCOUNT  --- result set");
+    SELECT @__ROWCOUNT  --- result set");
 
                 if (subTables.Count > 0) {
                     sb.Append($@"
-    IF @__ROWCOUNT IS NOT NULL
+    IF @__ROWCOUNT > 0
     BEGIN
 ");
                 }

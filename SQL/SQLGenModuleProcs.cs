@@ -108,7 +108,7 @@ BEGIN
 
             sb.Append($@"
 
-    IF @__ROWCOUNT IS NOT NULL
+    IF @__ROWCOUNT > 0
     BEGIN
         INSERT INTO {fullTableName} ({GetColumnNameList(dbName, schema, dataset, propData, type, Add: true, Prefix: null, TopMost: true, SiteSpecific: siteIdentity > 0, WithDerivedInfo: false, SubTable: false)}");
             sb.RemoveLastComma();
@@ -155,7 +155,7 @@ BEGIN");
     WHERE [{key1Name}] = @arg{key1Name} AND [{SQLGenericBase.SiteColumn}] = @{SQLGen.ValSiteIdentity}
 ;
     DECLARE @__ROWCOUNT int = @@ROWCOUNT;
-    SELECT @@ROWCOUNT  --- result set
+    SELECT @__ROWCOUNT  --- result set
 ;");
 
             string setList = GetSetList(dbName, schema, dataset, propData, type, Prefix: null, TopMost: true, SiteSpecific: siteIdentity > 0, WithDerivedInfo: false, SubTable: false);
@@ -163,7 +163,7 @@ BEGIN");
 
                 sb.Append($@"
 
-    IF @__ROWCOUNT IS NOT NULL
+    IF @__ROWCOUNT > 0
     BEGIN
         UPDATE {fullTableName}
         SET {setList}");
