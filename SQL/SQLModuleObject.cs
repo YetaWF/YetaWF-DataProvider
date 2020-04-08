@@ -37,20 +37,18 @@ namespace YetaWF.DataProvider.SQL {
         /// </summary>
         public string Name { get; set; }
         /// <summary>
-        /// The module's description.
-        /// </summary>
-        public MultiString Description { get; set; }
-        /// <summary>
         /// The name of the assembly implementing the module type.
         /// </summary>
         public string DerivedAssemblyName { get; set; }
+        /// <summary>
+        /// The name of the System.Type implementing the module type.
+        /// </summary>
+        public string DerivedDataType { get; set; }
 
         /// <summary>
         /// Consstructor
         /// </summary>
-        public TempDesignedModule() {
-            Description = new MultiString();
-        }
+        public TempDesignedModule() { }
     }
 
     /// <summary>
