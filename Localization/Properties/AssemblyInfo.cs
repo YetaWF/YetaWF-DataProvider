@@ -17,3 +17,9 @@ using YetaWF.PackageAttributes;
 [assembly: AssemblyVersion("5.1.0.0")]
 
 [assembly: Package(PackageTypeEnum.DataProvider, "YetaWF.DataProvider")]
+
+[assembly: PackageInfo("https://YetaWF.com/UpdateServer",
+    "https://yetawf.com/Documentation/YetaWFLocalization",
+    "https://YetaWF.com/Documentation/YetaWFLocalization#Support",
+    "https://yetawf.com/Documentation/YetaWFLocalization#Release%20Notice",
+    "https://yetawf.com/Documentation/YetaWFLocalization#License")]

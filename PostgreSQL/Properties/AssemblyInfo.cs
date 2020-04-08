@@ -16,6 +16,12 @@ using YetaWF.PackageAttributes;
 
 [assembly: Package(PackageTypeEnum.DataProvider, "YetaWF.DataProvider")]
 
+[assembly: PackageInfo("https://YetaWF.com/UpdateServer",
+    "https://yetawf.com/Documentation/YetaWFPostgreSQL",
+    "https://YetaWF.com/Documentation/YetaWFPostgreSQL#Support",
+    "https://yetawf.com/Documentation/YetaWFPostgreSQL#Release%20Notice",
+    "https://yetawf.com/Documentation/YetaWFPostgreSQL#License")]
+
 
 // PostgreSQL is not well suited for YetaWF. We need case insensitive collation, so grid filters, etc. work "better". Translating to lowercase in queries 
 // is not an option as it is s-l-o-w. And in general having the same keys allowed even if they only differ in casing feels just wrong.

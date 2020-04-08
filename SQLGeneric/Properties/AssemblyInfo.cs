@@ -15,3 +15,10 @@ using YetaWF.PackageAttributes;
 [assembly: AssemblyVersion("5.1.0.0")]
 
 [assembly: Package(PackageTypeEnum.DataProvider, "YetaWF.DataProvider")]
+
+[assembly: PackageInfo("https://YetaWF.com/UpdateServer",
+    "https://yetawf.com/Documentation/YetaWFSQLGeneric",
+    "https://YetaWF.com/Documentation/YetaWFSQLGeneric#Support",
+    "https://yetawf.com/Documentation/YetaWFSQLGeneric#Release%20Notice",
+    "https://yetawf.com/Documentation/YetaWFSQLGeneric#License")]
+
