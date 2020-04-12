@@ -282,12 +282,13 @@ namespace YetaWF.DataProvider.PostgreSQL {
         /// When using arguments, they are referenced in the SQL statement(s) <paramref name="sql"/> using @p1, @p2, etc. where @p1 is replaced by the first optional argument.
         /// SQL injection attacks are not possible when using parameters.
         /// </remarks>
+        /// <returns>Some forms of this method return an object of type {i}TYPE{/i}.</returns>
         public async Task Direct_QueryAsync(string sql) {
             await EnsureOpenAsync();
             await Direct_QueryAsync(sql, Array.Empty<object>());
         }
         /// <summary>
-        /// Executes the provided PostgreSQL statement(s).
+        /// Executes the provided SQL statement(s).
         /// </summary>
         /// <param name="sql">The SQL statement(s).</param>
         /// <param name="args">Optional arguments that are passed when executing the SQL statements.</param>
@@ -297,6 +298,7 @@ namespace YetaWF.DataProvider.PostgreSQL {
         /// When using arguments, they are referenced in the SQL statement(s) <paramref name="sql"/> using @p1, @p2, etc. where @p1 is replaced by the first optional argument.
         /// SQL injection attacks are not possible when using parameters.
         /// </remarks>
+        /// <returns>Some forms of this method return an object of type {i}TYPE{/i}.</returns>
         public async Task Direct_QueryAsync(string sql, params object[] args) {
             await EnsureOpenAsync();
             SQLHelper sqlHelper = new SQLHelper(Conn, null, Languages);
@@ -312,23 +314,31 @@ namespace YetaWF.DataProvider.PostgreSQL {
             await sqlHelper.ExecuteNonQueryAsync(sql);
         }
         /// <summary>
-        /// Executes the provided SQL statement(s) and returns an object of type {i}TYPE{/i}.
+        /// Executes the provided SQL statement(s).
         /// </summary>
         /// <param name="sql">The SQL statement(s).</param>
         /// <remarks>This is used by application data providers to build and execute complex queries that are not possible with the standard data providers.
-        /// Use of this method limits the application data provider to SQL repositories.</remarks>
-        /// <returns>Returns an object of type {i}TYPE{/i}.</returns>
+        /// Use of this method limits the application data provider to PostgreSQL repositories.
+        ///
+        /// When using arguments, they are referenced in the SQL statement(s) <paramref name="sql"/> using @p1, @p2, etc. where @p1 is replaced by the first optional argument.
+        /// SQL injection attacks are not possible when using parameters.
+        /// </remarks>
+        /// <returns>Some forms of this method return an object of type {i}TYPE{/i}.</returns>
         public async Task<TYPE> Direct_QueryAsync<TYPE>(string sql) {
             return await Direct_QueryAsync<TYPE>(sql, Array.Empty<object>());
         }
         /// <summary>
-        /// Executes the provided SQL statement(s) and returns an object of type {i}TYPE{/i}.
+        /// Executes the provided SQL statement(s).
         /// </summary>
         /// <param name="sql">The SQL statement(s).</param>
         /// <param name="args">Optional arguments that are passed when executing the SQL statements.</param>
         /// <remarks>This is used by application data providers to build and execute complex queries that are not possible with the standard data providers.
-        /// Use of this method limits the application data provider to PostgreSQL repositories.</remarks>
-        /// <returns>Returns an object of type {i}TYPE{/i}.</returns>
+        /// Use of this method limits the application data provider to PostgreSQL repositories.
+        ///
+        /// When using arguments, they are referenced in the SQL statement(s) <paramref name="sql"/> using @p1, @p2, etc. where @p1 is replaced by the first optional argument.
+        /// SQL injection attacks are not possible when using parameters.
+        /// </remarks>
+        /// <returns>Some forms of this method return an object of type {i}TYPE{/i}.</returns>
         public async Task<TYPE> Direct_QueryAsync<TYPE>(string sql, params object[] args) {
             await EnsureOpenAsync();
             SQLHelper sqlHelper = new SQLHelper(Conn, null, Languages);
@@ -355,7 +365,7 @@ namespace YetaWF.DataProvider.PostgreSQL {
         /// <param name="sql">The SQL statement(s).</param>
         /// <remarks>This is used by application data providers to build and execute complex queries that are not possible with the standard data providers.
         /// Use of this method limits the application data provider to SQL repositories.</remarks>
-        /// <returns>Returns a collection  of objects (one for each row retrieved) of type {i}TYPE{/i}.</returns>
+        /// <returns>Returns a collection of objects (one for each row retrieved) of type {i}TYPE{/i}.</returns>
         public async Task<List<TYPE>> Direct_QueryListAsync<TYPE>(string sql) {
             return await Direct_QueryListAsync<TYPE>(sql, Array.Empty<object>());
         }
