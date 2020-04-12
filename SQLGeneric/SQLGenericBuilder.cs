@@ -89,7 +89,7 @@ namespace YetaWF.DataProvider.SQLGeneric {
         /// Returns a formatted column name or a formatted database name, database owner, table name and column name, with brackets.
         /// </summary>
         /// <param name="database">The database name.</param>
-        /// <param name="dbOwner">The database owner.</param>
+        /// <param name="schema">The database owner.</param>
         /// <param name="tableName">The table name.</param>
         /// <param name="column">The column name.</param>
         /// <returns>Returns a formatted name, with brackets.</returns>
