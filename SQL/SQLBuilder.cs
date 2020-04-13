@@ -1,5 +1,6 @@
 ﻿/* Copyright © 2020 Softel vdm, Inc. - https://yetawf.com/Documentation/YetaWF/Licensing */
 
+using System;
 using System.Collections.Generic;
 using System.Text;
 using YetaWF.Core.DataProvider;
@@ -13,6 +14,27 @@ namespace YetaWF.DataProvider.SQL {
     /// Similar to the System.Text.StringBuilder class but specialized for SQL statements.
     /// </summary>
     public class SQLBuilder : SQLGenericBuilder {
+
+        /// <summary>
+        /// Defines whether stored procs are being generated.
+        /// </summary>
+        /// <remarks>
+        /// Stored procedures should not use the database name in object qualifiers, as database names change. For dynamic SQL a database name is required.
+        /// So we're suppressing the database name while generating stored procedures, as they only reference the current database.
+        /// </remarks>
+        public static bool GeneratingProcsInProgress { get; private set; } = false;
+
+        internal class GeneratingProcs : IDisposable {
+            public GeneratingProcs() {
+                DisposableTracker.AddObject(this);
+                GeneratingProcsInProgress = true;
+            }
+            public void Dispose() { Dispose(true); }
+            protected virtual void Dispose(bool disposing) {
+                if (disposing) DisposableTracker.RemoveObject(this);
+                GeneratingProcsInProgress = false;
+            }
+        }
 
         /// <summary>
         /// Appends a table name. Renders a fully qualified table name, including database and DB owner, with brackets.
@@ -128,7 +150,10 @@ namespace YetaWF.DataProvider.SQL {
         /// <returns>Returns a formatted table name or a formatted name database name, database owner and table name, with brackets.</returns>
         /// <remarks>The result is bracketed. This method considers whether any of the parameters is already bracketed in which case no further brackets are added.</remarks>
         public override string BuildFullTableName(string database, string dbo, string tableName) {
-            return $"{WrapIdentifier(database)}.{WrapIdentifier(dbo)}.{WrapIdentifier(tableName)}";
+            if (GeneratingProcsInProgress)
+                return $"{WrapIdentifier(dbo)}.{WrapIdentifier(tableName)}";
+            else
+                return $"{WrapIdentifier(database)}.{WrapIdentifier(dbo)}.{WrapIdentifier(tableName)}";
         }
         /// <summary>
         /// Returns a formatted column name or a formatted database name, database owner, table name and column name, with brackets.
@@ -150,7 +175,10 @@ namespace YetaWF.DataProvider.SQL {
         /// <returns>Returns a formatted name, with brackets.</returns>
         /// <remarks>The result is bracketed. This method considers whether any of the parameters is already bracketed in which case no further brackets are added.</remarks>
         public override string BuildFullColumnName(string database, string dbOwner, string tableName, string column) {
-            return $"{WrapIdentifier(database)}.{WrapIdentifier(dbOwner)}.{BuildFullColumnName(tableName, column)}";
+            if (GeneratingProcsInProgress)
+                return $"{WrapIdentifier(dbOwner)}.{BuildFullColumnName(tableName, column)}";
+            else
+                return $"{WrapIdentifier(database)}.{WrapIdentifier(dbOwner)}.{BuildFullColumnName(tableName, column)}";
         }
         /// <summary>
         /// Returns a formatted column name or a formatted database name, database owner, table name and column name, with brackets.

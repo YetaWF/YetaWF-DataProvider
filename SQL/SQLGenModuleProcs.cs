@@ -20,23 +20,25 @@ namespace YetaWF.DataProvider.SQL {
 
         internal bool MakeFunctionsWithBaseTypeAsync(string dbName, string schema, string baseDataset, string dataset, string key1Name, string identityName, List<PropertyData> combinedProps, List<PropertyData> basePropData, List<PropertyData> propData, Type baseType, Type type, int siteIdentity) {
 
-            SQLManager sqlManager = new SQLManager();
-            SQLBuilder sb = new SQLBuilder();
-            SQLHelper sqlHelper = new SQLHelper(Conn, null, Languages);
+            using (new SQLBuilder.GeneratingProcs()) {
 
-            string fullTableName = sb.GetTable(dbName, schema, dataset);
-            string fullBaseTableName = sb.GetTable(dbName, schema, baseDataset);
+                SQLManager sqlManager = new SQLManager();
+                SQLBuilder sb = new SQLBuilder();
+                SQLHelper sqlHelper = new SQLHelper(Conn, null, Languages);
 
-            Column colKey1 = sqlManager.GetColumn(Conn, dbName, schema, dataset, key1Name);
-            string typeKey1 = GetDataTypeArgumentString(colKey1);
+                string fullTableName = sb.GetTable(dbName, schema, dataset);
+                string fullBaseTableName = sb.GetTable(dbName, schema, baseDataset);
 
-            List<PropertyData> propDataNoDups = combinedProps.Except(basePropData, new PropertyDataComparer()).ToList();
+                Column colKey1 = sqlManager.GetColumn(Conn, dbName, schema, dataset, key1Name);
+                string typeKey1 = GetDataTypeArgumentString(colKey1);
 
-            // GET
-            // GET
-            // GET
+                List<PropertyData> propDataNoDups = combinedProps.Except(basePropData, new PropertyDataComparer()).ToList();
 
-            sb.Append($@"
+                // GET
+                // GET
+                // GET
+
+                sb.Append($@"
 IF EXISTS (
     SELECT sys.procedures.name FROM sys.procedures WITH(NOLOCK) 
     WHERE type = 'P' AND schema_id = SCHEMA_ID('{schema}') AND name = '{dataset}__Get' 
@@ -47,23 +49,23 @@ GO
 CREATE PROCEDURE [{schema}].[{dataset}__Get]
 (
     @Key1Val {typeKey1},");
-            if (siteIdentity > 0)
-                sb.Append($@"
+                if (siteIdentity > 0)
+                    sb.Append($@"
     @{SQLGen.ValSiteIdentity} integer,");
 
-            sb.RemoveLastComma();
-            sb.Append($@"
+                sb.RemoveLastComma();
+                sb.Append($@"
 )
 AS
 BEGIN");
 
-            Dictionary<string, string> visibleColumns = new Dictionary<string, string>();
+                Dictionary<string, string> visibleColumns = new Dictionary<string, string>();
 
-            sb.Append($@"
+                sb.Append($@"
     SELECT TOP 1 {GetColumnNameList(dbName, schema, baseDataset, basePropData, baseType, Prefix: null, TopMost: false, SiteSpecific: true, WithDerivedInfo: false, SubTable: false, VisibleColumns: visibleColumns)}{GetColumnNameList(dbName, schema, dataset, propDataNoDups, type, Prefix: null, TopMost: false, SiteSpecific: false, WithDerivedInfo: false, SubTable: false, VisibleColumns: visibleColumns)}");
-            sb.RemoveLastComma();
+                sb.RemoveLastComma();
 
-            sb.Append($@"
+                sb.Append($@"
     FROM {fullBaseTableName} WITH(NOLOCK)
     LEFT JOIN {fullTableName} ON {fullBaseTableName}.[{key1Name}] = {fullTableName}.[{key1Name}] AND {fullBaseTableName}.[{SQLGenericBase.SiteColumn}] = {fullTableName}.[{SQLGenericBase.SiteColumn}]
     WHERE {fullBaseTableName}.[{key1Name}] = @Key1Val AND {fullBaseTableName}.[{SQLGenericBase.SiteColumn}] = @{SQLGen.ValSiteIdentity}
@@ -75,11 +77,11 @@ GO
 
 ");
 
-            // ADD
-            // ADD
-            // ADD
+                // ADD
+                // ADD
+                // ADD
 
-            sb.Append($@"
+                sb.Append($@"
 IF EXISTS (
     SELECT sys.procedures.name FROM sys.procedures WITH(NOLOCK) 
     WHERE type = 'P' AND schema_id = SCHEMA_ID('{schema}') AND name = '{dataset}__Add' 
@@ -90,32 +92,32 @@ GO
 CREATE PROCEDURE [{schema}].[{dataset}__Add]
 (
     {GetArgumentNameList(dbName, schema, baseDataset, basePropData, baseType, Prefix: null, TopMost: false, SiteSpecific: true, WithDerivedInfo: true, SubTable: false)}{GetArgumentNameList(dbName, schema, dataset, propDataNoDups, type, Prefix: null, TopMost: false, SiteSpecific: false, WithDerivedInfo: false, SubTable: false)}");
-            sb.RemoveLastComma();
-            sb.Append($@"
+                sb.RemoveLastComma();
+                sb.Append($@"
 )
 AS
 BEGIN
     INSERT INTO {fullBaseTableName} ({GetColumnNameList(dbName, schema, baseDataset, basePropData, baseType, Add: true, Prefix: null, TopMost: true, SiteSpecific: siteIdentity > 0, WithDerivedInfo: true, SubTable: false)}");
-            sb.RemoveLastComma();
-            sb.Append($@")
+                sb.RemoveLastComma();
+                sb.Append($@")
     VALUES({GetValueNameList(dbName, schema, baseDataset, basePropData, baseType, Prefix: null, TopMost: true, SiteSpecific: siteIdentity > 0, WithDerivedInfo: true, SubTable: false)}");
-            sb.RemoveLastComma();
-            sb.Append($@")
+                sb.RemoveLastComma();
+                sb.Append($@")
 ;
     DECLARE @__ROWCOUNT int = @@ROWCOUNT;
     SELECT @__ROWCOUNT  --- result set
 ;");
 
-            sb.Append($@"
+                sb.Append($@"
 
     IF @__ROWCOUNT > 0
     BEGIN
         INSERT INTO {fullTableName} ({GetColumnNameList(dbName, schema, dataset, propData, type, Add: true, Prefix: null, TopMost: true, SiteSpecific: siteIdentity > 0, WithDerivedInfo: false, SubTable: false)}");
-            sb.RemoveLastComma();
-            sb.Append($@")
+                sb.RemoveLastComma();
+                sb.Append($@")
         VALUES({GetValueNameList(dbName, schema, dataset, propData, type, Prefix: null, TopMost: true, SiteSpecific: siteIdentity > 0, WithDerivedInfo: false, SubTable: false)}");
-            sb.RemoveLastComma();
-            sb.Append($@")
+                sb.RemoveLastComma();
+                sb.Append($@")
     END
 END
 
@@ -123,11 +125,11 @@ GO
 
 ");
 
-            // UPDATE
-            // UPDATE
-            // UPDATE
+                // UPDATE
+                // UPDATE
+                // UPDATE
 
-            sb.Append($@"
+                sb.Append($@"
 IF EXISTS (
     SELECT sys.procedures.name FROM sys.procedures WITH(NOLOCK) 
     WHERE type = 'P' AND schema_id = SCHEMA_ID('{schema}') AND name = '{dataset}__Update' 
@@ -138,55 +140,55 @@ GO
 CREATE PROCEDURE [{schema}].[{dataset}__Update]
 (
     {GetArgumentNameList(dbName, schema, baseDataset, basePropData, baseType, Prefix: null, TopMost: false, SiteSpecific: true, WithDerivedInfo: true, SubTable: false)}{GetArgumentNameList(dbName, schema, dataset, propDataNoDups, type, Prefix: null, TopMost: false, SiteSpecific: false, WithDerivedInfo: false, SubTable: false)}");
-            sb.RemoveLastComma();
-            sb.Append($@"
+                sb.RemoveLastComma();
+                sb.Append($@"
 )
 AS
 BEGIN");
 
-            basePropData = (from p in basePropData where p.Name != key1Name select p).ToList();// remove ModuleGuid from set list, module guid doesn't change
-            propData = (from p in propData where p.Name != key1Name select p).ToList();// remove ModuleGuid from set list
+                basePropData = (from p in basePropData where p.Name != key1Name select p).ToList();// remove ModuleGuid from set list, module guid doesn't change
+                propData = (from p in propData where p.Name != key1Name select p).ToList();// remove ModuleGuid from set list
 
-            sb.Append($@"
+                sb.Append($@"
     UPDATE {fullBaseTableName}
     SET {GetSetList(dbName, schema, baseDataset, basePropData, baseType, Prefix: null, TopMost: true, SiteSpecific: siteIdentity > 0, WithDerivedInfo: false, SubTable: false)}");
-            sb.RemoveLastComma();
-            sb.Append($@"
+                sb.RemoveLastComma();
+                sb.Append($@"
     WHERE [{key1Name}] = @arg{key1Name} AND [{SQLGenericBase.SiteColumn}] = @{SQLGen.ValSiteIdentity}
 ;
     DECLARE @__ROWCOUNT int = @@ROWCOUNT;
     SELECT @__ROWCOUNT  --- result set
 ;");
 
-            string setList = GetSetList(dbName, schema, dataset, propData, type, Prefix: null, TopMost: true, SiteSpecific: siteIdentity > 0, WithDerivedInfo: false, SubTable: false);
-            if (!string.IsNullOrWhiteSpace(setList)) {
+                string setList = GetSetList(dbName, schema, dataset, propData, type, Prefix: null, TopMost: true, SiteSpecific: siteIdentity > 0, WithDerivedInfo: false, SubTable: false);
+                if (!string.IsNullOrWhiteSpace(setList)) {
 
-                sb.Append($@"
+                    sb.Append($@"
 
     IF @__ROWCOUNT > 0
     BEGIN
         UPDATE {fullTableName}
         SET {setList}");
-                sb.RemoveLastComma();
+                    sb.RemoveLastComma();
 
-                sb.Append($@"
+                    sb.Append($@"
         WHERE [{key1Name}] = @arg{key1Name} AND [{SQLGenericBase.SiteColumn}] = @{SQLGen.ValSiteIdentity}
     END
 ;");
-            }
+                }
 
-            sb.Append($@"
+                sb.Append($@"
 END
 
 GO
 
 ");
 
-            // REMOVE
-            // REMOVE
-            // REMOVE
+                // REMOVE
+                // REMOVE
+                // REMOVE
 
-            sb.Append($@"
+                sb.Append($@"
 IF EXISTS (
     SELECT sys.procedures.name FROM sys.procedures WITH(NOLOCK) 
     WHERE type = 'P' AND schema_id = SCHEMA_ID('{schema}') AND name = '{dataset}__Remove' 
@@ -197,12 +199,12 @@ GO
 CREATE PROCEDURE [{schema}].[{dataset}__Remove]
 (
     @Key1Val {typeKey1},");
-            if (siteIdentity > 0)
-                sb.Append($@"
+                if (siteIdentity > 0)
+                    sb.Append($@"
     @{SQLGen.ValSiteIdentity} integer,");
 
-            sb.RemoveLastComma();
-            sb.Append($@"
+                sb.RemoveLastComma();
+                sb.Append($@"
 )
 AS
 BEGIN
@@ -222,9 +224,10 @@ GO
 
 ");
 
-            // Add to database
-            ExecuteBatches(sb.ToString());
+                // Add to database
+                ExecuteBatches(sb.ToString());
 
+            }
             return true;
         }
    }
