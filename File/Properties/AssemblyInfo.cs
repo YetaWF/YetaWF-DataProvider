@@ -12,7 +12,7 @@ using YetaWF.PackageAttributes;
 [assembly: AssemblyTrademark("")]
 [assembly: AssemblyCulture("")]
 
-[assembly: AssemblyVersion("5.1.0.0")]
+[assembly: AssemblyVersion("5.2.0.0")]
 
 [assembly: Package(PackageTypeEnum.DataProvider, "YetaWF.DataProvider")]
 

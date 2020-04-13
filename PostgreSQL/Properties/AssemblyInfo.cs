@@ -12,7 +12,7 @@ using YetaWF.PackageAttributes;
 [assembly: AssemblyTrademark("")]
 [assembly: AssemblyCulture("")]
 
-[assembly: AssemblyVersion("5.1.0.0")]
+[assembly: AssemblyVersion("5.2.0.0")]
 
 [assembly: Package(PackageTypeEnum.DataProvider, "YetaWF.DataProvider")]
 
@@ -23,7 +23,7 @@ using YetaWF.PackageAttributes;
     "https://yetawf.com/Documentation/YetaWFPostgreSQL#License")]
 
 
-// PostgreSQL is not well suited for YetaWF. We need case insensitive collation, so grid filters, etc. work "better". Translating to lowercase in queries 
+// PostgreSQL is not well suited for YetaWF. We need case insensitive collation, so grid filters, etc. work "better". Translating to lowercase in queries
 // is not an option as it is s-l-o-w. And in general having the same keys allowed even if they only differ in casing feels just wrong.
 // Postgres 12 has case insensitive collation, but it does NOT work with LIKE. At all.
 //
@@ -41,5 +41,5 @@ using YetaWF.PackageAttributes;
 //
 // Sadly, not working with LIKE is a deal breaker. So instead we'll use case sensitive (default) collation and suck it up.
 // The areas that have a problem with this (e.g., Identity) are modified to save items (like name, email address) in lowercase, or whatever works best.
-// 
+//
 // Hopefully a PostgreSQL version in the near future removes the "LIKE" limitation.
