@@ -715,73 +715,67 @@ IF EXISTS (
             return ProcessColumns(
                 (prefix, container, prop) => {
                     string col = $@"{prefix}{prop.ColumnName}";
+                    string fullCol = sb.BuildFullColumnName(dbName, schema, dataset, $"{prefix}{prop.ColumnName}");
                     if (VisibleColumns != null) {
                         if (VisibleColumns.ContainsKey(col)) return null;
-                        string fullCol = sb.BuildFullColumnName(dbName, schema, dataset, $"{prefix}{prop.ColumnName}");
                         VisibleColumns.Add($"{prefix}{prop.ColumnName}", fullCol);
-                        return $"{fullCol},";
                     }
-                    return $@"[{prefix}{prop.ColumnName}],"; 
+                    return $"{fullCol},";
                 },
                 (prefix, container, prop) => { // Identity
                     if (Add) {
                         return null;
                     } else {
                         string col = $@"{prefix}{prop.ColumnName}";
+                        string fullCol = sb.BuildFullColumnName(dbName, schema, dataset, $"{prefix}{prop.ColumnName}");
                         if (VisibleColumns != null) {
                             if (VisibleColumns.ContainsKey(col)) return null;
-                            string fullCol = sb.BuildFullColumnName(dbName, schema, dataset, $"{prefix}{prop.ColumnName}");
                             VisibleColumns.Add($"{prefix}{prop.ColumnName}", fullCol);
-                            return $"{fullCol},";
                         }
-                        return $@"[{prefix}{prop.ColumnName}],";
+                        return $"{fullCol},";
                     }
                 },
                 (prefix, container, prop) => {
                     string col = $@"{prefix}{prop.ColumnName}";
+                    string fullCol = sb.BuildFullColumnName(dbName, schema, dataset, $"{prefix}{prop.ColumnName}");
                     if (VisibleColumns != null) {
                         if (VisibleColumns.ContainsKey(col)) return null;
-                        string fullCol = sb.BuildFullColumnName(dbName, schema, dataset, $"{prefix}{prop.ColumnName}");
                         VisibleColumns.Add($"{prefix}{prop.ColumnName}", fullCol);
-                        return $"{fullCol},";
                     }
-                    return $@"[{prefix}{prop.ColumnName}],";
+                    return $"{fullCol},";
                 },
                 (prefix, container, prop) => {
                     string col = $@"{prefix}{prop.ColumnName}";
+                    string fullCol = sb.BuildFullColumnName(dbName, schema, dataset, $"{prefix}{prop.ColumnName}");
                     if (VisibleColumns != null) {
                         if (VisibleColumns.ContainsKey(col)) return null;
-                        string fullCol = sb.BuildFullColumnName(dbName, schema, dataset, $"{prefix}{prop.ColumnName}");
                         VisibleColumns.Add($"{prefix}{prop.ColumnName}", fullCol);
-                        return $"{fullCol},";
                     }
-                    return $@"[{prefix}{prop.ColumnName}],";
+                    return $"{fullCol},";
                 },
                 (prefix, container, prop) => {
                     if (Languages.Count == 0) throw new InternalError("We need Languages for MultiString support");
                     StringBuilder sbldr = new StringBuilder();
                     foreach (LanguageData lang in Languages) {
                         string col = $@"{prefix}{SQLGenericBase.ColumnFromPropertyWithLanguage(lang.Id, prop.Name)}";
+                        string fullCol = sb.BuildFullColumnName(dbName, schema, dataset, col);
                         if (VisibleColumns != null) {
                             if (VisibleColumns.ContainsKey(col)) return null;
-                            string fullCol = sb.BuildFullColumnName(dbName, schema, dataset, $"{prefix}{col}");
                             VisibleColumns.Add(col, fullCol);
-                            sbldr.Append($"{fullCol},");
-                        } else
-                            sbldr.Append($@"[{prefix}{col}],");
+                        }
+                        sbldr.Append($"{fullCol},");
                     }
                     return sbldr.ToString();
                 },
                 (prefix, container, name) => { // predef
                     if (Add) {
                         string col = $@"{prefix}{name}";
+                        string fullCol = sb.BuildFullColumnName(dbName, schema, dataset, $"{prefix}{name}");
                         if (VisibleColumns != null) {
                             if (VisibleColumns.ContainsKey(col)) return null;
-                            string fullCol = sb.BuildFullColumnName(dbName, schema, dataset, $"{prefix}{name}");
                             VisibleColumns.Add($"{prefix}{name}", fullCol);
-                            return $"{fullCol},";
                         }
-                        return $@"[{prefix}{name}],";
+                        return $"{fullCol},";
                     } else {
                         return null;
                     }

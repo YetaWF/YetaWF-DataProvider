@@ -259,7 +259,7 @@ namespace YetaWF.DataProvider.SQL {
                 if (Logging) YetaWF.Core.Log.Logging.AddErrorLog("Couldn't create table {0}", tableName, exc);
                 errorList.Add(string.Format("Couldn't create table {0}", tableName));
                 errorList.Add(ErrorHandling.FormatExceptionMessage(exc));
-                return null;
+                throw;
             }
         }
 
