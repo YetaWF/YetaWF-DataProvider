@@ -613,8 +613,8 @@ IF EXISTS (
                     string colType = GetDataTypeArgumentString(col);
                     return $@"@arg{prefix}{prop.Name} {colType},";
                 },
-                (prefix, container, prop) => { 
-                    return null; 
+                (prefix, container, prop) => {
+                    return null;
                 }, // Identity
                 (prefix, container, prop) => { // binary
                     Column col = sqlManager.GetColumn(Conn, dbName, schema, dataset, $"{prefix}{prop.ColumnName}");
@@ -642,9 +642,9 @@ IF EXISTS (
                         return null;
                     if (name == SQLGen.DerivedTableName)
                         return $@"@{SQLGen.ValDerivedTableName} nvarchar(80),";
-                    if (name == SQLGen.DerivedDataType) 
+                    if (name == SQLGen.DerivedDataType)
                         return $@"@{SQLGen.ValDerivedDataType} nvarchar(200),";
-                    if (name == SQLGen.DerivedAssemblyName) 
+                    if (name == SQLGen.DerivedAssemblyName)
                         return $@"@{SQLGen.ValDerivedAssemblyName} nvarchar(200),";
                     if (name == SQLGenericBase.SiteColumn) {
                         name = SQLGen.ValSiteIdentity;
@@ -663,25 +663,25 @@ IF EXISTS (
                 (prefix, container, prop) => {
                     Column col = sqlManager.GetColumn(Conn, dbName, schema, dataset, $"{prefix}{prop.ColumnName}");
                     string colType = GetDataTypeArgumentString(col);
-                    return $@"[{prefix}{prop.Name}] {colType},";
+                    return $@"[{prefix}{prop.Name}] {colType}{GetNullable(col)},";
                 },
-                (prefix, container, prop) => { 
+                (prefix, container, prop) => {
                     if (!SubTable) {
                         Column col = sqlManager.GetColumn(Conn, dbName, schema, dataset, $"{prefix}{prop.ColumnName}");
                         string colType = GetDataTypeArgumentString(col);
-                        return $@"[{prefix}{prop.Name}] {colType},";
+                        return $@"[{prefix}{prop.Name}] {colType}{GetNullable(col)},";
                     }
-                    return null; 
+                    return null;
                 }, // Identity
                 (prefix, container, prop) => {
                     Column col = sqlManager.GetColumn(Conn, dbName, schema, dataset, $"{prefix}{prop.ColumnName}");
                     string colType = GetDataTypeArgumentString(col);
-                    return $@"[{prefix}{prop.Name}] {colType},";
+                    return $@"[{prefix}{prop.Name}] {colType}{GetNullable(col)},";
                 },
                 (prefix, container, prop) => {
                     Column col = sqlManager.GetColumn(Conn, dbName, schema, dataset, $"{prefix}{prop.ColumnName}");
                     string colType = GetDataTypeArgumentString(col);
-                    return $@"[{prefix}{prop.Name}] {colType},";
+                    return $@"[{prefix}{prop.Name}] {colType}{GetNullable(col)},";
                 },
                 (prefix, container, prop) => {
                     if (Languages.Count == 0) throw new InternalError("We need Languages for MultiString support");
@@ -690,7 +690,7 @@ IF EXISTS (
                         string colName = $"{prefix}{SQLGenericBase.ColumnFromPropertyWithLanguage(lang.Id, $"{prefix}{prop.Name}")}";
                         Column col = sqlManager.GetColumn(Conn, dbName, schema, dataset, colName);
                         string colType = GetDataTypeArgumentString(col);
-                        return $@"[{colName}] {colType},";
+                        return $@"[{colName}] {colType}{GetNullable(col)},";
                     }
                     return sb.ToString();
                 },
@@ -699,7 +699,7 @@ IF EXISTS (
                         return null;
                     if (name == SQLGenericBase.SiteColumn) {
                         name = SQLGen.ValSiteIdentity;
-                        return $@"[{prefix}{name}] int,";
+                        return $@"[{prefix}{name}] int NOT NULL,";
                     }
                     return null;
                 },
@@ -825,7 +825,7 @@ IF EXISTS (
                         return $@"@{SQLGen.ValSiteIdentity},";
                     if (name == SQLGenericBase.SubTableKeyColumn)
                         return $"@__IDENTITY,";
-                    return $@"@arg{prefix}{name},"; 
+                    return $@"@arg{prefix}{name},";
                 },
                 (prefix, container, prop, subPropData, subType, subtableName) => { // Subtable
                     return null;
@@ -859,10 +859,10 @@ IF EXISTS (
                 Func<string, object, PropertyData, string> fmtIdentity,
                 Func<string, object, PropertyData, string> fmtBinary,
                 Func<string, object, PropertyData, string> fmtImage,
-                Func<string, object, PropertyData, string> fmtLanguage, 
-                Func<string, object, string, string> fmtPredef, 
+                Func<string, object, PropertyData, string> fmtLanguage,
+                Func<string, object, string, string> fmtPredef,
                 Func<string, object, PropertyData, List<PropertyData>, Type, string, string> fmtSubtable,
-                string dbName, string schema, string dataset, 
+                string dbName, string schema, string dataset,
                 object container, List<PropertyData> propData, Type tpContainer,
                 string Prefix = null, bool TopMost = true, bool SiteSpecific = false, bool WithDerivedInfo = false, bool SubTable = false) {
 

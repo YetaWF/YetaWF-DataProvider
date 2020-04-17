@@ -430,8 +430,9 @@ DROP TABLE #Temp
                 else
                     subFilters = $@"{filterExpr} AND {sb.GetTable(Database, Dbo, subTable.Name)}.[{SQLGenericBase.SubTableKeyColumn}] = {fullTableName}.[{IdentityNameOrDefault}]";
 
+                string subName = sb.GetTable(Database, Dbo, subTable.Name);
                 sb.Append($@"
-DELETE FROM {sb.GetTable(Database, Dbo, subTable.Name)} 
+DELETE {subName} FROM {subName} 
 LEFT JOIN {fullTableName} ON {sb.BuildFullColumnName(Dataset, IdentityName)} = {sb.BuildFullColumnName(subTable.Name, SQLGenericBase.SubTableKeyColumn)}
 {subFilters}
 ;
@@ -706,7 +707,7 @@ DELETE FROM {fullTableName} WHERE [{SiteColumn}] = {SiteIdentity}
         ///
         /// The translated data should be stored separately from the default language (except MultiString, which is part of the record).
         /// Using the <paramref name="language"/> parameter, a different folder should be used to store the translated data.
-        /// 
+        ///
         /// The YetaWF.Core.Models.ObjectSupport.TranslateObject method is to translate all YetaWF.Core.Models.MultiString instances.
         ///
         /// The method providing <paramref name="getRecordsAsync"/> and <paramref name="saveRecordAsync"/> methods is used by derived classes to translate the data managed by the data provider to another language.
@@ -756,7 +757,7 @@ DELETE FROM {fullTableName} WHERE [{SiteColumn}] = {SiteIdentity}
         ///
         /// The translated data should be stored separately from the default language (except MultiString, which is part of the record).
         /// Using the <paramref name="language"/> parameter, a different folder should be used to store the translated data.
-        /// 
+        ///
         /// The YetaWF.Core.Models.ObjectSupport.TranslateObject method is to translate all YetaWF.Core.Models.MultiString instances.
         ///
         /// The method providing <paramref name="getRecordsAsync"/> and <paramref name="saveRecordAsync"/> methods is used by derived classes to translate the data managed by the data provider to another language.
@@ -858,12 +859,20 @@ DELETE FROM {fullTableName} WHERE [{SiteColumn}] = {SiteIdentity}
 
             // Extract all column names
 
+            Type GetPropertyType(Type type) {
+                if (type.Name == "Nullable`1")
+                    type = type.GenericTypeArguments[0];
+                if (type.IsEnum)
+                    return typeof(int);
+                return type;
+            }
+
             DataTable dataTable = new DataTable();
 
             SQLGen.ProcessColumns(
                 (prefix, container, prop) => { // Property
                     string colName = $"{prefix}{prop.ColumnName}";
-                    dataTable.Columns.Add(new DataColumn(colName, prop.PropInfo.PropertyType));
+                    dataTable.Columns.Add(new DataColumn(colName, GetPropertyType(prop.PropInfo.PropertyType)));
                     return null;
                 },
                 (prefix, container, prop) => { // Identity
@@ -871,12 +880,12 @@ DELETE FROM {fullTableName} WHERE [{SiteColumn}] = {SiteIdentity}
                 },
                 (prefix, container, prop) => { // Binary
                     string colName = $"{prefix}{prop.ColumnName}";
-                    dataTable.Columns.Add(new DataColumn(colName, prop.PropInfo.PropertyType));
+                    dataTable.Columns.Add(new DataColumn(colName, GetPropertyType(prop.PropInfo.PropertyType)));
                     return null;
                 },
                 (prefix, container, prop) => { // Image
                     string colName = $"{prefix}{prop.ColumnName}";
-                    dataTable.Columns.Add(new DataColumn(colName, prop.PropInfo.PropertyType));
+                    dataTable.Columns.Add(new DataColumn(colName, GetPropertyType(prop.PropInfo.PropertyType)));
                     return null;
                 },
                 (prefix, container, prop) => { // Language
