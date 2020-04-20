@@ -926,7 +926,7 @@ DELETE FROM {fullTableName} WHERE [{SiteColumn}] = {SiteIdentity}
         private void GetSubtableParmValues(SQLHelper sqlHelper, DataRow row, string dbName, string schema, string subtableName, string prefix, object container, PropertyData prop, List<PropertyData> subPropData, Type subType) {
             SQLGen.ProcessColumns(
                 (prefix, container, prop) => { // Property
-                    row[$"{prefix}{prop.ColumnName}"] = prop.PropInfo.GetValue(container);
+                    row[$"{prefix}{prop.ColumnName}"] = prop.PropInfo.GetValue(container) ?? DBNull.Value;
                     return null;
                 },
                 (prefix, container, prop) => { // Identity
