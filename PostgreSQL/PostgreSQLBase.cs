@@ -260,10 +260,26 @@ namespace YetaWF.DataProvider.PostgreSQL {
         /// <returns>Returns a scalar integer.</returns>
         /// <remarks>This is used by application data providers to build and execute complex queries that are not possible with the standard data providers.
         /// Use of this method limits the application data provider to PostgreSQL repositories.</remarks>
-        public async Task<int> Direct_ScalarIntAsync(string sql) {
+        public Task<int> Direct_ScalarIntAsync(string sql) {
+            return Direct_ScalarIntAsync(sql, Array.Empty<object>());
+        }
+        /// <summary>
+        /// Executes the provided PostgreSQL statement(s) and returns a scalar integer.
+        /// </summary>
+        /// <param name="sql">The PostgreSQL statement(s).</param>
+        /// <param name="args">Optional arguments that are passed when executing the SQL statements.</param>
+        /// <returns>Returns a scalar integer.</returns>
+        /// <remarks>This is used by application data providers to build and execute complex queries that are not possible with the standard data providers.
+        /// Use of this method limits the application data provider to PostgreSQL repositories.</remarks>
+        public async Task<int> Direct_ScalarIntAsync(string sql, params object[] args) {
             await EnsureOpenAsync();
             SQLHelper sqlHelper = new SQLHelper(Conn, null, Languages);
             string tableName = GetTableName();
+            int count = 0;
+            foreach (object arg in args) {
+                ++count;
+                sqlHelper.AddParam($"@p{count}", arg);
+            }
             sql = sql.Replace("{TableName}", SQLBuilder.WrapIdentifier(tableName));
             if (SiteIdentity > 0)
                 sql = sql.Replace($"{{{SiteColumn}}}", $@"""{SiteColumn}"" = {SiteIdentity}");
@@ -448,7 +464,7 @@ namespace YetaWF.DataProvider.PostgreSQL {
                     return new DataProviderGetRecords<TYPE>();
             }
 
-            // get records 
+            // get records
             {
                 SQLHelper sqlHelper = new SQLHelper(Conn, null, Languages);
                 SQLBuilder sb = new SQLBuilder();

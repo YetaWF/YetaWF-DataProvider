@@ -268,7 +268,7 @@ namespace YetaWF.DataProvider.SQL {
             SQLBuilder sb = new SQLBuilder();
             string fullTableName = sb.GetTable(Database, Dbo, Dataset);
 
-            Dictionary<string, string> visibleColumns = Joins.Count > 0 ? new Dictionary<string, string>() : null;
+            Dictionary<string, string> visibleColumns = new Dictionary<string, string>();
             string columnList = sqlCreate.GetColumnNameList(Database, Dbo, Dataset, GetPropertyData(), typeof(OBJTYPE), Add: false, Prefix: null, TopMost: true, IdentityName: IdentityName, SiteSpecific: SiteIdentity > 0, WithDerivedInfo: false, SubTable: false,
                 VisibleColumns: visibleColumns);
 
