@@ -268,7 +268,6 @@ namespace YetaWF.DataProvider.SQL {
             string columnList = MakeColumnList(sqlHelper, visibleColumns, Joins);
             string joinExpr = await MakeJoinsAsync(sqlHelper, Joins);
             string filterExpr = MakeFilter(sqlHelper, filters, visibleColumns);
-            string calcProps = await SQLGen.CalculatedPropertiesAsync(typeof(OBJTYPE), CalculatedPropertyCallbackAsync);
 
             // get total # of records (only if a subset is requested)
             if (skip != 0 || take != 0) {
@@ -301,7 +300,7 @@ SELECT * INTO #Temp FROM (");
             }
 
             sb.Append($@"
-    SELECT {columnList}");
+    SELECT {columnList},");
             if (CalculatedPropertyCallbackAsync != null) sb.Append(await SQLGen.CalculatedPropertiesAsync(typeof(OBJTYPE), CalculatedPropertyCallbackAsync));
             sb.RemoveLastComma();
 

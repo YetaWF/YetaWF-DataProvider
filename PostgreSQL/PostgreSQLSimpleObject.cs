@@ -288,7 +288,6 @@ namespace YetaWF.DataProvider.PostgreSQL {
             string columnList = MakeColumnList(sqlHelper, visibleColumns, Joins);
             string joinExpr = await MakeJoinsAsync(sqlHelper, Joins);
             string filterExpr = MakeFilter(sqlHelper, filters, visibleColumns);
-            string calcProps = await SQLGen.CalculatedPropertiesAsync(typeof(OBJTYPE), CalculatedPropertyCallbackAsync);
 
             // get total # of records (only if a subset is requested)
             int total = 0;
@@ -327,7 +326,7 @@ namespace YetaWF.DataProvider.PostgreSQL {
 
             sb = new SQLBuilder();
             sb.Append($@"
-        SELECT {columnList}");
+        SELECT {columnList},");
             if (CalculatedPropertyCallbackAsync != null) sb.Append(await SQLGen.CalculatedPropertiesAsync(typeof(OBJTYPE), CalculatedPropertyCallbackAsync));
             sb.RemoveLastComma();
 

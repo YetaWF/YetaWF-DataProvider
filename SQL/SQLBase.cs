@@ -270,7 +270,7 @@ namespace YetaWF.DataProvider.SQL {
             SQLBuilder sqlBuilder = new SQLBuilder();
             Dictionary<string, string> visibleColumns = new Dictionary<string, string>();
             tableName = tableName.Trim(new char[] { '[', ']' });
-            List<SQLGenericGen.Column> columns = sqlManager.GetColumnNames(Conn, databaseName, dbOwner, tableName);
+            List<SQLGenericGen.Column> columns = sqlManager.GetColumns(Conn, databaseName, dbOwner, tableName);
             AddVisibleColumns(sqlBuilder, visibleColumns, databaseName, dbOwner, tableName, columns);
             if (CalculatedPropertyCallbackAsync != null) {
                 List<PropertyData> props = ObjectSupport.GetPropertyData(objType);
