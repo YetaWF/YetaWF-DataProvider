@@ -163,20 +163,6 @@ namespace YetaWF.DataProvider.SQLGeneric {
         }
 
         /// <summary>
-        /// Returns column names for the specified table.
-        /// </summary>
-        /// <param name="connInfo">The SQL-specific connection information.</param>
-        /// <param name="databaseName">The database name.</param>
-        /// <param name="schema">The schema.</param>
-        /// <param name="tableName">The table name.</param>
-        /// <returns>Returns a list of column names.</returns>
-        /// <remarks>If the database table doesn't exist, an exception occurs.</remarks>
-        //$$$$ REMOVE
-        public List<string> GetColumnsOnly(TYPE connInfo, string databaseName, string schema, string tableName) {
-            return (from c in GetColumns(connInfo, databaseName, schema, tableName) select c.Name).ToList();
-        }
-
-        /// <summary>
         /// Returns column information for all columns in the specified database table.
         /// </summary>
         /// <param name="connInfo">The SQL-specific connection information.</param>
