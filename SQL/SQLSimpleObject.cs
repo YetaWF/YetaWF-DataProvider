@@ -14,11 +14,7 @@ using YetaWF.DataProvider.SQLGeneric;
 using System.Data;
 using YetaWF.Core.Support.Serializers;
 using YetaWF.Core.Language;
-#if MVC6
 using Microsoft.Data.SqlClient;
-#else
-using System.Data.SqlClient;
-#endif
 
 namespace YetaWF.DataProvider.SQL {
 
@@ -268,43 +264,11 @@ namespace YetaWF.DataProvider.SQL {
             SQLBuilder sb = new SQLBuilder();
             string fullTableName = sb.GetTable(Database, Dbo, Dataset);
 
-            Dictionary<string, string> visibleColumns = new Dictionary<string, string>();
-            string columnList = sqlCreate.GetColumnNameList(Database, Dbo, Dataset, GetPropertyData(), typeof(OBJTYPE), Add: false, Prefix: null, TopMost: true, IdentityName: IdentityName, SiteSpecific: SiteIdentity > 0, WithDerivedInfo: false, SubTable: false,
-                VisibleColumns: visibleColumns);
-
-            SQLBuilder sbJoins = new SQLBuilder();
-            foreach (JoinData join in Joins) {
-                ISQLTableInfo joinInfo = await join.JoinDP.GetDataProvider().GetISQLTableInfoAsync();
-                string joinDatabase = joinInfo.GetDatabaseName();
-                string joinDbo = joinInfo.GetDbOwner();
-                string joinTable = joinInfo.GetTableName();
-
-                ISQLTableInfo mainInfo = await join.MainDP.GetDataProvider().GetISQLTableInfoAsync();
-                string mainTable = mainInfo.GetTableName();
-                if (join.JoinType == JoinData.JoinTypeEnum.Left)
-                    sbJoins.Add($"LEFT JOIN {joinTable}");
-                else
-                    sbJoins.Add($"INNER JOIN {joinTable}");
-                sbJoins.Add(" ON ");
-                if (join.UseSite && SiteIdentity > 0)
-                    sbJoins.Add("(");
-                sbJoins.Add($"{sbJoins.BuildFullColumnName(mainTable, join.MainColumn)} = {sbJoins.BuildFullColumnName(joinTable, join.JoinColumn)}");
-                if (join.UseSite && SiteIdentity > 0)
-                    sbJoins.Add($") AND {sbJoins.BuildFullColumnName(mainTable, SiteColumn)} = {sbJoins.BuildFullColumnName(joinTable, SiteColumn)}");
-
-                joinTable = joinTable.Split(new char[] { '.' }).Last().Trim(new char[] { '[', ']' });
-                List<string> joinCols = sqlManager.GetColumnsOnly(join.JoinDP.GetDataProvider().Conn, joinDatabase, joinDbo, joinTable);
-                foreach (string col in joinCols) {
-                    if (!visibleColumns.ContainsKey(col)) {
-                        string fullCol = sbJoins.BuildFullColumnName(joinDatabase, joinDbo, joinTable, col);
-                        visibleColumns.Add(col, fullCol);
-                        columnList += $"{fullCol},";
-                    }
-                }
-            }
-            string joinExpr = sbJoins.ToString();
-
+            Dictionary<string, string> visibleColumns = await GetVisibleColumnsAsync(Database, Dbo, Dataset, typeof(OBJTYPE), Joins);
+            string columnList = MakeColumnList(sqlHelper, visibleColumns, Joins);
+            string joinExpr = await MakeJoinsAsync(sqlHelper, Joins);
             string filterExpr = MakeFilter(sqlHelper, filters, visibleColumns);
+            string calcProps = await SQLGen.CalculatedPropertiesAsync(typeof(OBJTYPE), CalculatedPropertyCallbackAsync);
 
             // get total # of records (only if a subset is requested)
             if (skip != 0 || take != 0) {

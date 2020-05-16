@@ -284,45 +284,11 @@ namespace YetaWF.DataProvider.PostgreSQL {
             sb = new SQLBuilder();
             string fullTableName = sb.GetTable(Database, Schema, Dataset);
 
-            Dictionary<string, string> visibleColumns = Joins.Count > 0 ? new Dictionary<string, string>() : null;
-            string columnList = sqlCreate.GetColumnNameList(Database, Schema, Dataset, GetPropertyData(), typeof(OBJTYPE), Add: false, Prefix: null, TopMost: true, IdentityName: IdentityName, SiteSpecific: SiteIdentity > 0, WithDerivedInfo: false, SubTable: false,
-                VisibleColumns: visibleColumns);
-
-            string joinExpr = null;
-            sb = new SQLBuilder();
-            SQLBuilder sbCols = new SQLBuilder();
-            foreach (JoinData join in Joins) {
-                IPostgreSQLTableInfo joinInfo = await join.JoinDP.GetDataProvider().GetIPostgreSQLTableInfoAsync();
-                string joinDatabase = joinInfo.GetDatabaseName();
-                string joinSchema = joinInfo.GetSchema();
-                string joinTable = joinInfo.GetTableName();
-
-                IPostgreSQLTableInfo mainInfo = await join.MainDP.GetDataProvider().GetIPostgreSQLTableInfoAsync();
-                string mainTable = mainInfo.GetTableName();
-                if (join.JoinType == JoinData.JoinTypeEnum.Left)
-                    sb.Add($"LEFT JOIN {joinTable}");
-                else
-                    sb.Add($"INNER JOIN {joinTable}");
-                sb.Add(" ON ");
-                if (join.UseSite && SiteIdentity > 0)
-                    sb.Add("(");
-                sb.Add($"{sb.BuildFullColumnName(mainTable, join.MainColumn)} = {sb.BuildFullColumnName(joinTable, join.JoinColumn)}");
-                if (join.UseSite && SiteIdentity > 0)
-                    sb.Add($") AND {sb.BuildFullColumnName(mainTable, SiteColumn)} = {sb.BuildFullColumnName(joinTable, SiteColumn)}");
-
-                joinTable = joinTable.Split(new char[] { '.' }).Last().Trim(new char[] { '\"', '\"' });
-                List<string> joinCols = sqlManager.GetColumnsOnly(join.JoinDP.GetDataProvider().Conn, joinDatabase, joinSchema, joinTable);
-                foreach (string col in joinCols) {
-                    if (!visibleColumns.ContainsKey(col)) {
-                        string fullCol = sb.BuildFullColumnName(joinDatabase, joinSchema, joinTable, col);
-                        visibleColumns.Add(col, fullCol);
-                        columnList += $"{fullCol},";
-                    }
-                }
-            }
-            joinExpr = sb.ToString();
-
+            Dictionary<string, string> visibleColumns = await GetVisibleColumnsAsync(Database, Schema, Dataset, typeof(OBJTYPE), Joins);
+            string columnList = MakeColumnList(sqlHelper, visibleColumns, Joins);
+            string joinExpr = await MakeJoinsAsync(sqlHelper, Joins);
             string filterExpr = MakeFilter(sqlHelper, filters, visibleColumns);
+            string calcProps = await SQLGen.CalculatedPropertiesAsync(typeof(OBJTYPE), CalculatedPropertyCallbackAsync);
 
             // get total # of records (only if a subset is requested)
             int total = 0;
@@ -409,7 +375,7 @@ namespace YetaWF.DataProvider.PostgreSQL {
                 string subFilters;
                 if (string.IsNullOrWhiteSpace(filterExpr))
                     subFilters = $@"WHERE {sb.GetTable(Database, Schema, subTable.Name)}.""{SQLGenericBase.SubTableKeyColumn}"" = {fullTableName}.""{IdentityNameOrDefault}""";
-                else 
+                else
                     subFilters = $@"{filterExpr} AND {sb.GetTable(Database, Schema, subTable.Name)}.""{SQLGenericBase.SubTableKeyColumn}"" = {fullTableName}.""{IdentityNameOrDefault}""";
 
                 sb.Append($@"
@@ -628,7 +594,7 @@ DELETE FROM {fullTableName} WHERE ""{SiteColumn}"" = {SiteIdentity}
         ///
         /// The translated data should be stored separately from the default language (except MultiString, which is part of the record).
         /// Using the <paramref name="language"/> parameter, a different folder should be used to store the translated data.
-        /// 
+        ///
         /// The YetaWF.Core.Models.ObjectSupport.TranslateObject method is to translate all YetaWF.Core.Models.MultiString instances.
         ///
         /// The method providing <paramref name="getRecordsAsync"/> and <paramref name="saveRecordAsync"/> methods is used by derived classes to translate the data managed by the data provider to another language.
@@ -678,7 +644,7 @@ DELETE FROM {fullTableName} WHERE ""{SiteColumn}"" = {SiteIdentity}
         ///
         /// The translated data should be stored separately from the default language (except MultiString, which is part of the record).
         /// Using the <paramref name="language"/> parameter, a different folder should be used to store the translated data.
-        /// 
+        ///
         /// The YetaWF.Core.Models.ObjectSupport.TranslateObject method is to translate all YetaWF.Core.Models.MultiString instances.
         ///
         /// The method providing <paramref name="getRecordsAsync"/> and <paramref name="saveRecordAsync"/> methods is used by derived classes to translate the data managed by the data provider to another language.
@@ -772,7 +738,7 @@ DELETE FROM {fullTableName} WHERE ""{SiteColumn}"" = {SiteIdentity}
                         object val = prop.PropInfo.GetValue(container);
                         if (val != null)
                             list = new List<object>((IEnumerable<object>)val);
-                        // get the list of property values we need 
+                        // get the list of property values we need
                         // and add them with their native type
                         PropertyData subProp = subPropData[0];
                         List<object> sublist = new List<object>();

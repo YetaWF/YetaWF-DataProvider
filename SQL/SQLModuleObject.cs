@@ -13,11 +13,7 @@ using YetaWF.Core.Packages;
 using YetaWF.Core.Serializers;
 using YetaWF.Core.Support;
 using YetaWF.DataProvider.SQLGeneric;
-#if MVC6
 using Microsoft.Data.SqlClient;
-#else
-using System.Data.SqlClient;
-#endif
 
 namespace YetaWF.DataProvider.SQL {
 
@@ -109,7 +105,7 @@ namespace YetaWF.DataProvider.SQL {
                 sqlHelper.AddParam(SQLGen.ValSiteIdentity, SiteIdentity);
                 DerivedInfo info = null;
                 using (SqlDataReader reader = await sqlHelper.ExecuteReaderStoredProcAsync($@"""{Dbo}"".""{BaseDataset}__GetBase""")) {
-                    if (!(YetaWFManager.IsSync() ? reader.Read() : await reader.ReadAsync())) 
+                    if (!(YetaWFManager.IsSync() ? reader.Read() : await reader.ReadAsync()))
                         return default(OBJTYPE);
                     info = sqlHelper.CreateObject<DerivedInfo>(reader);
                     if (!(YetaWFManager.IsSync() ? reader.NextResult() : await reader.NextResultAsync()))
@@ -128,7 +124,7 @@ namespace YetaWF.DataProvider.SQL {
                 sqlHelper.AddParam("Key1Val", key);
                 sqlHelper.AddParam(SQLGen.ValSiteIdentity, SiteIdentity);
                 using (SqlDataReader reader = await sqlHelper.ExecuteReaderStoredProcAsync($@"""{Dbo}"".""{Dataset}__Get""")) {
-                    if (!(YetaWFManager.IsSync() ? reader.Read() : await reader.ReadAsync())) 
+                    if (!(YetaWFManager.IsSync() ? reader.Read() : await reader.ReadAsync()))
                         return default(OBJTYPE);
                     return sqlHelper.CreateObject<OBJTYPE>(reader);
                 }
@@ -237,7 +233,7 @@ namespace YetaWF.DataProvider.SQL {
             sqlHelper.AddParam("Key1Val", key);
             sqlHelper.AddParam(SQLGen.ValSiteIdentity, SiteIdentity);
             using (SqlDataReader reader = await sqlHelper.ExecuteReaderStoredProcAsync($@"""{Dbo}"".""{Dataset}__RemoveBase""")) {
-                if (!(YetaWFManager.IsSync() ? reader.Read() : await reader.ReadAsync())) 
+                if (!(YetaWFManager.IsSync() ? reader.Read() : await reader.ReadAsync()))
                     return false;
                 int removed = Convert.ToInt32(reader[0]);
                 return removed > 0;
@@ -279,7 +275,7 @@ namespace YetaWF.DataProvider.SQL {
                 throw new NotImplementedException();
 
 #if NOTYET
-                await EnsureOpenAsync();    
+                await EnsureOpenAsync();
 
                 // an explicit type is requested
                 SQLHelper sqlHelper = new SQLHelper(Conn, null, Languages);

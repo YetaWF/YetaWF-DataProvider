@@ -5,11 +5,7 @@ using System.Collections.Generic;
 using System.Data;
 using YetaWF.Core.Support;
 using YetaWF.DataProvider.SQLGeneric;
-#if MVC6
 using Microsoft.Data.SqlClient;
-#else
-using System.Data.SqlClient;
-#endif
 
 namespace YetaWF.DataProvider.SQL {
 

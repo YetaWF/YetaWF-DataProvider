@@ -9,6 +9,7 @@ using System.Reflection;
 using System.Threading.Tasks;
 using System.Transactions;
 using YetaWF.Core.DataProvider;
+using YetaWF.Core.Models;
 using YetaWF.Core.Packages;
 using YetaWF.Core.Support;
 using YetaWF.DataProvider.SQLGeneric;
@@ -226,6 +227,91 @@ namespace YetaWF.DataProvider.PostgreSQL {
             if (Trans != null)
                 Trans.Dispose();
             Trans = null;
+        }
+
+        // VISIBLE COLUMNS
+        // VISIBLE COLUMNS
+        // VISIBLE COLUMNS
+
+        // Flatten the current table(with joins) and create a lookup table for all fields.
+        // If a joined table has a field with the same name as the lookup table, it is not accessible.
+        internal async Task<Dictionary<string, string>> GetVisibleColumnsAsync(string databaseName, string dbOwner, string tableName, Type objType, List<JoinData> joins) {
+            SQLManager sqlManager = new SQLManager();
+            SQLBuilder sqlBuilder = new SQLBuilder();
+            Dictionary<string, string> visibleColumns = new Dictionary<string, string>();
+            tableName = tableName.Trim(new char[] { '\"' });
+            List<SQLGenericGen.Column> columns = sqlManager.GetColumnNames(Conn, databaseName, dbOwner, tableName);
+            AddVisibleColumns(sqlBuilder, visibleColumns, databaseName, dbOwner, tableName, columns);
+            if (CalculatedPropertyCallbackAsync != null) {
+                List<PropertyData> props = ObjectSupport.GetPropertyData(objType);
+                props = (from p in props where p.CalculatedProperty select p).ToList();
+                foreach (PropertyData prop in props)
+                    visibleColumns.Add(prop.ColumnName, prop.ColumnName);
+            }
+            if (joins != null) {
+                // no support for calculated properties in joined tables
+                foreach (JoinData join in joins) {
+                    IPostgreSQLTableInfo mainInfo = await join.MainDP.GetDataProvider().GetIPostgreSQLTableInfoAsync();
+                    databaseName = mainInfo.GetDatabaseName();
+                    dbOwner = mainInfo.GetSchema();
+                    tableName = mainInfo.GetTableName();
+                    tableName = tableName.Split(new char[] { '.' }).Last().Trim(new char[] { '\"' });
+                    columns = sqlManager.GetColumns(Conn, databaseName, dbOwner, tableName);
+                    AddVisibleColumns(sqlBuilder, visibleColumns, databaseName, dbOwner, tableName, columns);
+                    IPostgreSQLTableInfo joinInfo = await join.JoinDP.GetDataProvider().GetIPostgreSQLTableInfoAsync();
+                    databaseName = joinInfo.GetDatabaseName();
+                    dbOwner = joinInfo.GetSchema();
+                    tableName = joinInfo.GetTableName();
+                    tableName = tableName.Split(new char[] { '.' }).Last().Trim(new char[] { '\"' });
+                    columns = sqlManager.GetColumns(join.JoinDP.GetDataProvider().Conn, databaseName, dbOwner, tableName);
+                    AddVisibleColumns(sqlBuilder, visibleColumns, databaseName, dbOwner, tableName, columns);
+                }
+            }
+            return visibleColumns;
+        }
+        private void AddVisibleColumns(SQLBuilder sqlBuilder, Dictionary<string, string> visibleColumns, string databaseName, string dbOwner, string tableName, List<SQLGenericGen.Column> columns) {
+            foreach (SQLGenericGen.Column column in columns) {
+                if (!visibleColumns.ContainsKey(column.Name))
+                    visibleColumns.Add(column.Name, sqlBuilder.BuildFullColumnName(databaseName, dbOwner, tableName, column.Name));
+            }
+        }
+        internal string MakeColumnList(SQLHelper sqlHelper, Dictionary<string, string> visibleColumns, List<JoinData> joins) {
+            SQLBuilder sb = new SQLBuilder();
+            if (joins != null && joins.Count > 0) {
+                foreach (string col in visibleColumns.Values) {
+                    sb.Add($"{col},");
+                }
+                sb.RemoveLastCharacter();
+            } else {
+                sb.Add("*");
+            }
+            return sb.ToString();
+        }
+        internal async Task<string> MakeJoinsAsync(SQLHelper helper, List<JoinData> joins) {
+            SQLBuilder sb = new SQLBuilder();
+            if (joins != null) {
+                SQLBuilder sqlBuilder = new SQLBuilder();
+                foreach (JoinData join in joins) {
+                    IPostgreSQLTableInfo joinInfo = await join.JoinDP.GetDataProvider().GetIPostgreSQLTableInfoAsync();
+                    string joinDatabase = joinInfo.GetDatabaseName();
+                    string joinDbo = joinInfo.GetSchema();
+                    string joinTable = joinInfo.GetTableName();
+                    IPostgreSQLTableInfo mainInfo = await join.MainDP.GetDataProvider().GetIPostgreSQLTableInfoAsync();
+                    string mainTable = mainInfo.GetTableName();
+
+                    if (join.JoinType == JoinData.JoinTypeEnum.Left)
+                        sb.Add($"LEFT JOIN {joinTable}");
+                    else
+                        sb.Add($"INNER JOIN {joinTable}");
+                    sb.Add(" ON ");
+                    if (join.UseSite && SiteIdentity > 0)
+                        sb.Add("(");
+                    sb.Add($"{sqlBuilder.BuildFullColumnName(mainTable, join.MainColumn)} = {sqlBuilder.BuildFullColumnName(joinTable, join.JoinColumn)}");
+                    if (join.UseSite && SiteIdentity > 0)
+                        sb.Add($") AND {sqlBuilder.BuildFullColumnName(mainTable, SiteColumn)} = {sqlBuilder.BuildFullColumnName(joinTable, SiteColumn)}");
+                }
+            }
+            return sb.ToString();
         }
 
         // SORTS, FILTERS

@@ -13,11 +13,7 @@ using YetaWF.Core.Language;
 using YetaWF.Core.Models;
 using YetaWF.Core.Support;
 using YetaWF.Core.Support.Serializers;
-#if MVC6
 using Microsoft.Data.SqlClient;
-#else
-using System.Data.SqlClient;
-#endif
 
 namespace YetaWF.DataProvider.SQL {
 
@@ -438,7 +434,7 @@ namespace YetaWF.DataProvider.SQL {
         /// <param name="direction">The direction of the parameter (input or output).</param>
         public void AddParam(string name, object value, ParameterDirection direction = ParameterDirection.Input, SqlDbType? DbType = null, string DataTypeName = null)/*<<<*/ {
 
-            if (name.StartsWith("@")) 
+            if (name.StartsWith("@"))
                 name = name.Substring(1);
 
             SqlParameter parm;
@@ -468,7 +464,7 @@ namespace YetaWF.DataProvider.SQL {
                         ParameterName = name,
                         TypeName = DataTypeName,
                         SqlDbType = SqlDbType.Structured,
-                        SqlValue = value,                         
+                        SqlValue = value,
                     };
                 } else {
                     if (DbType == null) {

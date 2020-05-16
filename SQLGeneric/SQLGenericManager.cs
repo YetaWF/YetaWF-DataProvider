@@ -94,7 +94,7 @@ namespace YetaWF.DataProvider.SQLGeneric {
         /// <param name="connInfo">The SQL-specific connection information.</param>
         /// <param name="dbName">The database name.</param>
         /// <returns>Returns database information if the database exists, null otherwise.</returns>
-        public SQLGenericGen.Database GetDatabaseCond(TYPE connInfo, string dbName) { 
+        public SQLGenericGen.Database GetDatabaseCond(TYPE connInfo, string dbName) {
             dbName = dbName.ToLower();
             string connDataSource = GetDataSource(connInfo);
             string connDataSourceLow = connDataSource.ToLower();
@@ -171,6 +171,7 @@ namespace YetaWF.DataProvider.SQLGeneric {
         /// <param name="tableName">The table name.</param>
         /// <returns>Returns a list of column names.</returns>
         /// <remarks>If the database table doesn't exist, an exception occurs.</remarks>
+        //$$$$ REMOVE
         public List<string> GetColumnsOnly(TYPE connInfo, string databaseName, string schema, string tableName) {
             return (from c in GetColumns(connInfo, databaseName, schema, tableName) select c.Name).ToList();
         }
