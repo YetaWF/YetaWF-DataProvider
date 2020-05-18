@@ -197,8 +197,7 @@ BEGIN
 
                 if (HasIdentity(identityName) || subTables.Count > 0) {
                     sb.Append($@"
-    DECLARE @__IDENTITY int = @@IDENTITY
-    SELECT @__IDENTITY  --- result set");
+    DECLARE @__IDENTITY int = @@IDENTITY");
 
                     if (subTables.Count > 0) {
                         sb.Append($@"
@@ -208,8 +207,7 @@ BEGIN
                     }
                 } else {
                     sb.Append($@"
-    DECLARE @__ROWCOUNT int = @@ROWCOUNT;
-    SELECT @__ROWCOUNT  --- result set");
+    DECLARE @__ROWCOUNT int = @@ROWCOUNT;");
 
                     if (subTables.Count > 0) {
                         sb.Append($@"
@@ -237,6 +235,14 @@ BEGIN
                 if (subTables.Count > 0) {
                     sb.Append($@"
     END");
+                }
+
+                if (HasIdentity(identityName) || subTables.Count > 0) {
+                    sb.Append($@"
+    SELECT @__IDENTITY  --- result set");
+                } else {
+                    sb.Append($@"
+    SELECT @__ROWCOUNT  --- result set");
                 }
 
                 sb.Append($@"
@@ -297,8 +303,7 @@ BEGIN");
 
                 sb.Append($@"
 
-    DECLARE @__ROWCOUNT int = @@ROWCOUNT;
-    SELECT @__ROWCOUNT  --- result set");
+    DECLARE @__ROWCOUNT int = @@ROWCOUNT;");
 
                 if (subTables.Count > 0) {
                     sb.Append($@"
@@ -328,6 +333,7 @@ BEGIN");
                 }
 
                 sb.Append($@"
+    SELECT @__ROWCOUNT  --- result set
 END
 
 GO
@@ -370,8 +376,7 @@ BEGIN
 
                     sb.Append($@"
 
-    DECLARE @__ROWCOUNT int = @@ROWCOUNT;
-    SELECT @__ROWCOUNT  --- result set");
+    DECLARE @__ROWCOUNT int = @@ROWCOUNT;");
 
                     if (subTables.Count > 0) {
                         sb.Append($@"
@@ -401,6 +406,8 @@ BEGIN
                     }
 
                     sb.Append($@"
+
+    SELECT @__ROWCOUNT  --- result set
 END
 
 GO

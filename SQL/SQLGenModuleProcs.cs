@@ -73,7 +73,7 @@ BEGIN");
 
 END
 
-GO 
+GO
 
 ");
 
@@ -105,7 +105,6 @@ BEGIN
                 sb.Append($@")
 ;
     DECLARE @__ROWCOUNT int = @@ROWCOUNT;
-    SELECT @__ROWCOUNT  --- result set
 ;");
 
                 sb.Append($@"
@@ -119,6 +118,8 @@ BEGIN
                 sb.RemoveLastComma();
                 sb.Append($@")
     END
+
+    SELECT @__ROWCOUNT  --- result set
 END
 
 GO
@@ -157,7 +158,6 @@ BEGIN");
     WHERE [{key1Name}] = @arg{key1Name} AND [{SQLGenericBase.SiteColumn}] = @{SQLGen.ValSiteIdentity}
 ;
     DECLARE @__ROWCOUNT int = @@ROWCOUNT;
-    SELECT @__ROWCOUNT  --- result set
 ;");
 
                 string setList = GetSetList(dbName, schema, dataset, propData, type, Prefix: null, TopMost: true, SiteSpecific: siteIdentity > 0, WithDerivedInfo: false, SubTable: false);
@@ -178,6 +178,7 @@ BEGIN");
                 }
 
                 sb.Append($@"
+    SELECT @__ROWCOUNT  --- result set
 END
 
 GO
@@ -211,13 +212,14 @@ BEGIN
     DELETE FROM {fullBaseTableName}
     WHERE [{key1Name}] = @Key1Val AND [{SQLGenericBase.SiteColumn}] = @{SQLGen.ValSiteIdentity}
 ;
-    SELECT @@ROWCOUNT --- result set
+    DECLARE @__ROWCOUNT int = @@ROWCOUNT;
 ;
 
     DELETE FROM {fullTableName}
     WHERE [{key1Name}] = @Key1Val AND [{SQLGenericBase.SiteColumn}] = @{SQLGen.ValSiteIdentity}
 ;
 
+    SELECT @__ROWCOUNT --- result set
 END
 
 GO
