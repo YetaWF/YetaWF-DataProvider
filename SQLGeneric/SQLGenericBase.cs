@@ -337,7 +337,7 @@ namespace YetaWF.DataProvider.SQLGeneric {
         /// <param name="filters">The filters to be normalized, may be null.</param>
         /// <returns>Returns normalized filters.</returns>
         protected List<DataProviderFilterInfo> NormalizeFilter(Type type, List<DataProviderFilterInfo> filters) {
-            if (filters == null) 
+            if (filters == null)
                 return null;
             filters = (from f in filters select new DataProviderFilterInfo(f)).ToList();// copy list
             foreach (DataProviderFilterInfo f in filters) {
@@ -355,7 +355,7 @@ namespace YetaWF.DataProvider.SQLGeneric {
         }
         private string NormalizeFilter(Type type, DataProviderFilterInfo filter) {
             PropertyData propData = ObjectSupport.TryGetPropertyData(type, filter.Field);
-            if (propData == null) 
+            if (propData == null)
                 return filter.Field; // could be a composite field, like Event.ImplementingAssembly
             if (propData.PropInfo.PropertyType == typeof(MultiString)) {
                 MultiString ms = new MultiString(filter.ValueAsString);
@@ -371,17 +371,19 @@ namespace YetaWF.DataProvider.SQLGeneric {
         /// <param name="sorts">The filters to be normalized, may be null.</param>
         /// <returns>Returns normalized filters.</returns>
         protected List<DataProviderSortInfo> NormalizeSort(Type type, List<DataProviderSortInfo> sorts) {
-            if (sorts == null) 
+            if (sorts == null)
                 return null;
             sorts = (from s in sorts select new DataProviderSortInfo(s)).ToList();// copy list
             foreach (DataProviderSortInfo sort in sorts) {
+                if (sort.Field != null && sort.Field.Length > 0 && char.IsLetter(sort.Field[0])) // don't replace in [column]...
+                    sort.Field = sort.Field.Replace(".", "_");
+            }
+            foreach (DataProviderSortInfo sort in sorts) {
                 PropertyData propData = ObjectSupport.TryGetPropertyData(type, sort.Field);
-                if (propData == null)
-                    throw new InternalError($"Property {sort.Field} used for sorting not found");
-                if (propData.PropInfo.PropertyType == typeof(MultiString))
-                    sort.Field = ColumnFromPropertyWithLanguage(MultiString.ActiveLanguage, sort.Field);
-                else
-                    sort.Field = propData.ColumnName;
+                if (propData != null) {
+                    if (propData.PropInfo.PropertyType == typeof(MultiString))
+                        sort.Field = ColumnFromPropertyWithLanguage(MultiString.ActiveLanguage, sort.Field);
+                }
             }
             return sorts;
         }
