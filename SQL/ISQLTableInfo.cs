@@ -1,5 +1,7 @@
 ﻿/* Copyright © 2020 Softel vdm, Inc. - https://yetawf.com/Documentation/YetaWF/Licensing */
 
+using System.Threading.Tasks;
+
 namespace YetaWF.DataProvider.SQL {
 
     /// <summary>
@@ -47,5 +49,9 @@ namespace YetaWF.DataProvider.SQL {
         /// <param name="searchText">The text searched in <paramref name="text"/> that is replaced by the language used by the data provider.</param>
         /// <returns>Returns the SQL string fragment with <paramref name="searchText"/> replaced by the language used by the data provider.</returns>
         string ReplaceWithLanguage(string text, string searchText);
+        /// <summary>
+        /// Opens the underlying database. This call is required if the data provider is only used to execute SQL statements directly.
+        /// </summary>
+        Task EnsureOpenAsync();
     }
 }
