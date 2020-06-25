@@ -5,38 +5,29 @@
     <TargetFramework>netcoreapp3.1</TargetFramework>
 
     <DefineConstants>$(DefineConstants);MVC6;NETCOREAPP</DefineConstants>
-    <AssemblyName>YetaWF.DataProvider.ModuleDefinition</AssemblyName>
-    <PackageId>ModuleDefinition</PackageId>
+    <AssemblyName>YetaWF.DataProvider.SQL</AssemblyName>
+    <PackageId>SQL</PackageId>
     <GenerateAssemblyTitleAttribute>false</GenerateAssemblyTitleAttribute>
     <GenerateAssemblyDescriptionAttribute>false</GenerateAssemblyDescriptionAttribute>
     <GenerateAssemblyConfigurationAttribute>false</GenerateAssemblyConfigurationAttribute>
     <GenerateAssemblyCompanyAttribute>false</GenerateAssemblyCompanyAttribute>
-    <GenerateAssemblyProductAttribute>false</GenerateAssemblyProductAttribute>
     <GenerateAssemblyCopyrightAttribute>false</GenerateAssemblyCopyrightAttribute>
+    <GenerateAssemblyProductAttribute>false</GenerateAssemblyProductAttribute>
     <GenerateAssemblyVersionAttribute>false</GenerateAssemblyVersionAttribute>
-    <RootNamespace>YetaWF.DataProvider.ModuleDefinition</RootNamespace>
-  </PropertyGroup>
+    <RootNamespace>YetaWF.DataProvider.SQL</RootNamespace>
+    </PropertyGroup>
 
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|AnyCPU'">
-    <DocumentationFile>bin\Debug\netcoreapp3.1\YetaWF.DataProvider.ModuleDefinition.xml</DocumentationFile>
+    <DocumentationFile></DocumentationFile>
   </PropertyGroup>
 
-  <Choose>
-    <When Condition="Exists('$(SolutionDir)USE_SQLDYN.txt')">
-      <ItemGroup>
-        <ProjectReference Include="..\SQLDyn\SQL.csproj" />
-      </ItemGroup>
-    </When>
-    <Otherwise>
-      <ItemGroup>
-        <ProjectReference Include="..\SQL\SQL.csproj" />
-      </ItemGroup>
-    </Otherwise>
-  </Choose>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Data.SqlClient" Version="2.0.0-preview1.20021.1" />
+  </ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\..\CoreComponents\Core\Core.csproj" />
-    <ProjectReference Include="..\File\File.csproj" />
-    <ProjectReference Include="..\PostgreSQL\PostgreSQL.csproj" />
+    <ProjectReference Include="..\SQLGeneric\SQLGeneric.csproj" />
   </ItemGroup>
+
 </Project>
