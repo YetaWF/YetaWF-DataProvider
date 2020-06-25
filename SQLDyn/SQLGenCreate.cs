@@ -16,11 +16,7 @@ using YetaWF.Core.Models.Attributes;
 using YetaWF.Core.Support;
 using YetaWF.DataProvider.SQL;
 using YetaWF.DataProvider.SQLGeneric;
-#if MVC6
 using Microsoft.Data.SqlClient;
-#else
-using System.Data.SqlClient;
-#endif
 
 namespace YetaWF.DataProvider.SQL {
 

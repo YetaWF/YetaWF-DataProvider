@@ -439,8 +439,8 @@ namespace YetaWF.DataProvider.SQL {
         /// <summary>
         /// Adds a named parameter to the query
         /// </summary>
-        /// <param name="name">The name of the parameter</param>
-        /// <param name="value">The value of the parameter</param>
+        /// <param name="name">The name of the parameter.</param>
+        /// <param name="value">The value of the parameter.</param>
         /// <param name="direction">The direction of the parameter (input or output).</param>
         public void AddParam(string name, object value, ParameterDirection direction = ParameterDirection.Input)/*<<<*/ {
             if (name.StartsWith("@")) name = name.Substring(1);

@@ -18,11 +18,7 @@ using YetaWF.Core.Support;
 using YetaWF.Core.Support.Serializers;
 using YetaWF.DataProvider.SQLGeneric;
 using YetaWF.Core.Language;
-#if MVC6
 using Microsoft.Data.SqlClient;
-#else
-using System.Data.SqlClient;
-#endif
 
 namespace YetaWF.DataProvider.SQL {
 
