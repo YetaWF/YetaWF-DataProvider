@@ -7,7 +7,6 @@ using System.Threading.Tasks;
 using YetaWF.Core.Audit;
 using YetaWF.Core.DataProvider;
 using YetaWF.Core.IO;
-using YetaWF.Core.Models;
 using YetaWF.Core.Modules;
 using YetaWF.Core.Packages;
 using YetaWF.Core.Serializers;
@@ -54,34 +53,27 @@ namespace YetaWF.DataProvider {
         private async Task<GetCachedModuleInfo> GetCachedModuleAsync(Guid guid) {
             GetCachedModuleInfo modInfo = new GetCachedModuleInfo();
             GetObjectInfo<ModuleDefinition> objInfo;
-            using (ICacheDataProvider sharedCacheDP = YetaWF.Core.IO.Caching.GetStaticCacheProvider()) {
+            using (ICacheDataProvider sharedCacheDP = YetaWF.Core.IO.Caching.GetSharedCacheProvider()) {
                 objInfo = await sharedCacheDP.GetAsync<ModuleDefinition>(CacheKey(guid));
             }
             if (!objInfo.Success)
                 return modInfo;
-
-            if (objInfo.Data != null) {
-                // make a type correct copy of the data, we don't want caller to modify the cached page
-                Type objType = objInfo.Data.GetType();
-                ModuleDefinition newObj = (ModuleDefinition)Activator.CreateInstance(objType);
-                ObjectSupport.CopyData(objInfo.Data, newObj);
-                modInfo.Module = objInfo.Data;
-            }
             modInfo.Success = true;
+            modInfo.Module = objInfo.Data;
             return modInfo;
         }
         private async Task SetCachedModuleAsync(ModuleDefinition mod) {
-            using (ICacheDataProvider sharedCacheDP = YetaWF.Core.IO.Caching.GetStaticCacheProvider()) {
+            using (ICacheDataProvider sharedCacheDP = YetaWF.Core.IO.Caching.GetSharedCacheProvider()) {
                 await sharedCacheDP.AddAsync(CacheKey(mod.ModuleGuid), mod);
             }
         }
         private async Task SetEmptyCachedModuleAsync(Guid guid) {
-            using (ICacheDataProvider sharedCacheDP = YetaWF.Core.IO.Caching.GetStaticCacheProvider()) {
+            using (ICacheDataProvider sharedCacheDP = YetaWF.Core.IO.Caching.GetSharedCacheProvider()) {
                 await sharedCacheDP.AddAsync<ModuleDefinition>(CacheKey(guid), null);
             }
         }
         private async Task RemoveCachedModuleAsync(Guid guid) {
-            using (ICacheDataProvider sharedCacheDP = YetaWF.Core.IO.Caching.GetStaticCacheProvider()) {
+            using (ICacheDataProvider sharedCacheDP = YetaWF.Core.IO.Caching.GetSharedCacheProvider()) {
                 await sharedCacheDP.RemoveAsync<ModuleDefinition>(CacheKey(guid));
             }
         }
