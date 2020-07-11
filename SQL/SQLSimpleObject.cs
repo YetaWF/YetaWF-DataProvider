@@ -843,7 +843,7 @@ DELETE FROM {fullTableName} WHERE [{SiteColumn}] = {SiteIdentity}
                 },
                 (prefix, container, prop) => { // Binary
                     string colName = $"{prefix}{prop.ColumnName}";
-                    dataTable.Columns.Add(new DataColumn(colName, GetPropertyType(prop.PropInfo.PropertyType)));
+                    dataTable.Columns.Add(new DataColumn(colName, typeof(byte[])));
                     return null;
                 },
                 (prefix, container, prop) => { // Image
