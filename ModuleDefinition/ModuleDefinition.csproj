@@ -22,7 +22,7 @@
   </PropertyGroup>
 
   <Choose>
-    <When Condition="Exists('$(SolutionDir)USE_SQLDYN.txt')">
+    <When Condition="Exists('..\..\USE_SQLDYN.txt')">
       <ItemGroup>
         <ProjectReference Include="..\SQLDyn\SQLDyn.csproj" />
       </ItemGroup>
