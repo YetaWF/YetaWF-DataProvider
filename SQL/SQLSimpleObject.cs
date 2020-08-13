@@ -278,6 +278,7 @@ FROM {fullTableName} WITH(NOLOCK)
 {joinExpr}
 {filterExpr}
 ; --- result set");
+
             }
 
             sqlHelper = new SQLHelper(Conn, null, Languages);
@@ -294,13 +295,17 @@ FROM {fullTableName} WITH(NOLOCK)
 
             // Get records
 
+            string top;
             if (skip > 0 || take > 0) {
-                sb.Append($@"
-SELECT * INTO #Temp FROM (");
+                top = null;
+            } else {
+                top = "TOP 999999999999";
             }
 
             sb.Append($@"
-    SELECT {columnList},");
+SELECT * INTO #Temp FROM (
+
+    SELECT {top} {columnList},");
             if (CalculatedPropertyCallbackAsync != null) sb.Append(await SQLGen.CalculatedPropertiesAsync(typeof(OBJTYPE), CalculatedPropertyCallbackAsync));
             sb.RemoveLastComma();
 
@@ -308,18 +313,12 @@ SELECT * INTO #Temp FROM (");
     FROM {fullTableName} WITH(NOLOCK)
     {joinExpr}
     {filterExpr}
-    {orderByExpr}");
+    {orderByExpr}
 
-            if (skip > 0 || take > 0) {
-                sb.Append($@"
 ) data
 
 SELECT * FROM #Temp
 ;  --- result set");
-
-                filterExpr = string.IsNullOrWhiteSpace(filterExpr) ? "WHERE " : $"{filterExpr} AND ";
-                filterExpr += $"[{SQLBase.SubTableKeyColumn}] IN (SELECT [{IdentityNameOrDefault}] FROM #Temp)";
-            }
 
             List<PropertyData> propData = GetPropertyData();
             List<SQLGenericGen.SubTableInfo> subTables = SQLGen.GetSubTables(Dataset, propData);
@@ -331,15 +330,13 @@ SELECT * FROM #Temp
                 sb.Add($@"
     FROM {sb.BuildFullTableName(Database, Dbo, subTable.Name)}
     INNER JOIN {sb.BuildFullTableName(Database, Dbo, Dataset)} ON {sb.BuildFullColumnName(Dataset, IdentityName)} = {sb.BuildFullColumnName(subTable.Name, SQLGenericBase.SubTableKeyColumn)}
-    {filterExpr}
+    WHERE [{SQLBase.SubTableKeyColumn}] IN (SELECT [{IdentityNameOrDefault}] FROM #Temp)
 ;  --- result set");
             }
 
-            if (skip > 0 || take > 0) {
-                sb.Append($@"
+            sb.Append($@"
 DROP TABLE #Temp
 ");
-            }
 
             DataProviderGetRecords<OBJTYPE> recs = new DataProviderGetRecords<OBJTYPE>();
 
