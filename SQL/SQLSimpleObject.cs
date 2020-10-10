@@ -302,8 +302,11 @@ FROM {fullTableName} WITH(NOLOCK)
                 top = "TOP 999999999999";
             }
 
+            // avoid accidental collision for the same session
+            string TempId = $"Temp{GlobalTempId++}";
+
             sb.Append($@"
-SELECT * INTO #Temp FROM (
+SELECT * INTO #{TempId} FROM (
 
     SELECT {top} {columnList},");
             if (CalculatedPropertyCallbackAsync != null) sb.Append(await SQLGen.CalculatedPropertiesAsync(typeof(OBJTYPE), CalculatedPropertyCallbackAsync));
@@ -317,7 +320,7 @@ SELECT * INTO #Temp FROM (
 
 ) data
 
-SELECT * FROM #Temp
+SELECT * FROM #{TempId}
 ;  --- result set");
 
             List<PropertyData> propData = GetPropertyData();
@@ -330,12 +333,12 @@ SELECT * FROM #Temp
                 sb.Add($@"
     FROM {sb.BuildFullTableName(Database, Dbo, subTable.Name)}
     INNER JOIN {sb.BuildFullTableName(Database, Dbo, Dataset)} ON {sb.BuildFullColumnName(Dataset, IdentityName)} = {sb.BuildFullColumnName(subTable.Name, SQLGenericBase.SubTableKeyColumn)}
-    WHERE [{SQLBase.SubTableKeyColumn}] IN (SELECT [{IdentityNameOrDefault}] FROM #Temp)
+    WHERE [{SQLBase.SubTableKeyColumn}] IN (SELECT [{IdentityNameOrDefault}] FROM #{TempId})
 ;  --- result set");
             }
 
             sb.Append($@"
-DROP TABLE #Temp
+DROP TABLE #{TempId}
 ");
 
             DataProviderGetRecords<OBJTYPE> recs = new DataProviderGetRecords<OBJTYPE>();
@@ -363,6 +366,8 @@ DROP TABLE #Temp
             }
             return recs;
         }
+
+        private static int GlobalTempId = 0;
 
         /// <summary>
         /// Removes records using filtering criteria.
