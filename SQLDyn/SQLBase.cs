@@ -469,6 +469,7 @@ namespace YetaWF.DataProvider.SQL {
                         object val = pi.GetValue(container);
                         BinaryFormatter binaryFmt = new BinaryFormatter { AssemblyFormat = 0/*System.Runtime.Serialization.Formatters.FormatterAssemblyStyle.Simple*/ };
                         using (MemoryStream ms = new MemoryStream()) {
+                            // TODO: img.Save() to stream
                             binaryFmt.Serialize(ms, val);
                             sb.Add(sqlHelper.AddTempParam(ms.ToArray()));
                         }
@@ -547,6 +548,7 @@ namespace YetaWF.DataProvider.SQL {
                         object val = pi.GetValue(container);
                         BinaryFormatter binaryFmt = new BinaryFormatter { AssemblyFormat = 0/*System.Runtime.Serialization.Formatters.FormatterAssemblyStyle.Simple*/ };
                         using (MemoryStream ms = new MemoryStream()) {
+                            // TODO: img.Save() to stream
                             binaryFmt.Serialize(ms, val);
                             sb.Add(sqlHelper.Expr(prefix + colName, "=", ms.ToArray(), true));
                             sb.Add(",");
