@@ -48,6 +48,10 @@ namespace YetaWF.DataProvider.SQL {
 
         internal bool Warnings = true;
 
+        /// <summary>
+        /// Retrieves the property information for the model used.
+        /// </summary>
+        /// <returns>List of property information.</returns>
         protected override List<PropertyData> GetPropertyData() {
             if (_propertyData == null)
                 _propertyData = ObjectSupport.GetPropertyData(typeof(OBJTYPE));
