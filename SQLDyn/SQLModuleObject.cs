@@ -330,7 +330,7 @@ DROP TABLE #BASETABLE
         /// <remarks>
         /// This is not implemented as it is not required for module storage.
         /// </remarks>
-        public new Task<OBJTYPE?> GetOneRecordAsync(List<DataProviderFilterInfo> filters, List<JoinData>? Joins = null) {
+        public new Task<OBJTYPE?> GetOneRecordAsync(List<DataProviderFilterInfo>? filters, List<JoinData>? Joins = null) {
             throw new NotImplementedException();
         }
 
