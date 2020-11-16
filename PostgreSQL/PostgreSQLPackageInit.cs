@@ -41,7 +41,7 @@ namespace YetaWF.DataProvider.PostgreSQL {
         /// <param name="package">The package.</param>
         public async Task InitializeAsync(Package package) {
 
-            string connString = GetConnectionString(package);
+            string? connString = GetConnectionString(package);
             if (string.IsNullOrWhiteSpace(connString)) {
                 if ((SiteDefinition.INITIAL_INSTALL || !YetaWF.Core.Support.Startup.Started) && GetType() == typeof(SQLInitialization)) // for postgres initialization, ignore if there is no connection string
                     return;
@@ -76,8 +76,8 @@ namespace YetaWF.DataProvider.PostgreSQL {
                             else
                                 await cmd.ExecuteNonQueryAsync();
                         } catch (Exception exc) {
-                            PostgresException pgExc = exc as PostgresException;
-                            if (pgExc != null && pgExc.SqlState == PostgresErrorCodes.DuplicateObject) { 
+                            PostgresException? pgExc = exc as PostgresException;
+                            if (pgExc != null && pgExc.SqlState == PostgresErrorCodes.DuplicateObject) {
                                 ;// accept if it already exists
                             } else
                                 throw new InternalError($"{Path.GetFileName(file)} in package {package.Name}: {ErrorHandling.FormatExceptionMessage(exc)}");
@@ -87,10 +87,10 @@ namespace YetaWF.DataProvider.PostgreSQL {
             }
         }
 
-        private string GetConnectionString(Package package) {
+        private string? GetConnectionString(Package package) {
 
             // verify correct I/O mode
-            string ioMode = WebConfigHelper.GetValue<string>(package.AreaName, DataProviderImpl.IOModeString);
+            string? ioMode = WebConfigHelper.GetValue<string>(package.AreaName, DataProviderImpl.IOModeString);
             if (string.IsNullOrWhiteSpace(ioMode))
                 ioMode = WebConfigHelper.GetValue<string>(DataProviderImpl.DefaultString, DataProviderImpl.IOModeString);
             if (string.IsNullOrWhiteSpace(ioMode))
@@ -99,7 +99,7 @@ namespace YetaWF.DataProvider.PostgreSQL {
                 return null;
 
             // retrieve connection string
-            string connString = WebConfigHelper.GetValue<string>(package.AreaName, SQLBase.PostgreSQLConnectString);
+            string? connString = WebConfigHelper.GetValue<string>(package.AreaName, SQLBase.PostgreSQLConnectString);
             if (string.IsNullOrWhiteSpace(connString))
                 connString = WebConfigHelper.GetValue<string>(DataProviderImpl.DefaultString, SQLBase.PostgreSQLConnectString);
             if (string.IsNullOrWhiteSpace(connString))

@@ -24,11 +24,13 @@ namespace YetaWF.DataProvider.SQL {
             bool status = true;
             SQLManager sqlManager = new SQLManager();
             string subtablePrefix = tableName + "_";
-            List<SQLGenericGen.Table> tables = sqlManager.GetTables(Conn, dbName, dbo);
-            foreach (SQLGenericGen.Table table in tables) {
-                if (table.Name.StartsWith(subtablePrefix))
-                    if (!DropTable(dbName, dbo, table.Name, errorList))
-                        status = false;
+            List<SQLGenericGen.Table>? tables = sqlManager.GetTables(Conn, dbName, dbo);
+            if (tables != null) {
+                foreach (SQLGenericGen.Table table in tables) {
+                    if (table.Name.StartsWith(subtablePrefix))
+                        if (!DropTable(dbName, dbo, table.Name, errorList))
+                            status = false;
+                }
             }
             return status;
         }

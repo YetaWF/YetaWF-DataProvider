@@ -21,7 +21,7 @@ namespace YetaWF.DataProvider.PostgreSQL {
     /// <summary>
     /// This class implements access to objects (records), with one primary key and without identity column.
     /// </summary>
-    public partial class SQLSimpleObject<KEYTYPE, OBJTYPE> : SQLSimpleObjectBase<KEYTYPE, object, OBJTYPE> {
+    public partial class SQLSimpleObject<KEYTYPE, OBJTYPE> : SQLSimpleObjectBase<KEYTYPE, object, OBJTYPE> where KEYTYPE : notnull where OBJTYPE : notnull {
 
         /// <summary>
         /// Constructor.
@@ -38,7 +38,7 @@ namespace YetaWF.DataProvider.PostgreSQL {
     /// This base class implements access to objects (records), with a primary and secondary key (composite) and without identity column.
     /// This base class is not intended for use by application data providers. These use one of the more specialized derived classes instead.
     /// </summary>
-    public class SQLSimpleObjectBase<KEYTYPE, KEYTYPE2, OBJTYPE> : SQLBase, IDataProvider<KEYTYPE, OBJTYPE>, IPostgreSQLTableInfo {
+    public class SQLSimpleObjectBase<KEYTYPE, KEYTYPE2, OBJTYPE> : SQLBase, IDataProvider<KEYTYPE, OBJTYPE>, IPostgreSQLTableInfo where KEYTYPE : notnull where OBJTYPE : notnull {
 
         internal SQLSimpleObjectBase(Dictionary<string, object> options, bool HasKey2 = false) : base(options, HasKey2) { }
 
@@ -59,14 +59,14 @@ namespace YetaWF.DataProvider.PostgreSQL {
                 _propertyData = ObjectSupport.GetPropertyData(typeof(OBJTYPE));
             return _propertyData;
         }
-        List<PropertyData> _propertyData;
+        List<PropertyData>? _propertyData;
 
         /// <summary>
         /// Retrieves one record from the database table that satisfies the specified keys.
         /// </summary>
         /// <param name="key">The primary key value.</param>
         /// <returns>Returns the record that satisfies the specified keys. If no record exists null is returned.</returns>
-        public Task<OBJTYPE> GetAsync(KEYTYPE key) {
+        public Task<OBJTYPE?> GetAsync(KEYTYPE key) {
             return GetAsync(key, default(KEYTYPE2));
         }
         /// <summary>
@@ -75,7 +75,7 @@ namespace YetaWF.DataProvider.PostgreSQL {
         /// <param name="key">The primary key value.</param>
         /// <param name="key2">The secondary key value.</param>
         /// <returns>Returns the record that satisfies the specified keys. If no record exists null is returned.</returns>
-        public async Task<OBJTYPE> GetAsync(KEYTYPE key, KEYTYPE2 key2) {
+        public async Task<OBJTYPE?> GetAsync(KEYTYPE key, KEYTYPE2? key2) {
 
             await EnsureOpenAsync();
 
@@ -85,7 +85,7 @@ namespace YetaWF.DataProvider.PostgreSQL {
 
             sqlHelper.AddKeyParam("Key1Val", key, typeof(KEYTYPE));
             if (HasKey2)
-                sqlHelper.AddKeyParam("Key2Val", key2, typeof(KEYTYPE2));
+                sqlHelper.AddKeyParam("Key2Val", key2!, typeof(KEYTYPE2));
             if (SiteIdentity > 0)
                 sqlHelper.AddParam(SQLGen.ValSiteIdentity, SiteIdentity);
 
@@ -95,7 +95,7 @@ namespace YetaWF.DataProvider.PostgreSQL {
                     return sqlHelper.CreateObject<OBJTYPE>(reader);
                 }
             } catch (Exception exc) {
-                Npgsql.PostgresException sqlExc = exc as Npgsql.PostgresException;
+                Npgsql.PostgresException? sqlExc = exc as Npgsql.PostgresException;
                 if (sqlExc != null)
                     throw new InternalError($"{nameof(GetAsync)} failed for type {typeof(OBJTYPE).FullName} - {sqlExc.Detail} - {ErrorHandling.FormatExceptionMessage(exc)}");
                 throw new InternalError($"{nameof(GetAsync)} failed for type {typeof(OBJTYPE).FullName} - {ErrorHandling.FormatExceptionMessage(exc)}");
@@ -134,7 +134,7 @@ namespace YetaWF.DataProvider.PostgreSQL {
                     }
                 }
             } catch (Exception exc) {
-                Npgsql.PostgresException sqlExc = exc as Npgsql.PostgresException;
+                Npgsql.PostgresException? sqlExc = exc as Npgsql.PostgresException;
                 if (sqlExc != null && sqlExc.SqlState == PostgresErrorCodes.UniqueViolation) // already exists
                     return false;
                 if (sqlExc != null)
@@ -166,7 +166,7 @@ namespace YetaWF.DataProvider.PostgreSQL {
         /// <param name="newKey2">The new secondary key value of the record. This may be the same value as <paramref name="origKey2"/>. </param>
         /// <param name="obj">The object being updated.</param>
         /// <returns>Returns a status indicator.</returns>
-        public async Task<UpdateStatusEnum> UpdateAsync(KEYTYPE origKey, KEYTYPE2 origKey2, KEYTYPE newKey, KEYTYPE2 newKey2, OBJTYPE obj) {
+        public async Task<UpdateStatusEnum> UpdateAsync(KEYTYPE origKey, KEYTYPE2? origKey2, KEYTYPE newKey, KEYTYPE2? newKey2, OBJTYPE obj) {
 
             await EnsureOpenAsync();
 
@@ -176,7 +176,7 @@ namespace YetaWF.DataProvider.PostgreSQL {
             GetParameterList(sqlHelper, obj, Database, Schema, Dataset, GetPropertyData(), Prefix: null, TopMost: true, SiteSpecific: SiteIdentity > 0, WithDerivedInfo: false, SubTable: false);
             sqlHelper.AddKeyParam("Key1Val", origKey, typeof(KEYTYPE));
             if (HasKey2)
-                sqlHelper.AddKeyParam("Key2Val", origKey2, typeof(KEYTYPE2));
+                sqlHelper.AddKeyParam("Key2Val", origKey2!, typeof(KEYTYPE2));
 
             try {
                 using (NpgsqlDataReader reader = await sqlHelper.ExecuteReaderStoredProcAsync($@"""{Schema}"".""{Dataset}__Update""")) {
@@ -192,7 +192,7 @@ namespace YetaWF.DataProvider.PostgreSQL {
                 }
             } catch (Exception exc) {
                 if (!newKey.Equals(origKey)) {
-                    Npgsql.PostgresException sqlExc = exc as Npgsql.PostgresException;
+                    Npgsql.PostgresException? sqlExc = exc as Npgsql.PostgresException;
                     if (sqlExc != null && sqlExc.SqlState == PostgresErrorCodes.UniqueViolation) // already exists
                         return UpdateStatusEnum.NewKeyExists;
                     if (sqlExc != null)
@@ -217,7 +217,7 @@ namespace YetaWF.DataProvider.PostgreSQL {
         /// <param name="key">The primary key value of the record to remove.</param>
         /// <param name="key2">The secondary key value of the record to remove.</param>
         /// <returns>Returns true if the record was removed, or false if the record was not found. Other errors cause an exception.</returns>
-        public async Task<bool> RemoveAsync(KEYTYPE key, KEYTYPE2 key2) {
+        public async Task<bool> RemoveAsync(KEYTYPE key, KEYTYPE2? key2) {
 
             await EnsureOpenAsync();
 
@@ -225,7 +225,7 @@ namespace YetaWF.DataProvider.PostgreSQL {
 
             sqlHelper.AddKeyParam("Key1Val", key, typeof(KEYTYPE));
             if (HasKey2)
-                sqlHelper.AddKeyParam("Key2Val", key2, typeof(KEYTYPE2));
+                sqlHelper.AddKeyParam("Key2Val", key2!, typeof(KEYTYPE2));
             if (SiteIdentity > 0)
                 sqlHelper.AddParam(SQLGen.ValSiteIdentity, SiteIdentity);
 
@@ -236,7 +236,7 @@ namespace YetaWF.DataProvider.PostgreSQL {
                     return removed > 0;
                 }
             } catch (Exception exc) {
-                Npgsql.PostgresException sqlExc = exc as Npgsql.PostgresException;
+                Npgsql.PostgresException? sqlExc = exc as Npgsql.PostgresException;
                 if (sqlExc != null)
                     throw new InternalError($"{nameof(RemoveAsync)} failed for type {typeof(OBJTYPE).FullName} - {sqlExc.Detail} - {ErrorHandling.FormatExceptionMessage(exc)}");
                 throw new InternalError($"{nameof(RemoveAsync)} failed for type {typeof(OBJTYPE).FullName} - {ErrorHandling.FormatExceptionMessage(exc)}");
@@ -252,7 +252,7 @@ namespace YetaWF.DataProvider.PostgreSQL {
         /// If no record matches, null is returned.</returns>
         /// <remarks>
         /// </remarks>
-        public async Task<OBJTYPE> GetOneRecordAsync(List<DataProviderFilterInfo> filters, List<JoinData> Joins = null) {
+        public async Task<OBJTYPE?> GetOneRecordAsync(List<DataProviderFilterInfo>? filters, List<JoinData>? Joins = null) {
             DataProviderGetRecords<OBJTYPE> recs = await GetRecordsAsync(0, 1, null, filters, Joins: Joins);
             return recs.Data.FirstOrDefault();
         }
@@ -266,7 +266,7 @@ namespace YetaWF.DataProvider.PostgreSQL {
         /// <param name="filters">A collection describing the filtering criteria.</param>
         /// <param name="Joins">A collection describing the dataset joins.</param>
         /// <returns>Returns a YetaWF.Core.DataProvider.DataProviderGetRecords object describing the data returned.</returns>
-        public async Task<DataProviderGetRecords<OBJTYPE>> GetRecordsAsync(int skip, int take, List<DataProviderSortInfo> sorts, List<DataProviderFilterInfo> filters, List<JoinData> Joins = null) {
+        public async Task<DataProviderGetRecords<OBJTYPE>> GetRecordsAsync(int skip, int take, List<DataProviderSortInfo>? sorts, List<DataProviderFilterInfo>? filters, List<JoinData>? Joins = null) {
             if (Joins == null)
                 Joins = new List<JoinData>();
 
@@ -301,7 +301,7 @@ namespace YetaWF.DataProvider.PostgreSQL {
         {filterExpr}
 ; --- result set");
 
-                object scalar = await sqlHelper.ExecuteScalarAsync(sb.ToString());
+                object? scalar = await sqlHelper.ExecuteScalarAsync(sb.ToString());
                 total = Convert.ToInt32(scalar);
                 if (total == 0)
                     return new DataProviderGetRecords<OBJTYPE> { Total = 0, };
@@ -311,7 +311,7 @@ namespace YetaWF.DataProvider.PostgreSQL {
             sqlHelper = new SQLHelper(Conn, null, Languages);
             filterExpr = MakeFilter(sqlHelper, filters, visibleColumns);
 
-            string orderByExpr = null;
+            string? orderByExpr = null;
             {
                 sb = new SQLBuilder();
                 if (sorts == null || sorts.Count == 0)
@@ -356,7 +356,7 @@ namespace YetaWF.DataProvider.PostgreSQL {
         /// </summary>
         /// <param name="filters">A collection describing the filtering criteria.</param>
         /// <returns>Returns the number of records removed.</returns>
-        public async Task<int> RemoveRecordsAsync(List<DataProviderFilterInfo> filters) {
+        public async Task<int> RemoveRecordsAsync(List<DataProviderFilterInfo>? filters) {
 
             await EnsureOpenAsync();
 
@@ -444,7 +444,7 @@ FROM {fullTableName}
             sqlCreate.MakeTypes(Database, Schema, Dataset, GetPropertyData(), typeof(OBJTYPE));
 
             if (success) {
-                if (!await sqlCreate.MakeFunctionsAsync(Database, Schema, Dataset, Key1Name, HasKey2 ? Key2Name : null, IdentityName, GetPropertyData(), typeof(OBJTYPE), SiteIdentity, CalculatedPropertyCallbackAsync))
+                if (!await sqlCreate.MakeFunctionsAsync(Database, Schema, Dataset, Key1Name, HasKey2 ? Key2Name! : null, IdentityName, GetPropertyData(), typeof(OBJTYPE), SiteIdentity, CalculatedPropertyCallbackAsync))
                     success = false;
                 Conn.ReloadTypes();
             }
@@ -606,13 +606,13 @@ DELETE FROM {fullTableName} WHERE ""{SiteColumn}"" = {SiteIdentity}
                 async (int offset, int skip) => {
                     return await GetRecordsAsync(offset, skip, null, null);
                 },
-                async (OBJTYPE record, PropertyInfo pi, PropertyInfo pi2) => {
+                async (OBJTYPE record, PropertyInfo pi, PropertyInfo? pi2) => {
                     UpdateStatusEnum status;
-                    KEYTYPE key1 = (KEYTYPE)pi.GetValue(record);
+                    KEYTYPE key1 = (KEYTYPE)pi.GetValue(record)!;
                     Warnings = false; // we're turning warnings off in case strings get truncated
                     try {
                         if (HasKey2) {
-                            KEYTYPE2 key2 = (KEYTYPE2)pi2.GetValue(record);
+                            KEYTYPE2 key2 = (KEYTYPE2)pi2!.GetValue(record);
                             status = await UpdateAsync(key1, key2, key1, key2, record);
                         } else {
                             status = await UpdateAsync(key1, key1, record);
@@ -652,13 +652,13 @@ DELETE FROM {fullTableName} WHERE ""{SiteColumn}"" = {SiteIdentity}
 #pragma warning restore 1734
         protected async Task LocalizeModelAsync(string language,
                 Func<string, bool> isHtml,
-                Func<List<string>, Task<List<string>>> translateStringsAsync, Func<string, Task<string>> translateComplexStringAsync, Func<int, int, Task<DataProviderGetRecords<OBJTYPE>>> getRecordsAsync, Func<OBJTYPE, PropertyInfo, PropertyInfo, Task<UpdateStatusEnum>> saveRecordAsync) {
+                Func<List<string>, Task<List<string>>> translateStringsAsync, Func<string, Task<string>> translateComplexStringAsync, Func<int, int, Task<DataProviderGetRecords<OBJTYPE>>> getRecordsAsync, Func<OBJTYPE, PropertyInfo, PropertyInfo?, Task<UpdateStatusEnum>> saveRecordAsync) {
 
             const int RECORDS = 20;
 
             List<PropertyInfo> props = ObjectSupport.GetProperties(typeof(OBJTYPE));
             PropertyInfo key1Prop = ObjectSupport.GetProperty(typeof(OBJTYPE), Key1Name);
-            PropertyInfo key2Prop = null;
+            PropertyInfo? key2Prop = null;
             if (HasKey2)
                 key2Prop = ObjectSupport.GetProperty(typeof(OBJTYPE), Key2Name);
 
@@ -682,12 +682,12 @@ DELETE FROM {fullTableName} WHERE ""{SiteColumn}"" = {SiteIdentity}
 
         // Helpers
 
-        internal string GetParameterList(SQLHelper sqlHelper, OBJTYPE obj, string dbName, string schema, string dataset, List<PropertyData> propData, string Prefix = null, bool TopMost = true, bool SiteSpecific = false, bool WithDerivedInfo = false, bool SubTable = false) {
+        internal string GetParameterList(SQLHelper sqlHelper, OBJTYPE obj, string dbName, string schema, string dataset, List<PropertyData> propData, string? Prefix = null, bool TopMost = true, bool SiteSpecific = false, bool WithDerivedInfo = false, bool SubTable = false) {
             SQLManager sqlManager = new SQLManager();
             return SQLGen.ProcessColumns(
                 (prefix, container, prop) => { // Property
                     SQLGenericGen.Column col = sqlManager.GetColumn(Conn, dbName, schema, dataset, $"{prefix}{prop.ColumnName}");
-                    object val = prop.PropInfo.GetValue(container);
+                    object? val = prop.PropInfo.GetValue(container);
                     sqlHelper.AddParam($"arg{prefix}{prop.Name}", val, DbType: (NpgsqlDbType)col.DataType);
                     return null;
                 },
@@ -696,8 +696,8 @@ DELETE FROM {fullTableName} WHERE ""{SiteColumn}"" = {SiteIdentity}
                 },
                 (prefix, container, prop) => { // Binary
                     SQLGenericGen.Column col = sqlManager.GetColumn(Conn, dbName, schema, dataset, $"{prefix}{prop.ColumnName}");
-                    object val = prop.PropInfo.GetValue(container);
-                    byte[] data = null;
+                    object? val = prop.PropInfo.GetValue(container);
+                    byte[]? data = null;
                     if (val != null) {
                         PropertyInfo pi = prop.PropInfo;
                         if (pi.PropertyType == typeof(byte[])) {
@@ -711,12 +711,12 @@ DELETE FROM {fullTableName} WHERE ""{SiteColumn}"" = {SiteIdentity}
                 },
                 (prefix, container, prop) => { // Image
                     SQLGenericGen.Column col = sqlManager.GetColumn(Conn, dbName, schema, dataset, $"{prefix}{prop.ColumnName}");
-                    object val = prop.PropInfo.GetValue(container);
+                    object? val = prop.PropInfo.GetValue(container);
                     sqlHelper.AddParam($"arg{prefix}{prop.Name}", val, DbType: (NpgsqlDbType)col.DataType);
                     return null;
                 },
                 (prefix, container, prop) => { // Language
-                    MultiString ms = (MultiString)prop.PropInfo.GetValue(container);
+                    MultiString ms = (MultiString)prop.PropInfo.GetValue(container)!;
                     foreach (LanguageData lang in Languages) {
                         string colName = ColumnFromPropertyWithLanguage(lang.Id, prop.ColumnName);
                         SQLGenericGen.Column col = sqlManager.GetColumn(Conn, dbName, schema, dataset, $"{prefix}{colName}");
@@ -734,13 +734,13 @@ DELETE FROM {fullTableName} WHERE ""{SiteColumn}"" = {SiteIdentity}
                         // a subtable with a single column doesn't have a PG Type so we have to pass the column as an array instead
                         // get the list of objects.
                         List<object> list = new List<object>();
-                        object val = prop.PropInfo.GetValue(container);
+                        object? val = prop.PropInfo.GetValue(container);
                         if (val != null)
                             list = new List<object>((IEnumerable<object>)val);
                         // get the list of property values we need
                         // and add them with their native type
                         PropertyData subProp = subPropData[0];
-                        List<object> sublist = new List<object>();
+                        List<object?> sublist = new List<object?>();
                         foreach (object v in list) {
                             sublist.Add(subProp.PropInfo.GetValue(v));
                         }
@@ -748,10 +748,10 @@ DELETE FROM {fullTableName} WHERE ""{SiteColumn}"" = {SiteIdentity}
                         sqlHelper.AddParam($"arg{prefix}{prop.Name}", sublist.ToArray(), DbType: dbType | NpgsqlDbType.Array);
                     } else {
                         //AddCompositeMapping(prop.PropInfo.PropertyType, $"{subtableName}_T");
-                        List<object> list = new List<object>();
-                        object val = prop.PropInfo.GetValue(container);
+                        List<object?> list = new List<object?>();
+                        object? val = prop.PropInfo.GetValue(container);
                         if (val != null)
-                            list = new List<object>((IEnumerable<object>)val);
+                            list = new List<object?>((IEnumerable<object?>)val);
                         sqlHelper.AddParam($"arg{prefix}{prop.Name}", list.ToArray(), DbType: NpgsqlDbType.Array, DataTypeName: $"{subtableName}_T[]");
                     }
                     return null;

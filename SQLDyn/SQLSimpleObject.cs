@@ -19,7 +19,7 @@ namespace YetaWF.DataProvider.SQL {
     /// <summary>
     /// This class implements access to objects (records), with one primary key and without identity column.
     /// </summary>
-    public partial class SQLSimpleObject<KEYTYPE, OBJTYPE> : SQLSimpleObjectBase<KEYTYPE, object, OBJTYPE> {
+    public partial class SQLSimpleObject<KEYTYPE, OBJTYPE> : SQLSimpleObjectBase<KEYTYPE, object, OBJTYPE> where KEYTYPE : notnull where OBJTYPE : notnull {
 
         /// <summary>
         /// Constructor.
@@ -36,7 +36,7 @@ namespace YetaWF.DataProvider.SQL {
     /// This base class implements access to objects (records), with a primary and secondary key (composite) and without identity column.
     /// This base class is not intended for use by application data providers. These use one of the more specialized derived classes instead.
     /// </summary>
-    public class SQLSimpleObjectBase<KEYTYPE, KEYTYPE2, OBJTYPE> : SQLBase, IDataProvider<KEYTYPE, OBJTYPE>, ISQLTableInfo {
+    public class SQLSimpleObjectBase<KEYTYPE, KEYTYPE2, OBJTYPE> : SQLBase, IDataProvider<KEYTYPE, OBJTYPE>, ISQLTableInfo where KEYTYPE : notnull where OBJTYPE : notnull {
 
         internal SQLSimpleObjectBase(Dictionary<string, object> options, bool HasKey2 = false) : base(options, HasKey2) { }
 
@@ -57,14 +57,14 @@ namespace YetaWF.DataProvider.SQL {
                 _propertyData = ObjectSupport.GetPropertyData(typeof(OBJTYPE));
             return _propertyData;
         }
-        List<PropertyData> _propertyData;
+        List<PropertyData>? _propertyData;
 
         /// <summary>
         /// Retrieves one record from the database table that satisfies the specified primary key <paramref name="key"/>.
         /// </summary>
         /// <param name="key">The primary key value.</param>
         /// <returns>Returns the record that satisfies the specified primary key. If no record exists null is returned.</returns>
-        public Task<OBJTYPE> GetAsync(KEYTYPE key) {
+        public Task<OBJTYPE?> GetAsync(KEYTYPE key) {
             return GetAsync(key, default(KEYTYPE2));
         }
         /// <summary>
@@ -73,15 +73,15 @@ namespace YetaWF.DataProvider.SQL {
         /// <param name="key">The primary key value.</param>
         /// <param name="key2">The secondary key value.</param>
         /// <returns>Returns the record that satisfies the specified primary and secondary keys. If no record exists null is returned.</returns>
-        public async Task<OBJTYPE> GetAsync(KEYTYPE key, KEYTYPE2 key2) {
+        public async Task<OBJTYPE?> GetAsync(KEYTYPE key, KEYTYPE2? key2) {
             SQLBuilder sb = new SQLBuilder();
             await EnsureOpenAsync();
             SQLHelper sqlHelper = new SQLHelper(Conn, null, Languages);
 
-            string joins = null;// RFFU
+            string? joins = null;// RFFU
             string fullTableName = sb.GetTable(Database, Dbo, Dataset);
-            string calcProps = await CalculatedPropertiesAsync(typeof(OBJTYPE));
-            string andKey2 = HasKey2 ? "AND " + sqlHelper.Expr(Key2Name, "=", key2) : null;
+            string? calcProps = await CalculatedPropertiesAsync(typeof(OBJTYPE));
+            string? andKey2 = HasKey2 ? "AND " + sqlHelper.Expr(Key2Name, "=", key2) : null;
 
             List<PropertyData> propData = GetPropertyData();
             string subTablesSelects = SubTablesSelectsUsingJoin(sqlHelper, Dataset, key, key2, propData, typeof(OBJTYPE));
@@ -153,13 +153,13 @@ DECLARE @__IDENTITY int = @@IDENTITY
             int identity = 0;
             try {
                 if (HasIdentity(IdentityName)) {
-                    object val = await sqlHelper.ExecuteScalarAsync(script);
+                    object? val = await sqlHelper.ExecuteScalarAsync(script);
                     identity = Convert.ToInt32(val);
                 } else {
                     await sqlHelper.ExecuteNonQueryAsync(script);
                 }
             } catch (Exception exc) {
-                SqlException sqlExc = exc as SqlException;
+                SqlException? sqlExc = exc as SqlException;
                 if (sqlExc != null && sqlExc.Number == 2627) // already exists
                     return false;
                 throw new InternalError("Add failed for type {0} - {1}", typeof(OBJTYPE).FullName, ErrorHandling.FormatExceptionMessage(exc));
@@ -195,7 +195,7 @@ DECLARE @__IDENTITY int = @@IDENTITY
         /// <param name="newKey2">The new secondary key value of the record. This may be the same value as <paramref name="origKey2"/>. </param>
         /// <param name="obj">The object being updated.</param>
         /// <returns>Returns a status indicator.</returns>
-        public async Task<UpdateStatusEnum> UpdateAsync(KEYTYPE origKey, KEYTYPE2 origKey2, KEYTYPE newKey, KEYTYPE2 newKey2, OBJTYPE obj) {
+        public async Task<UpdateStatusEnum> UpdateAsync(KEYTYPE origKey, KEYTYPE2? origKey2, KEYTYPE newKey, KEYTYPE2? newKey2, OBJTYPE obj) {
             SQLBuilder sb = new SQLBuilder();
             await EnsureOpenAsync();
 
@@ -204,12 +204,12 @@ DECLARE @__IDENTITY int = @@IDENTITY
             string fullTableName = sb.GetTable(Database, Dbo, Dataset);
             List<PropertyData> propData = GetPropertyData();
             string setColumns = SetColumns(sqlHelper, Dataset, propData, obj, typeof(OBJTYPE));
-            string andKey2 = HasKey2 ? "AND " + sqlHelper.Expr(Key2Name, "=", origKey2) : null;
+            string? andKey2 = HasKey2 ? "AND " + sqlHelper.Expr(Key2Name, "=", origKey2) : null;
 
-            string subTablesUpdates = SubTablesUpdates(sqlHelper, Dataset, obj, propData, typeof(OBJTYPE));
+            string? subTablesUpdates = SubTablesUpdates(sqlHelper, Dataset, obj, propData, typeof(OBJTYPE));
 
-            string warningsOff = !Warnings ? " SET ANSI_WARNINGS OFF" : null;
-            string warningsOn = !Warnings ? " SET ANSI_WARNINGS ON" : null;
+            string? warningsOff = !Warnings ? " SET ANSI_WARNINGS OFF" : null;
+            string? warningsOn = !Warnings ? " SET ANSI_WARNINGS ON" : null;
 
             string scriptMain = $@"
 {warningsOff}
@@ -245,7 +245,7 @@ SELECT @@ROWCOUNT --- result set
             string script = (string.IsNullOrWhiteSpace(subTablesUpdates)) ? scriptMain : scriptWithSub;
 
             try {
-                object val = await sqlHelper.ExecuteScalarAsync(script);
+                object? val = await sqlHelper.ExecuteScalarAsync(script);
                 int changed = Convert.ToInt32(val);
                 if (changed == 0)
                     return UpdateStatusEnum.RecordDeleted;
@@ -253,7 +253,7 @@ SELECT @@ROWCOUNT --- result set
                     throw new InternalError($"Update failed - {changed} records updated");
             } catch (Exception exc) {
                 if (!newKey.Equals(origKey)) {
-                    SqlException sqlExc = exc as SqlException;
+                    SqlException? sqlExc = exc as SqlException;
                     if (sqlExc != null && sqlExc.Number == 2627) {
                         // duplicate key violation, meaning the new key already exists
                         return UpdateStatusEnum.NewKeyExists;
@@ -278,14 +278,14 @@ SELECT @@ROWCOUNT --- result set
         /// <param name="key">The primary key value of the record to remove.</param>
         /// <param name="key2">The secondary key value of the record to remove.</param>
         /// <returns>Returns true if the record was removed, or false if the record was not found. Other errors cause an exception.</returns>
-        public async Task<bool> RemoveAsync(KEYTYPE key, KEYTYPE2 key2) {
+        public async Task<bool> RemoveAsync(KEYTYPE key, KEYTYPE2? key2) {
             SQLBuilder sb = new SQLBuilder();
             await EnsureOpenAsync();
 
             SQLHelper sqlHelper = new SQLHelper(Conn, null, Languages);
 
             string fullTableName = sb.GetTable(Database, Dbo, Dataset);
-            string andKey2 = HasKey2 ? "AND " + sqlHelper.Expr(Key2Name, "=", key2) : null;
+            string? andKey2 = HasKey2 ? "AND " + sqlHelper.Expr(Key2Name, "=", key2) : null;
 
             List<PropertyData> propData = GetPropertyData();
             string subTablesDeletes = SubTablesDeletes(Dataset, propData, typeof(OBJTYPE));
@@ -316,7 +316,7 @@ SELECT @@ROWCOUNT --- result set
 
             string script = (string.IsNullOrWhiteSpace(subTablesDeletes)) ? scriptMain : scriptWithSub;
 
-            object val = await sqlHelper.ExecuteScalarAsync(script);
+            object? val = await sqlHelper.ExecuteScalarAsync(script);
             int deleted = Convert.ToInt32(val);
             if (deleted > 1)
                 throw new InternalError($"More than 1 record deleted by {nameof(RemoveAsync)} method");
@@ -332,7 +332,7 @@ SELECT @@ROWCOUNT --- result set
         /// If no record matches, null is returned.</returns>
         /// <remarks>
         /// </remarks>
-        public async Task<OBJTYPE> GetOneRecordAsync(List<DataProviderFilterInfo> filters, List<JoinData> Joins = null) {
+        public async Task<OBJTYPE?> GetOneRecordAsync(List<DataProviderFilterInfo>? filters, List<JoinData>? Joins = null) {
             await EnsureOpenAsync();
             filters = NormalizeFilter(typeof(OBJTYPE), filters);
             DataProviderGetRecords<OBJTYPE> recs = await GetMainTableRecordsAsync(0, 1, null, filters, Joins: Joins);
@@ -348,7 +348,7 @@ SELECT @@ROWCOUNT --- result set
         /// <param name="filters">A collection describing the filtering criteria.</param>
         /// <param name="Joins">A collection describing the dataset joins.</param>
         /// <returns>Returns a YetaWF.Core.DataProvider.DataProviderGetRecords object describing the data returned.</returns>
-        public async Task<DataProviderGetRecords<OBJTYPE>> GetRecordsAsync(int skip, int take, List<DataProviderSortInfo> sorts, List<DataProviderFilterInfo> filters, List<JoinData> Joins = null) {
+        public async Task<DataProviderGetRecords<OBJTYPE>> GetRecordsAsync(int skip, int take, List<DataProviderSortInfo>? sorts, List<DataProviderFilterInfo>? filters, List<JoinData>? Joins = null) {
             await EnsureOpenAsync();
             filters = NormalizeFilter(typeof(OBJTYPE), filters);
             sorts = NormalizeSort(typeof(OBJTYPE), sorts);
@@ -360,7 +360,7 @@ SELECT @@ROWCOUNT --- result set
         /// </summary>
         /// <param name="filters">A collection describing the filtering criteria.</param>
         /// <returns>Returns the number of records removed.</returns>
-        public async Task<int> RemoveRecordsAsync(List<DataProviderFilterInfo> filters) {
+        public async Task<int> RemoveRecordsAsync(List<DataProviderFilterInfo>? filters) {
             SQLBuilder sb = new SQLBuilder();
             await EnsureOpenAsync();
             filters = NormalizeFilter(typeof(OBJTYPE), filters);
@@ -418,12 +418,12 @@ DROP TABLE #TEMPTABLE
 
             string script = (string.IsNullOrWhiteSpace(subTablesDeletes)) ? scriptMain : scriptWithSub;
 
-            object val = await sqlHelper.ExecuteScalarAsync(script);
+            object? val = await sqlHelper.ExecuteScalarAsync(script);
             int deleted = Convert.ToInt32(val);
             return deleted;
         }
 
-        internal async Task<DataProviderGetRecords<OBJTYPE>> GetMainTableRecordsAsync(int skip, int take, List<DataProviderSortInfo> sorts, List<DataProviderFilterInfo> filters, List<JoinData> Joins = null) {
+        internal async Task<DataProviderGetRecords<OBJTYPE>> GetMainTableRecordsAsync(int skip, int take, List<DataProviderSortInfo>? sorts, List<DataProviderFilterInfo>? filters, List<JoinData>? Joins = null) {
             SQLBuilder sb = new SQLBuilder();
             SQLHelper sqlHelper = new SQLHelper(Conn, null, Languages);
 
@@ -435,9 +435,9 @@ DROP TABLE #TEMPTABLE
             string columnList = MakeColumnList(sqlHelper, visibleColumns, Joins);
             string joins = await MakeJoinsAsync(sqlHelper, Joins);
             string filter = MakeFilter(sqlHelper, filters, visibleColumns);
-            string calcProps = await CalculatedPropertiesAsync(typeof(OBJTYPE));
+            string? calcProps = await CalculatedPropertiesAsync(typeof(OBJTYPE));
             // get total # of records (only if a subset is requested)
-            string selectCount = null;
+            string? selectCount = null;
             if (skip != 0 || take != 0) {
                 sb = new SQLBuilder();
                 sb.Add($"SELECT COUNT(*) FROM {fullTableName} WITH(NOLOCK) {joins} {filter} ");
@@ -478,7 +478,7 @@ FROM {fullTableName} WITH(NOLOCK)
                     recs.Data.Add(o);
 
                     PropertyInfo piIdent = ObjectSupport.GetProperty(typeof(OBJTYPE), Key1Name);
-                    KEYTYPE keyVal = (KEYTYPE)piIdent.GetValue(o);
+                    KEYTYPE keyVal = (KEYTYPE)piIdent.GetValue(o)!;
                     KEYTYPE2 key2Val = default(KEYTYPE2);
                     if (HasKey2) {
                         PropertyInfo piIdent2 = ObjectSupport.GetProperty(typeof(OBJTYPE), Key2Name);
@@ -513,12 +513,12 @@ FROM {fullTableName} WITH(NOLOCK)
             return sb.ToString();
         }
 
-        internal string SubTablesSelectsUsingJoin(SQLHelper sqlHelper, string tableName, KEYTYPE key, KEYTYPE2 key2, List<PropertyData> propData, Type tpContainer) {
+        internal string SubTablesSelectsUsingJoin(SQLHelper sqlHelper, string tableName, KEYTYPE key, KEYTYPE2? key2, List<PropertyData> propData, Type tpContainer) {
             SQLBuilder sb = new SQLBuilder();
             List<SQLGenericGen.SubTableInfo> subTables = SQLGen.GetSubTables(tableName, propData);
             if (subTables.Count > 0) {
                 string keyExpr = (key == null || key.Equals(default(KEYTYPE)) ? "1=1" : $"{sb.BuildFullColumnName(Database, Dbo, tableName, Key1Name)} = {sqlHelper.AddTempParam(key)}");
-                string andKey2 = HasKey2 ? "AND " + sqlHelper.Expr(Key2Name, "=", key2) : null;
+                string? andKey2 = HasKey2 ? "AND " + sqlHelper.Expr(Key2Name, "=", key2) : null;
 
                 foreach (SQLGenericGen.SubTableInfo subTable in subTables) {
                     sb.Add($@"
@@ -538,11 +538,11 @@ FROM {fullTableName} WITH(NOLOCK)
 
             List<SQLGenericGen.SubTableInfo> subTables = SQLGen.GetSubTables(tableName, propData);
             foreach (SQLGenericGen.SubTableInfo subTable in subTables) {
-                object subContainer = subTable.PropInfo.GetValue(container);
+                object? subContainer = subTable.PropInfo.GetValue(container);
                 if (subContainer == null) throw new InternalError($"{nameof(ReadSubTablesAsync)} encountered a enumeration property that is null");
 
                 // find the Add method for the collection so we can add each item as its read
-                MethodInfo addMethod = subTable.PropInfo.PropertyType.GetMethod("Add", new Type[] { subTable.Type });
+                MethodInfo? addMethod = subTable.PropInfo.PropertyType.GetMethod("Add", new Type[] { subTable.Type });
                 if (addMethod == null) throw new InternalError($"{nameof(ReadSubTablesAsync)} encountered a enumeration property that doesn't have an Add method");
 
                 if (!(YetaWFManager.IsSync() ? reader.NextResult() : await reader.NextResultAsync())) throw new InternalError("Expected next result set (subtable)");
@@ -566,7 +566,7 @@ FROM {fullTableName} WITH(NOLOCK)
                     while ((YetaWFManager.IsSync() ? reader.Read() : await reader.ReadAsync())) {
 
                         // find the Add method for the collection so we can add each item as its read
-                        MethodInfo addMethod = subTable.PropInfo.PropertyType.GetMethod("Add", new Type[] { subTable.Type });
+                        MethodInfo? addMethod = subTable.PropInfo.PropertyType.GetMethod("Add", new Type[] { subTable.Type });
                         if (addMethod == null) throw new InternalError($"{nameof(ReadSubTablesMatchupAsync)} encountered a enumeration property that doesn't have an Add method");
 
                         int key = (int)reader[SubTableKeyColumn];
@@ -585,7 +585,7 @@ FROM {fullTableName} WITH(NOLOCK)
             PropertyInfo piIdent = ObjectSupport.GetProperty(typeof(OBJTYPE), IdentityNameOrDefault);
             if (piIdent.PropertyType != typeof(int)) throw new InternalError($"Object identities must be of type int in {typeof(OBJTYPE).FullName}");
             foreach (OBJTYPE c in containers) {
-                int identity = (int)piIdent.GetValue(c);
+                int identity = (int)piIdent.GetValue(c)!;
                 list.Add(identity);
             }
             return list;
@@ -597,7 +597,7 @@ FROM {fullTableName} WITH(NOLOCK)
             if (index < 0) throw new InternalError($"Subtable {subTable.Name} has key {key} that doesn't match any main record");
 
             OBJTYPE container = containers[index];
-            object subContainer = subTable.PropInfo.GetValue(container);
+            object? subContainer = subTable.PropInfo.GetValue(container);
             if (subContainer == null) throw new InternalError($"{nameof(AddToContainer)} encountered a enumeration property that is null");
 
             addMethod.Invoke(subContainer, new object[] { obj });
@@ -608,7 +608,7 @@ FROM {fullTableName} WITH(NOLOCK)
             List<SQLGenericGen.SubTableInfo> subTables = SQLGen.GetSubTables(tableName, propData);
             foreach (SQLGenericGen.SubTableInfo subTable in subTables) {
                 List<PropertyData> subPropData = ObjectSupport.GetPropertyData(subTable.Type);
-                IEnumerable ienum = (IEnumerable)subTable.PropInfo.GetValue(container);
+                IEnumerable ienum = (IEnumerable)subTable.PropInfo.GetValue(container)!;
                 foreach (object obj in ienum) {
                     string columns = GetColumnList(subPropData, subTable.Type, "", false, SubTable: true);
                     string values = GetValueList(sqlHelper, Dataset, obj, subPropData, subTable.Type, "", false, SubTable: true);
@@ -620,7 +620,7 @@ FROM {fullTableName} WITH(NOLOCK)
             }
             return sb.ToString();
         }
-        internal string SubTablesUpdates(SQLHelper sqlHelper, string tableName, object container, List<PropertyData> propData, Type tpContainer) {
+        internal string? SubTablesUpdates(SQLHelper sqlHelper, string tableName, object container, List<PropertyData> propData, Type tpContainer) {
             SQLBuilder sb = new SQLBuilder();
             List<SQLGenericGen.SubTableInfo> subTables = SQLGen.GetSubTables(tableName, propData);
             if (subTables.Count == 0) return null;
@@ -630,7 +630,7 @@ FROM {fullTableName} WITH(NOLOCK)
     DELETE FROM {subTable.Name} WITH(SERIALIZABLE) WHERE {SQLBase.SubTableKeyColumn} = @__IDENTITY ;
 ");
                 List<PropertyData> subPropData = ObjectSupport.GetPropertyData(subTable.Type);
-                IEnumerable ienum = (IEnumerable)subTable.PropInfo.GetValue(container);
+                IEnumerable ienum = (IEnumerable)subTable.PropInfo.GetValue(container)!;
                 foreach (object obj in ienum) {
                     string columns = GetColumnList(subPropData, subTable.Type, "", false, SubTable: true);
                     string values = GetValueList(sqlHelper, Dataset, obj, subPropData, subTable.Type, "", false, SubTable: true);
@@ -837,13 +837,13 @@ DELETE FROM {fullTableName} WHERE [{SiteColumn}] = {SiteIdentity}
                 async (int offset, int skip) => {
                     return await GetRecordsAsync(offset, skip, null, null);
                 },
-                async (OBJTYPE record, PropertyInfo pi, PropertyInfo pi2) => {
+                async (OBJTYPE record, PropertyInfo pi, PropertyInfo? pi2) => {
                     UpdateStatusEnum status;
-                    KEYTYPE key1 = (KEYTYPE)pi.GetValue(record);
+                    KEYTYPE key1 = (KEYTYPE)pi.GetValue(record)!;
                     Warnings = false; // we're turning warnings off in case strings get truncated
                     try {
                         if (HasKey2) {
-                            KEYTYPE2 key2 = (KEYTYPE2)pi2.GetValue(record);
+                            KEYTYPE2 key2 = (KEYTYPE2)pi2!.GetValue(record);
                             status = await UpdateAsync(key1, key2, key1, key2, record);
                         } else {
                             status = await UpdateAsync(key1, key1, record);
@@ -872,13 +872,13 @@ DELETE FROM {fullTableName} WHERE [{SiteColumn}] = {SiteIdentity}
         /// </remarks>
         protected async Task LocalizeModelAsync(string language,
                 Func<string, bool> isHtml,
-                Func<List<string>, Task<List<string>>> translateStringsAsync, Func<string, Task<string>> translateComplexStringAsync, Func<int, int, Task<DataProviderGetRecords<OBJTYPE>>> getRecords, Func<OBJTYPE, PropertyInfo, PropertyInfo, Task<UpdateStatusEnum>> saveRecordAsync) {
+                Func<List<string>, Task<List<string>>> translateStringsAsync, Func<string, Task<string>> translateComplexStringAsync, Func<int, int, Task<DataProviderGetRecords<OBJTYPE>>> getRecords, Func<OBJTYPE, PropertyInfo, PropertyInfo?, Task<UpdateStatusEnum>> saveRecordAsync) {
 
             const int RECORDS = 20;
 
             List<PropertyInfo> props = ObjectSupport.GetProperties(typeof(OBJTYPE));
             PropertyInfo key1Prop = ObjectSupport.GetProperty(typeof(OBJTYPE), Key1Name);
-            PropertyInfo key2Prop = null;
+            PropertyInfo? key2Prop = null;
             if (HasKey2)
                 key2Prop = ObjectSupport.GetProperty(typeof(OBJTYPE), Key2Name);
 

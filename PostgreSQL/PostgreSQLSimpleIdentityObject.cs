@@ -12,7 +12,7 @@ namespace YetaWF.DataProvider.PostgreSQL {
     /// <summary>
     /// This class implements access to objects (records), with a primary and secondary key (composite) and with an identity column.
     /// </summary>
-    public partial class SQLSimple2IdentityObject<KEYTYPE, KEYTYPE2, OBJTYPE> : SQLSimpleIdentityObjectBase<KEYTYPE, KEYTYPE2, OBJTYPE> {
+    public partial class SQLSimple2IdentityObject<KEYTYPE, KEYTYPE2, OBJTYPE> : SQLSimpleIdentityObjectBase<KEYTYPE, KEYTYPE2, OBJTYPE> where KEYTYPE : notnull where OBJTYPE : notnull {
 
         /// <summary>
         /// Constructor.
@@ -27,7 +27,7 @@ namespace YetaWF.DataProvider.PostgreSQL {
     /// <summary>
     /// This class implements access to objects (records), with one primary key and with an identity column.
     /// </summary>
-    public partial class SQLSimpleIdentityObject<KEYTYPE, OBJTYPE> : SQLSimpleIdentityObjectBase<KEYTYPE, object, OBJTYPE> {
+    public partial class SQLSimpleIdentityObject<KEYTYPE, OBJTYPE> : SQLSimpleIdentityObjectBase<KEYTYPE, object, OBJTYPE> where KEYTYPE : notnull where OBJTYPE : notnull {
 
         /// <summary>
         /// Constructor.
@@ -43,7 +43,7 @@ namespace YetaWF.DataProvider.PostgreSQL {
     /// This base class implements access to objects, with a primary and secondary key (composite) and with an identity column.
     /// This base class is not intended for use by application data providers. These use one of the more specialized derived classes instead.
     /// </summary>
-    public partial class SQLSimpleIdentityObjectBase<KEYTYPE, KEYTYPE2, OBJTYPE> : SQLSimpleObjectBase<KEYTYPE, KEYTYPE2, OBJTYPE>, IDataProviderIdentity<KEYTYPE, KEYTYPE2, OBJTYPE> {
+    public partial class SQLSimpleIdentityObjectBase<KEYTYPE, KEYTYPE2, OBJTYPE> : SQLSimpleObjectBase<KEYTYPE, KEYTYPE2, OBJTYPE>, IDataProviderIdentity<KEYTYPE, KEYTYPE2, OBJTYPE> where KEYTYPE : notnull where OBJTYPE : notnull {
 
         internal SQLSimpleIdentityObjectBase(Dictionary<string, object> options, bool HasKey2 = false) : base(options, HasKey2) { }
 
@@ -52,7 +52,7 @@ namespace YetaWF.DataProvider.PostgreSQL {
         /// </summary>
         /// <param name="identity">The identity value.</param>
         /// <returns>Returns the record that satisfies the specified identity value. If no record exists null is returned.</returns>
-        public async Task<OBJTYPE> GetByIdentityAsync(int identity) {
+        public async Task<OBJTYPE?> GetByIdentityAsync(int identity) {
 
             await EnsureOpenAsync();
 
@@ -67,7 +67,7 @@ namespace YetaWF.DataProvider.PostgreSQL {
                     return sqlHelper.CreateObject<OBJTYPE>(reader);
                 }
             } catch (Exception exc) {
-                Npgsql.PostgresException sqlExc = exc as Npgsql.PostgresException;
+                Npgsql.PostgresException? sqlExc = exc as Npgsql.PostgresException;
                 if (sqlExc != null)
                     throw new InternalError($"{nameof(GetByIdentityAsync)} failed for type {typeof(OBJTYPE).FullName} - {sqlExc.Detail} - {ErrorHandling.FormatExceptionMessage(exc)}");
                 throw new InternalError($"{nameof(GetByIdentityAsync)} failed for type {typeof(OBJTYPE).FullName} - {ErrorHandling.FormatExceptionMessage(exc)}");
@@ -102,7 +102,7 @@ namespace YetaWF.DataProvider.PostgreSQL {
                         throw new InternalError($"Update failed - {changed} records updated");
                 }
             } catch (Exception exc) {
-                Npgsql.PostgresException sqlExc = exc as Npgsql.PostgresException;
+                Npgsql.PostgresException? sqlExc = exc as Npgsql.PostgresException;
                 if (sqlExc != null && sqlExc.SqlState == PostgresErrorCodes.UniqueViolation) // already exists
                     return UpdateStatusEnum.NewKeyExists;
                 if (sqlExc != null)
@@ -134,7 +134,7 @@ namespace YetaWF.DataProvider.PostgreSQL {
                     return deleted > 0;
                 }
             } catch (Exception exc) {
-                Npgsql.PostgresException sqlExc = exc as Npgsql.PostgresException;
+                Npgsql.PostgresException? sqlExc = exc as Npgsql.PostgresException;
                 if (sqlExc != null && sqlExc.SqlState == PostgresErrorCodes.UniqueViolation) //$$$$$ ref integrity
                     return false;
                 if (sqlExc != null)

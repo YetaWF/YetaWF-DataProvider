@@ -55,7 +55,7 @@ namespace YetaWF.DataProvider.SQLGeneric {
         /// This can be overridden by passing an optional WebConfigArea parameter to the YetaWF.Core.DataProvider.DataProviderImpl.MakeDataProvider method when the data provider is created.
         /// </summary>
         /// <remarks>This is not used by application data providers. Only the YetaWF.DataProvider.ModuleDefinitionDataProvider uses this feature.</remarks>
-        public string WebConfigArea { get; private set; }
+        public string? WebConfigArea { get; private set; }
 
         /// <summary>
         /// The dataset provided to the YetaWF.Core.DataProvider.DataProviderImpl.MakeDataProvider method when the data provider was created.
@@ -64,7 +64,7 @@ namespace YetaWF.DataProvider.SQLGeneric {
         /// <summary>
         /// The database used by this data provider. This information is extracted from the SQL connection string.
         /// </summary>
-        public string Database { get; protected set; }
+        public string Database { get; protected set; } = null!;
         /// <summary>
         /// The site identity provided to the YetaWF.Core.DataProvider.DataProviderImpl.MakeDataProvider method when the data provider was created.
         ///
@@ -106,7 +106,7 @@ namespace YetaWF.DataProvider.SQLGeneric {
         ///
         /// This callback is typically set by the data provider itself, in its constructor or as the data provider is being created.
         /// </remarks>
-        protected Func<string, Task<string>> CalculatedPropertyCallbackAsync { get; set; }
+        protected Func<string, Task<string>>? CalculatedPropertyCallbackAsync { get; set; }
 
 
         /// <summary>
@@ -142,7 +142,7 @@ namespace YetaWF.DataProvider.SQLGeneric {
                 return _identityOrDefault;
             }
         }
-        private string _identityOrDefault;
+        private string? _identityOrDefault;
 
         /// <summary>
         /// Retrieves the property information for the model used.
@@ -234,7 +234,7 @@ namespace YetaWF.DataProvider.SQLGeneric {
             }
             return _key1Name;
         }
-        private string _key1Name;
+        private string? _key1Name;
 
         /// <summary>
         /// Returns the secondary key's column name.
@@ -259,7 +259,7 @@ namespace YetaWF.DataProvider.SQLGeneric {
             }
             return _key2Name;
         }
-        private string _key2Name;
+        private string? _key2Name;
 
         /// <summary>
         /// Returns the identity column name.
@@ -280,11 +280,11 @@ namespace YetaWF.DataProvider.SQLGeneric {
                         return _identityName;
                     }
                 }
-                _identityName = "";
+                _identityName = string.Empty;
             }
             return _identityName;
         }
-        private string _identityName;
+        private string? _identityName;
 
         /// <summary>
         /// Returns whether the specified identity name string <paramref name="identityName"/> is a valid identity name.
@@ -336,7 +336,7 @@ namespace YetaWF.DataProvider.SQLGeneric {
         /// <param name="type">The target object type for which filters are normalized.</param>
         /// <param name="filters">The filters to be normalized, may be null.</param>
         /// <returns>Returns normalized filters.</returns>
-        protected List<DataProviderFilterInfo> NormalizeFilter(Type type, List<DataProviderFilterInfo> filters) {
+        protected List<DataProviderFilterInfo>? NormalizeFilter(Type type, List<DataProviderFilterInfo>? filters) {
             if (filters == null)
                 return null;
             filters = (from f in filters select new DataProviderFilterInfo(f)).ToList();// copy list
@@ -354,13 +354,13 @@ namespace YetaWF.DataProvider.SQLGeneric {
             return filters;
         }
         private string NormalizeFilter(Type type, DataProviderFilterInfo filter) {
-            PropertyData propData = ObjectSupport.TryGetPropertyData(type, filter.Field);
+            PropertyData? propData = ObjectSupport.TryGetPropertyData(type, filter.Field!);
             if (propData == null)
-                return filter.Field; // could be a composite field, like Event.ImplementingAssembly
+                return filter.Field!; // could be a composite field, like Event.ImplementingAssembly
             if (propData.PropInfo.PropertyType == typeof(MultiString)) {
                 MultiString ms = new MultiString(filter.ValueAsString);
                 filter.Value = ms.ToString();
-                return ColumnFromPropertyWithLanguage(MultiString.ActiveLanguage, filter.Field);
+                return ColumnFromPropertyWithLanguage(MultiString.ActiveLanguage, filter.Field!);
             }
             return propData.ColumnName;
         }
@@ -370,7 +370,7 @@ namespace YetaWF.DataProvider.SQLGeneric {
         /// <param name="type">The target object type for which filters are normalized.</param>
         /// <param name="sorts">The filters to be normalized, may be null.</param>
         /// <returns>Returns normalized filters.</returns>
-        protected List<DataProviderSortInfo> NormalizeSort(Type type, List<DataProviderSortInfo> sorts) {
+        protected List<DataProviderSortInfo>? NormalizeSort(Type type, List<DataProviderSortInfo>? sorts) {
             if (sorts == null)
                 return null;
             sorts = (from s in sorts select new DataProviderSortInfo(s)).ToList();// copy list
@@ -379,7 +379,7 @@ namespace YetaWF.DataProvider.SQLGeneric {
                     sort.Field = sort.Field.Replace(".", "_");
             }
             foreach (DataProviderSortInfo sort in sorts) {
-                PropertyData propData = ObjectSupport.TryGetPropertyData(type, sort.Field);
+                PropertyData? propData = ObjectSupport.TryGetPropertyData(type, sort.Field);
                 if (propData != null) {
                     if (propData.PropInfo.PropertyType == typeof(MultiString))
                         sort.Field = ColumnFromPropertyWithLanguage(MultiString.ActiveLanguage, sort.Field);

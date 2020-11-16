@@ -23,8 +23,8 @@ namespace YetaWF.DataProvider.PostgreSQL {
 
         public const string ValSiteIdentity = "valSiteIdentity"; // sproc argument with site identity
 
-        internal async Task<bool> MakeFunctionsAsync(string dbName, string schema, string dataset, string key1Name, string key2Name, string identityName, List<PropertyData> propData, Type objType, int siteIdentity,
-                Func<string, Task<string>> calculatedPropertyCallbackAsync) {
+        internal async Task<bool> MakeFunctionsAsync(string dbName, string schema, string dataset, string key1Name, string? key2Name, string identityName, List<PropertyData> propData, Type objType, int siteIdentity,
+                Func<string, Task<string>>? calculatedPropertyCallbackAsync) {
 
             SQLManager sqlManager = new SQLManager();
             SQLBuilder sb = new SQLBuilder();
@@ -36,8 +36,8 @@ namespace YetaWF.DataProvider.PostgreSQL {
             Column colKey1 = sqlManager.GetColumn(Conn, dbName, schema, dataset, key1Name);
             string typeKey1 = GetDataTypeArgumentString(colKey1);
 
-            Column colKey2 = null;
-            string typeKey2 = null;
+            Column? colKey2 = null;
+            string? typeKey2 = null;
             if (!string.IsNullOrWhiteSpace(key2Name)) {
                 colKey2 = sqlManager.GetColumn(Conn, dbName, schema, dataset, key2Name);
                 typeKey2 = GetDataTypeArgumentString(colKey2);
@@ -72,7 +72,7 @@ BEGIN
             sb.Append($@"
         FROM {fullTableName}
         WHERE {GenCompare(key1Name, (NpgsqlDbType)colKey1.DataType, $@"""Key1Val""")}");
-            if (!string.IsNullOrWhiteSpace(key2Name)) sb.Append($@" AND {GenCompare(key2Name, (NpgsqlDbType)colKey2.DataType, $@"""Key2Val""")}");
+            if (!string.IsNullOrWhiteSpace(key2Name)) sb.Append($@" AND {GenCompare(key2Name, (NpgsqlDbType)colKey2!.DataType, $@"""Key2Val""")}");
             if (siteIdentity > 0) sb.Append($@" AND ""{SQLGenericBase.SiteColumn}"" = ""{SQLGen.ValSiteIdentity}""");
 
             sb.Append($@"
@@ -140,7 +140,7 @@ DECLARE
             sb.Append($@"
 BEGIN");
 
-            if ((NpgsqlDbType)colKey1.DataType == NpgsqlDbType.Varchar || (!string.IsNullOrWhiteSpace(key2Name) && (NpgsqlDbType)colKey2.DataType == NpgsqlDbType.Varchar)) {
+            if ((NpgsqlDbType)colKey1.DataType == NpgsqlDbType.Varchar || (!string.IsNullOrWhiteSpace(key2Name) && (NpgsqlDbType)colKey2!.DataType == NpgsqlDbType.Varchar)) {
 
                 sb.Append($@"
 
@@ -149,7 +149,7 @@ BEGIN");
     SELECT ""{key1Name}"" INTO __VAR
     FROM {fullTableName}
     WHERE {GenCompare(key1Name, (NpgsqlDbType)colKey1.DataType, $@"""arg{key1Name}""")}");
-                if (!string.IsNullOrWhiteSpace(key2Name)) sb.Append($@" AND {GenCompare(key2Name, (NpgsqlDbType)colKey2.DataType, $@"""arg{key2Name}""")}");
+                if (!string.IsNullOrWhiteSpace(key2Name)) sb.Append($@" AND {GenCompare(key2Name, (NpgsqlDbType)colKey2!.DataType, $@"""arg{key2Name}""")}");
                 if (siteIdentity > 0) sb.Append($@" AND ""{SQLGenericBase.SiteColumn}"" = ""{SQLGen.ValSiteIdentity}""");
 
                 sb.Append($@"
@@ -238,7 +238,7 @@ DECLARE
             sb.Append($@"
 BEGIN");
 
-            if ((NpgsqlDbType)colKey1.DataType == NpgsqlDbType.Varchar || (!string.IsNullOrWhiteSpace(key2Name) && (NpgsqlDbType)colKey2.DataType == NpgsqlDbType.Varchar)) {
+            if ((NpgsqlDbType)colKey1.DataType == NpgsqlDbType.Varchar || (!string.IsNullOrWhiteSpace(key2Name) && (NpgsqlDbType)colKey2!.DataType == NpgsqlDbType.Varchar)) {
 
                 sb.Append($@"
 
@@ -246,9 +246,9 @@ BEGIN");
 
     SELECT ""{key1Name}"" INTO __VAR
     FROM {fullTableName}
-    WHERE ( 
+    WHERE (
             {GenCompare(key1Name, (NpgsqlDbType)colKey1.DataType, $@"""arg{key1Name}""")}");
-                if (!string.IsNullOrWhiteSpace(key2Name)) sb.Append($@" AND {GenCompare(key2Name, (NpgsqlDbType)colKey2.DataType, $@"""arg{key2Name}""")}");
+                if (!string.IsNullOrWhiteSpace(key2Name)) sb.Append($@" AND {GenCompare(key2Name, (NpgsqlDbType)colKey2!.DataType, $@"""arg{key2Name}""")}");
 
                 sb.Append($@"
           ) AND (
@@ -267,7 +267,7 @@ BEGIN");
     END IF;
 ");
             }
-            
+
 
             sb.Append($@"
     UPDATE {fullTableName}
@@ -277,7 +277,7 @@ BEGIN");
 
             sb.Append($@"
     WHERE {GenCompare(key1Name, (NpgsqlDbType)colKey1.DataType, $@"""Key1Val""")}");
-        if (!string.IsNullOrWhiteSpace(key2Name)) sb.Append($@" AND {GenCompare(key2Name, (NpgsqlDbType)colKey2.DataType, $@"""Key2Val""")}");
+        if (!string.IsNullOrWhiteSpace(key2Name)) sb.Append($@" AND {GenCompare(key2Name, (NpgsqlDbType)colKey2!.DataType, $@"""Key2Val""")}");
         if (siteIdentity > 0) sb.Append($@" AND ""{SQLGenericBase.SiteColumn}"" = ""{SQLGen.ValSiteIdentity}""");
 
             if (HasIdentity(identityName) || subTables.Count > 0) {
@@ -408,7 +408,7 @@ AS $$
 BEGIN
     DELETE FROM {fullTableName}
     WHERE {GenCompare(key1Name, (NpgsqlDbType)colKey1.DataType, $@"""Key1Val""")}");
-                if (!string.IsNullOrWhiteSpace(key2Name)) sb.Append($@" AND {GenCompare(key2Name, (NpgsqlDbType)colKey2.DataType, $@"""Key2Val""")}");
+                if (!string.IsNullOrWhiteSpace(key2Name)) sb.Append($@" AND {GenCompare(key2Name, (NpgsqlDbType)colKey2!.DataType, $@"""Key2Val""")}");
                 if (siteIdentity > 0) sb.Append($@" AND ""{SQLGenericBase.SiteColumn}"" = ""{SQLGen.ValSiteIdentity}""");
 
                 sb.Append($@"
@@ -421,7 +421,7 @@ BEGIN
 BEGIN
     SELECT ""{GetIdentityNameOrDefault(identityName)}"" INTO __IDENTITY FROM {fullTableName}
     WHERE {GenCompare(key1Name, (NpgsqlDbType)colKey1.DataType, $@"""Key1Val""")}");
-    if (!string.IsNullOrWhiteSpace(key2Name)) sb.Append($@" AND {GenCompare(key2Name, (NpgsqlDbType)colKey2.DataType, $@"""Key2Val""")}");
+    if (!string.IsNullOrWhiteSpace(key2Name)) sb.Append($@" AND {GenCompare(key2Name, (NpgsqlDbType)colKey2!.DataType, $@"""Key2Val""")}");
     if (siteIdentity > 0) sb.Append($@" AND ""{SQLGenericBase.SiteColumn}"" = ""{SQLGen.ValSiteIdentity}""");
                 sb.Append($@"
 ;");
@@ -434,7 +434,7 @@ BEGIN
                 sb.Add($@"
     DELETE FROM {fullTableName} WHERE ""{GetIdentityNameOrDefault(identityName)}"" = __IDENTITY
 ;");
-                
+
             }
 
             sb.Append($@"
@@ -518,7 +518,7 @@ DROP FUNCTION IF EXISTS ""{schema}"".""{dataset}__RemoveByIdentity"";
             return true;
         }
 
-        internal static async Task<string> CalculatedPropertiesAsync(Type objType, Func<string, Task<string>> calculatedPropertyCallbackAsync) {
+        internal static async Task<string?> CalculatedPropertiesAsync(Type objType, Func<string, Task<string>>? calculatedPropertyCallbackAsync) {
             if (calculatedPropertyCallbackAsync == null) return null;
             SQLBuilder sb = new SQLBuilder();
             List<PropertyData> props = ObjectSupport.GetPropertyData(objType);
@@ -530,13 +530,13 @@ DROP FUNCTION IF EXISTS ""{schema}"".""{dataset}__RemoveByIdentity"";
             return sb.ToString();
         }
 
-        protected string GetIdentityNameOrDefault(string identityName) {
+        protected string GetIdentityNameOrDefault(string? identityName) {
             if (string.IsNullOrWhiteSpace(identityName))
                 identityName = SQLGenericBase.IdentityColumn;
             return identityName;
         }
 
-        internal string GetArgumentNameList(string dbName, string schema, string dataset, List<PropertyData> propData, Type tpContainer, string Prefix = null, bool TopMost = true, bool SiteSpecific = false, bool WithDerivedInfo = false, bool SubTable = false) {
+        internal string GetArgumentNameList(string dbName, string schema, string dataset, List<PropertyData> propData, Type tpContainer, string? Prefix = null, bool TopMost = true, bool SiteSpecific = false, bool WithDerivedInfo = false, bool SubTable = false) {
             SQLManager sqlManager = new SQLManager();
             return ProcessColumns(
                 (prefix, container, prop) => { // prop
@@ -544,8 +544,8 @@ DROP FUNCTION IF EXISTS ""{schema}"".""{dataset}__RemoveByIdentity"";
                     string colType = GetDataTypeArgumentString(col);
                     return $@"""arg{prefix}{prop.Name}"" {colType},";
                 },
-                (prefix, container, prop) => { 
-                    return null; 
+                (prefix, container, prop) => {
+                    return null;
                 }, // Identity
                 (prefix, container, prop) => { // binary
                     Column col = sqlManager.GetColumn(Conn, dbName, schema, dataset, $"{prefix}{prop.ColumnName}");
@@ -573,9 +573,9 @@ DROP FUNCTION IF EXISTS ""{schema}"".""{dataset}__RemoveByIdentity"";
                         return null;
                     if (name == SQLGen.DerivedTableName)
                         return $@"""{SQLGen.ValDerivedTableName}"" character varying,";
-                    if (name == SQLGen.DerivedDataType) 
+                    if (name == SQLGen.DerivedDataType)
                         return $@"""{SQLGen.ValDerivedDataType}"" character varying,";
-                    if (name == SQLGen.DerivedAssemblyName) 
+                    if (name == SQLGen.DerivedAssemblyName)
                         return $@"""{SQLGen.ValDerivedAssemblyName}"" character varying,";
                     string colType = "character varying";
                     if (name == SQLGenericBase.SiteColumn) {
@@ -595,7 +595,7 @@ DROP FUNCTION IF EXISTS ""{schema}"".""{dataset}__RemoveByIdentity"";
                 },
                 dbName, schema, dataset, null, propData, tpContainer, Prefix, TopMost, SiteSpecific, WithDerivedInfo, SubTable);
         }
-        internal string GetTypeNameList(string dbName, string schema, string dataset, List<PropertyData> propData, Type tpContainer, string Prefix = null, bool TopMost = true, bool SiteSpecific = false, bool WithDerivedInfo = false, bool SubTable = false) {
+        internal string GetTypeNameList(string dbName, string schema, string dataset, List<PropertyData> propData, Type tpContainer, string? Prefix = null, bool TopMost = true, bool SiteSpecific = false, bool WithDerivedInfo = false, bool SubTable = false) {
             SQLManager sqlManager = new SQLManager();
             return ProcessColumns(
                 (prefix, container, prop) => {
@@ -603,13 +603,13 @@ DROP FUNCTION IF EXISTS ""{schema}"".""{dataset}__RemoveByIdentity"";
                     string colType = GetDataTypeArgumentString(col);
                     return $@"""{prefix}{prop.Name}"" {colType},";
                 },
-                (prefix, container, prop) => { 
+                (prefix, container, prop) => {
                     if (!SubTable) {
                         Column col = sqlManager.GetColumn(Conn, dbName, schema, dataset, $"{prefix}{prop.ColumnName}");
                         string colType = GetDataTypeArgumentString(col);
                         return $@"""{prefix}{prop.Name}"" {colType},";
                     }
-                    return null; 
+                    return null;
                 }, // Identity
                 (prefix, container, prop) => {
                     Column col = sqlManager.GetColumn(Conn, dbName, schema, dataset, $"{prefix}{prop.ColumnName}");
@@ -652,8 +652,8 @@ DROP FUNCTION IF EXISTS ""{schema}"".""{dataset}__RemoveByIdentity"";
                 },
                 dbName, schema, dataset, null, propData, tpContainer, Prefix, TopMost, SiteSpecific, WithDerivedInfo, SubTable);
         }
-        internal string GetColumnNameList(string dbName, string schema, string dataset, List<PropertyData> propData, Type tpContainer, bool Add = false, string Prefix = null, bool TopMost = true, string IdentityName = null, bool SiteSpecific = false, bool WithDerivedInfo = false, bool SubTable = false,
-                Dictionary<string, string> VisibleColumns = null) {
+        internal string GetColumnNameList(string dbName, string schema, string dataset, List<PropertyData> propData, Type tpContainer, bool Add = false, string? Prefix = null, bool TopMost = true, string? IdentityName = null, bool SiteSpecific = false, bool WithDerivedInfo = false, bool SubTable = false,
+                Dictionary<string, string>? VisibleColumns = null) {
             SQLBuilder sb = new SQLBuilder();
             SQLManager sqlManager = new SQLManager();
             return ProcessColumns(
@@ -665,7 +665,7 @@ DROP FUNCTION IF EXISTS ""{schema}"".""{dataset}__RemoveByIdentity"";
                         VisibleColumns.Add($"{prefix}{prop.ColumnName}", fullCol);
                         return $"{fullCol},";
                     }
-                    return $@"""{prefix}{prop.ColumnName}"","; 
+                    return $@"""{prefix}{prop.ColumnName}"",";
                 },
                 (prefix, container, prop) => { // Identity
                     if (Add) {
@@ -757,7 +757,7 @@ DROP FUNCTION IF EXISTS ""{schema}"".""{dataset}__RemoveByIdentity"";
                 },
                 dbName, schema, dataset, null, propData, tpContainer, Prefix, TopMost, SiteSpecific, WithDerivedInfo, SubTable);
         }
-        internal string GetValueNameList(string dbName, string schema, string dataset, List<PropertyData> propData, Type tpContainer, string Prefix = null, bool TopMost = true, bool SiteSpecific = false, bool WithDerivedInfo = false, bool SubTable = false) {
+        internal string GetValueNameList(string dbName, string schema, string dataset, List<PropertyData> propData, Type tpContainer, string? Prefix = null, bool TopMost = true, bool SiteSpecific = false, bool WithDerivedInfo = false, bool SubTable = false) {
             return ProcessColumns(
                 (prefix, container, prop) => {
                     if (SubTable) {
@@ -803,14 +803,14 @@ DROP FUNCTION IF EXISTS ""{schema}"".""{dataset}__RemoveByIdentity"";
                         return $@"""{SQLGen.ValSiteIdentity}"",";
                     if (name == SQLGenericBase.SubTableKeyColumn)
                         return $"__IDENTITY,";
-                    return $@"""arg{prefix}{name}"","; 
+                    return $@"""arg{prefix}{name}"",";
                 },
                 (prefix, container, prop, subPropData, subType, subtableName) => { // Subtable
                     return null;
                 },
                 dbName, schema, dataset, null, propData, tpContainer, Prefix, TopMost, SiteSpecific, WithDerivedInfo, SubTable);
         }
-        internal string GetSetList(string dbName, string schema, string dataset, List<PropertyData> propData, Type tpContainer, bool Add = false, string Prefix = null, bool TopMost = true, bool SiteSpecific = false, bool WithDerivedInfo = false, bool SubTable = false) {
+        internal string GetSetList(string dbName, string schema, string dataset, List<PropertyData> propData, Type tpContainer, bool Add = false, string? Prefix = null, bool TopMost = true, bool SiteSpecific = false, bool WithDerivedInfo = false, bool SubTable = false) {
             if (SubTable) throw new InternalError($"{nameof(GetSetList)} called for subtable which is not supported");
             return ProcessColumns(
                 (prefix, container, prop) => { return $@"""{prefix}{prop.ColumnName}""=""arg{prefix}{prop.Name}"","; },
@@ -833,16 +833,16 @@ DROP FUNCTION IF EXISTS ""{schema}"".""{dataset}__RemoveByIdentity"";
                 dbName, schema, dataset, null, propData, tpContainer, Prefix, TopMost, SiteSpecific, WithDerivedInfo, SubTable);
         }
         internal static string ProcessColumns(
-                Func<string, object, PropertyData, string> fmt,
-                Func<string, object, PropertyData, string> fmtIdentity,
-                Func<string, object, PropertyData, string> fmtBinary,
-                Func<string, object, PropertyData, string> fmtImage,
-                Func<string, object, PropertyData, string> fmtLanguage, 
-                Func<string, object, string, string> fmtPredef, 
-                Func<string, object, PropertyData, List<PropertyData>, Type, string, string> fmtSubtable,
-                string dbName, string schema, string dataset, 
-                object container, List<PropertyData> propData, Type tpContainer,
-                string Prefix = null, bool TopMost = true, bool SiteSpecific = false, bool WithDerivedInfo = false, bool SubTable = false) {
+                Func<string?, object?, PropertyData, string?> fmt,
+                Func<string?, object?, PropertyData, string?> fmtIdentity,
+                Func<string?, object?, PropertyData, string?> fmtBinary,
+                Func<string?, object?, PropertyData, string?> fmtImage,
+                Func<string?, object?, PropertyData, string?> fmtLanguage,
+                Func<string?, object?, string, string?> fmtPredef,
+                Func<string?, object?, PropertyData, List<PropertyData>, Type, string, string?> fmtSubtable,
+                string dbName, string schema, string dataset,
+                object? container, List<PropertyData> propData, Type tpContainer,
+                string? Prefix = null, bool TopMost = true, bool SiteSpecific = false, bool WithDerivedInfo = false, bool SubTable = false) {
 
             SQLBuilder sb = new SQLBuilder();
             foreach (PropertyData prop in propData) {
@@ -869,12 +869,12 @@ DROP FUNCTION IF EXISTS ""{schema}"".""{dataset}__RemoveByIdentity"";
                         if (SubTable) throw new InternalError("Nested subtables not supported");
                         PropertyInfo pi = prop.PropInfo;
                         Type subType = pi.PropertyType.GetInterfaces().Where(t => t.IsGenericType == true && t.GetGenericTypeDefinition() == typeof(IEnumerable<>))
-                                .Select(t => t.GetGenericArguments()[0]).FirstOrDefault();
+                                .Select(t => t.GetGenericArguments()[0]).First();
                         List<PropertyData> subPropData = ObjectSupport.GetPropertyData(subType);
                         string subTableName = dataset + "_" + prop.Name;
                         sb.Add(fmtSubtable(Prefix, container, prop, subPropData, subType, subTableName));
                     } else if (propertyType.IsClass) {
-                        object sub = null;
+                        object? sub = null;
                         if (container != null)
                             sub = prop.PropInfo.GetValue(container);
                         List<PropertyData> subPropData = ObjectSupport.GetPropertyData(propertyType);

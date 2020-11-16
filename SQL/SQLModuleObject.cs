@@ -24,25 +24,25 @@ namespace YetaWF.DataProvider.SQL {
     /// </summary>
     public class TempDesignedModule {
         /// <summary>
-        /// The module's unique identitfier.
+        /// The module's unique identifier.
         /// </summary>
         [Data_PrimaryKey]
         public Guid ModuleGuid { get; set; }
         /// <summary>
         /// The defined name of the module.
         /// </summary>
-        public string Name { get; set; }
+        public string Name { get; set; } = null!;
         /// <summary>
         /// The name of the assembly implementing the module type.
         /// </summary>
-        public string DerivedAssemblyName { get; set; }
+        public string DerivedAssemblyName { get; set; } = null!;
         /// <summary>
         /// The name of the System.Type implementing the module type.
         /// </summary>
-        public string DerivedDataType { get; set; }
+        public string DerivedDataType { get; set; } = null!;
 
         /// <summary>
-        /// Consstructor
+        /// Constructor
         /// </summary>
         public TempDesignedModule() { }
     }
@@ -51,7 +51,7 @@ namespace YetaWF.DataProvider.SQL {
     /// This class implements the base functionality to access the repository containing YetaWF modules.
     /// It is only used by the YetaWF.DataProvider.ModuleDefinition package and is not intended for application use.
     /// </summary>
-    public class SQLModuleObject<KEY, OBJTYPE> : SQLSimpleObject<KEY, OBJTYPE>, IDataProvider<KEY, OBJTYPE> {
+    public class SQLModuleObject<KEY, OBJTYPE> : SQLSimpleObject<KEY, OBJTYPE>, IDataProvider<KEY, OBJTYPE> where KEY : notnull where OBJTYPE : notnull {
 
         /// <summary>
         /// The SQL table name of the base dataset for all modules.
@@ -81,9 +81,9 @@ namespace YetaWF.DataProvider.SQL {
         public string BaseDataset { get; protected set; }
 
         internal class DerivedInfo {
-            public string DerivedTableName { get; set; }
-            public string DerivedDataType { get; set; }
-            public string DerivedAssemblyName { get; set; }
+            public string DerivedTableName { get; set; } = null!;
+            public string DerivedDataType { get; set; } = null!;
+            public string DerivedAssemblyName { get; set; } = null!;
         }
 
         /// <summary>
@@ -91,7 +91,7 @@ namespace YetaWF.DataProvider.SQL {
         /// </summary>
         /// <param name="key">The primary key value.</param>
         /// <returns>Returns the record that satisfies the specified primary key. If no record exists null is returned.</returns>
-        public new async Task<OBJTYPE> GetAsync(KEY key) {
+        public new async Task<OBJTYPE?> GetAsync(KEY key) {
 
             await EnsureOpenAsync();
 
@@ -103,11 +103,10 @@ namespace YetaWF.DataProvider.SQL {
 
                 sqlHelper.AddParam("Key1Val", key);
                 sqlHelper.AddParam(SQLGen.ValSiteIdentity, SiteIdentity);
-                DerivedInfo info = null;
                 using (SqlDataReader reader = await sqlHelper.ExecuteReaderStoredProcAsync($@"""{Dbo}"".""{BaseDataset}__GetBase""")) {
                     if (!(YetaWFManager.IsSync() ? reader.Read() : await reader.ReadAsync()))
                         return default(OBJTYPE);
-                    info = sqlHelper.CreateObject<DerivedInfo>(reader);
+                    DerivedInfo info = sqlHelper.CreateObject<DerivedInfo>(reader);
                     if (!(YetaWFManager.IsSync() ? reader.NextResult() : await reader.NextResultAsync()))
                         throw new InternalError("Expected next result set (module)");
                     if (!(YetaWFManager.IsSync() ? reader.Read() : await reader.ReadAsync()))
@@ -154,7 +153,7 @@ namespace YetaWF.DataProvider.SQL {
             GetParameterList(sqlHelper, obj, Database, Dbo, Dataset, propDataNoDups, Prefix: null, TopMost: false, SiteSpecific: false, WithDerivedInfo: false, SubTable: false);
             sqlHelper.AddParam(SQLGen.ValDerivedTableName, Dataset);
             sqlHelper.AddParam(SQLGen.ValDerivedDataType, typeof(OBJTYPE).FullName);
-            sqlHelper.AddParam(SQLGen.ValDerivedAssemblyName, typeof(OBJTYPE).Assembly.FullName.Split(new char[] { ',' }, 2).First());
+            sqlHelper.AddParam(SQLGen.ValDerivedAssemblyName, typeof(OBJTYPE).Assembly.FullName!.Split(new char[] { ',' }, 2).First());
             sqlHelper.AddParam(SQLGen.ValSiteIdentity, SiteIdentity);
 
             try {
@@ -164,7 +163,7 @@ namespace YetaWF.DataProvider.SQL {
                     return added > 0;
                 }
             } catch (Exception exc) {
-                SqlException sqlExc = exc as SqlException;
+                SqlException? sqlExc = exc as SqlException;
                 if (sqlExc != null && sqlExc.Number == 2627) // already exists
                     return false;
                 throw new InternalError($"Add failed for type {typeof(OBJTYPE).FullName} - {ErrorHandling.FormatExceptionMessage(exc)}");
@@ -196,7 +195,7 @@ namespace YetaWF.DataProvider.SQL {
             GetParameterList(sqlHelper, obj, Database, Dbo, Dataset, propDataNoDups, Prefix: null, TopMost: false, SiteSpecific: false, WithDerivedInfo: false, SubTable: false);
             sqlHelper.AddParam(SQLGen.ValDerivedTableName, Dataset);
             sqlHelper.AddParam(SQLGen.ValDerivedDataType, typeof(OBJTYPE).FullName);
-            sqlHelper.AddParam(SQLGen.ValDerivedAssemblyName, typeof(OBJTYPE).Assembly.FullName.Split(new char[] { ',' }, 2).First());
+            sqlHelper.AddParam(SQLGen.ValDerivedAssemblyName, typeof(OBJTYPE).Assembly.FullName!.Split(new char[] { ',' }, 2).First());
             sqlHelper.AddParam(SQLGen.ValSiteIdentity, SiteIdentity);
 
             try {
@@ -209,7 +208,7 @@ namespace YetaWF.DataProvider.SQL {
                 }
             } catch (Exception exc) {
                 if (!newKey.Equals(origKey)) {
-                    SqlException sqlExc = exc as SqlException;
+                    SqlException? sqlExc = exc as SqlException;
                     if (sqlExc != null && sqlExc.Number == 2627) { // duplicate key violation, meaning the new key already exists
                         return UpdateStatusEnum.NewKeyExists;
                     }
@@ -250,7 +249,7 @@ namespace YetaWF.DataProvider.SQL {
         /// <remarks>
         /// This is not implemented as it is not required for module storage.
         /// </remarks>
-        public new Task<OBJTYPE> GetOneRecordAsync(List<DataProviderFilterInfo> filters, List<JoinData> Joins = null) {
+        public new Task<OBJTYPE?> GetOneRecordAsync(List<DataProviderFilterInfo>? filters, List<JoinData>? Joins = null) {
             throw new NotImplementedException();
         }
 
@@ -263,7 +262,7 @@ namespace YetaWF.DataProvider.SQL {
         /// <param name="filters">A collection describing the filtering criteria.</param>
         /// <param name="Joins">A collection describing the dataset joins.</param>
         /// <returns>Returns a YetaWF.Core.DataProvider.DataProviderGetRecords object describing the data returned.</returns>
-        public new async Task<DataProviderGetRecords<OBJTYPE>> GetRecordsAsync(int skip, int take, List<DataProviderSortInfo> sorts, List<DataProviderFilterInfo> filters, List<JoinData> Joins = null) {
+        public new async Task<DataProviderGetRecords<OBJTYPE>> GetRecordsAsync(int skip, int take, List<DataProviderSortInfo>? sorts, List<DataProviderFilterInfo>? filters, List<JoinData>? Joins = null) {
 
             if (Dataset == BaseDataset) {
 
@@ -346,7 +345,7 @@ WHERE {fullBaseTableName}.[DerivedDataTableName] = '{Dataset}' AND {fullBaseTabl
         /// <remarks>
         /// This is not implemented as it is not required for module storage.
         /// </remarks>
-        public new Task<int> RemoveRecordsAsync(List<DataProviderFilterInfo> filters) {
+        public new Task<int> RemoveRecordsAsync(List<DataProviderFilterInfo>? filters) {
             throw new NotImplementedException();
         }
 
@@ -357,7 +356,7 @@ WHERE {fullBaseTableName}.[DerivedDataTableName] = '{Dataset}' AND {fullBaseTabl
                 _basePropertyData = ObjectSupport.GetPropertyData(typeof(ModuleDefinition));
             return _basePropertyData;
         }
-        private static List<PropertyData> _basePropertyData;
+        private static List<PropertyData>? _basePropertyData;
 
         internal new List<PropertyData> GetPropertyData() {
             if (_propertyData == null) {
@@ -370,7 +369,7 @@ WHERE {fullBaseTableName}.[DerivedDataTableName] = '{Dataset}' AND {fullBaseTabl
                         // The primary key has to be present in both derived and base table because they're used as foreign key
                         _propertyData.Add(p);
                     } else {
-                        PropertyData first = (from bp in basePropData where bp.Name == p.Name select p).FirstOrDefault();
+                        PropertyData? first = (from bp in basePropData where bp.Name == p.Name select p).FirstOrDefault();
                         if (first == null)
                             _propertyData.Add(p);
                     }
@@ -378,7 +377,7 @@ WHERE {fullBaseTableName}.[DerivedDataTableName] = '{Dataset}' AND {fullBaseTabl
             }
             return _propertyData;
         }
-        List<PropertyData> _propertyData;
+        List<PropertyData>? _propertyData;
 
         // IINSTALLABLEMODEL
         // IINSTALLABLEMODEL
@@ -484,7 +483,7 @@ DELETE {BaseDataset} FROM {BaseDataset}
                     sb.Add($@"
 SELECT COUNT(*) FROM  {BaseDataset}
 ");
-                    object val = await sqlHelper.ExecuteScalarAsync(sb.ToString());
+                    object? val = await sqlHelper.ExecuteScalarAsync(sb.ToString());
                     int count = Convert.ToInt32(val);
                     if (count == 0)
                         SQLManager.DropTable(Conn, dbName, Dbo, Dataset);
@@ -616,9 +615,9 @@ DELETE FROM {BaseDataset} WHERE [DerivedDataTableName] = '{Dataset}' AND [{SiteC
                 async (int offset, int skip) => {
                     return await GetRecordsAsync(offset, skip, null, null);
                 },
-                async (OBJTYPE record, PropertyInfo pi, PropertyInfo pi2) => {
+                async (OBJTYPE record, PropertyInfo pi, PropertyInfo? pi2) => {
                     UpdateStatusEnum status;
-                    KEY key1 = (KEY)pi.GetValue(record);
+                    KEY key1 = (KEY)pi.GetValue(record)!;
                     status = await UpdateAsync(key1, key1, record);
                     return status;
                 });

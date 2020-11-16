@@ -13,7 +13,7 @@ namespace YetaWF.DataProvider.SQL {
     /// <summary>
     /// This class implements access to objects (records), with a primary and secondary key (composite) and with an identity column.
     /// </summary>
-    public partial class SQLSimple2IdentityObject<KEYTYPE, KEYTYPE2, OBJTYPE> : SQLSimpleIdentityObjectBase<KEYTYPE, KEYTYPE2, OBJTYPE> {
+    public partial class SQLSimple2IdentityObject<KEYTYPE, KEYTYPE2, OBJTYPE> : SQLSimpleIdentityObjectBase<KEYTYPE, KEYTYPE2, OBJTYPE> where KEYTYPE : notnull where OBJTYPE : notnull {
 
         /// <summary>
         /// Constructor.
@@ -28,7 +28,7 @@ namespace YetaWF.DataProvider.SQL {
     /// <summary>
     /// This class implements access to objects (records), with one primary key and with an identity column.
     /// </summary>
-    public partial class SQLSimpleIdentityObject<KEYTYPE, OBJTYPE> : SQLSimpleIdentityObjectBase<KEYTYPE, object, OBJTYPE> {
+    public partial class SQLSimpleIdentityObject<KEYTYPE, OBJTYPE> : SQLSimpleIdentityObjectBase<KEYTYPE, object, OBJTYPE> where KEYTYPE : notnull where OBJTYPE : notnull {
 
         /// <summary>
         /// Constructor.
@@ -44,7 +44,7 @@ namespace YetaWF.DataProvider.SQL {
     /// This base class implements access to objects, with a primary and secondary key (composite) and with an identity column.
     /// This base class is not intended for use by application data providers. These use one of the more specialized derived classes instead.
     /// </summary>
-    public partial class SQLSimpleIdentityObjectBase<KEYTYPE, KEYTYPE2, OBJTYPE> : SQLSimpleObjectBase<KEYTYPE, KEYTYPE2, OBJTYPE>, IDataProviderIdentity<KEYTYPE, KEYTYPE2, OBJTYPE> {
+    public partial class SQLSimpleIdentityObjectBase<KEYTYPE, KEYTYPE2, OBJTYPE> : SQLSimpleObjectBase<KEYTYPE, KEYTYPE2, OBJTYPE>, IDataProviderIdentity<KEYTYPE, KEYTYPE2, OBJTYPE> where KEYTYPE : notnull where OBJTYPE : notnull {
 
         internal SQLSimpleIdentityObjectBase(Dictionary<string, object> options, bool HasKey2 = false) : base(options, HasKey2) { }
 
@@ -53,15 +53,15 @@ namespace YetaWF.DataProvider.SQL {
         /// </summary>
         /// <param name="identity">The identity value.</param>
         /// <returns>Returns the record that satisfies the specified identity value. If no record exists null is returned.</returns>
-        public async Task<OBJTYPE> GetByIdentityAsync(int identity) {
+        public async Task<OBJTYPE?> GetByIdentityAsync(int identity) {
             SQLBuilder sb = new SQLBuilder();
             await EnsureOpenAsync();
 
             SQLHelper sqlHelper = new SQLHelper(Conn, null, Languages);
 
-            string joins = null;// RFFU
+            string? joins = null;// RFFU
             string fullTableName = sb.GetTable(Database, Dbo, Dataset);
-            string calcProps = await CalculatedPropertiesAsync(typeof(OBJTYPE));
+            string? calcProps = await CalculatedPropertiesAsync(typeof(OBJTYPE));
 
             List<PropertyData> propData = GetPropertyData();
             string subTablesSelects = SubTablesSelects(Dataset, propData, typeof(OBJTYPE));
@@ -128,11 +128,11 @@ SELECT @@ROWCOUNT --- result set
 
             string script = (string.IsNullOrWhiteSpace(subTablesDeletes)) ? scriptMain : scriptWithSub;
 
-            object val;
+            object? val;
             try {
                 val = await sqlHelper.ExecuteScalarAsync(script);
             } catch (Exception exc) {
-                SqlException sqlExc = exc as SqlException;
+                SqlException? sqlExc = exc as SqlException;
                 if (sqlExc != null && sqlExc.Number == 547) // ref integrity
                     return false;
                 throw new InternalError("Delete failed for type {0} - {1}", typeof(OBJTYPE).FullName, ErrorHandling.FormatExceptionMessage(exc));
@@ -160,7 +160,7 @@ SELECT @@ROWCOUNT --- result set
             List<PropertyData> propData = GetPropertyData();
             string setColumns = SetColumns(sqlHelper, Dataset, propData, obj, typeof(OBJTYPE));
 
-            string subTablesUpdates = SubTablesUpdates(sqlHelper, Dataset, obj, propData, typeof(OBJTYPE));
+            string? subTablesUpdates = SubTablesUpdates(sqlHelper, Dataset, obj, propData, typeof(OBJTYPE));
 
             string scriptMain = $@"
 UPDATE {fullTableName}
@@ -187,14 +187,14 @@ SELECT @@ROWCOUNT --- result set
             string script = (string.IsNullOrWhiteSpace(subTablesUpdates)) ? scriptMain : scriptWithSub;
 
             try {
-                object val = await sqlHelper.ExecuteScalarAsync(script);
+                object? val = await sqlHelper.ExecuteScalarAsync(script);
                 int changed = Convert.ToInt32(val);
                 if (changed == 0)
                     return UpdateStatusEnum.RecordDeleted;
                 if (changed > 1)
                     throw new InternalError($"Update failed - {changed} records updated");
             } catch (Exception exc) {
-                SqlException sqlExc = exc as SqlException;
+                SqlException? sqlExc = exc as SqlException;
                 if (sqlExc != null && sqlExc.Number == 2627) {
                     // duplicate key violation, meaning the new key already exists
                     return UpdateStatusEnum.NewKeyExists;

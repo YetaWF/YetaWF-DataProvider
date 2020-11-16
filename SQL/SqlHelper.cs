@@ -20,11 +20,11 @@ namespace YetaWF.DataProvider.SQL {
     internal class SQLHelper {
 
         public SqlConnection SqlConnection;
-        public SqlTransaction SqlTransaction;
+        public SqlTransaction? SqlTransaction;
         private List<LanguageData> Languages { get; set; }
         private List<SqlParameter> Params = new List<SqlParameter>();
 
-        public SQLHelper(SqlConnection conn, SqlTransaction trans, List<LanguageData> languages) {
+        public SQLHelper(SqlConnection conn, SqlTransaction? trans, List<LanguageData> languages) {
             SqlConnection = conn;
             SqlTransaction = trans;
             Languages = languages;
@@ -36,7 +36,7 @@ namespace YetaWF.DataProvider.SQL {
                 SQLBuilder sb = new SQLBuilder();
                 sb.Add("-- Debug"); sb.Add(Environment.NewLine);
                 foreach (SqlParameter p in Params) {
-                    string val = p.Value?.ToString();
+                    string? val = p.Value?.ToString();
                     if (val != null) val = val.Replace('\r', ' ').Replace('\n', ' ');
                     sb.Add($"-- {p.ParameterName} - {val}"); sb.Add(Environment.NewLine);
                 }
@@ -54,8 +54,8 @@ namespace YetaWF.DataProvider.SQL {
 
         public Type GetDerivedType(string dataType, string assemblyName) {
             try {
-                Assembly asm = Assemblies.Load(assemblyName);
-                return asm.GetType(dataType, true);
+                Assembly asm = Assemblies.Load(assemblyName)!;
+                return asm.GetType(dataType, true)!;
             } catch (Exception exc) {
                 throw new InternalError($"Invalid Type {dataType}/{assemblyName} requested - {ErrorHandling.FormatExceptionMessage(exc)}");
             }
@@ -68,7 +68,7 @@ namespace YetaWF.DataProvider.SQL {
             return (T)CreateObject(dr, t);
         }
         public object CreateObject(SqlDataReader dr, Type tp) {
-            object obj = Activator.CreateInstance(tp);
+            object obj = Activator.CreateInstance(tp) !;
             FillObject(dr, obj);
             return obj;
         }
@@ -94,7 +94,7 @@ namespace YetaWF.DataProvider.SQL {
                                     if (btes.Length > 0)
                                         pi.SetValue(container, btes, null);
                                 } else {
-                                    object data = new GeneralFormatter().Deserialize<object>(btes);
+                                    object? data = new GeneralFormatter().Deserialize<object>(btes);
                                     pi.SetValue(container, data, null);
                                 }
                             }
@@ -126,7 +126,7 @@ namespace YetaWF.DataProvider.SQL {
                         object value = dr[colName];
                         pi.SetValue(container, GetValue(pi.PropertyType, value), BindingFlags.Default, null, null, null);
                     } else if (pi.PropertyType.IsClass && ComplexTypeInColumns(columns, colName + "_")) {// This is SLOW so it should be last
-                        object propVal = pi.GetValue(container);
+                        object? propVal = pi.GetValue(container);
                         if (propVal != null)
                             FillObject(dr, propVal, columns, colName + "_");
                     }
@@ -141,11 +141,11 @@ namespace YetaWF.DataProvider.SQL {
             }
             return false;
         }
-        public object GetValue(Type fieldType, object value) {
+        public object? GetValue(Type fieldType, object value) {
 
-            object newValue = null;
-            Type baseType = fieldType.BaseType;
-            Type underlyingType = Nullable.GetUnderlyingType(fieldType);
+            object? newValue = null;
+            Type? baseType = fieldType.BaseType;
+            Type? underlyingType = Nullable.GetUnderlyingType(fieldType);
 
             // Check if an empty value or an empty string
             if (value == null || value.ToString() == String.Empty)
@@ -155,9 +155,9 @@ namespace YetaWF.DataProvider.SQL {
                 newValue = value;
             } else if (fieldType == typeof(bool)) {
                 newValue = (value.ToString() == "1" ||
-                            value.ToString().ToLower() == "on" ||
-                            value.ToString().ToLower() == "true" ||
-                            value.ToString().ToLower() == "yes") ? true : false;
+                            value.ToString()!.ToLower() == "on" ||
+                            value.ToString()!.ToLower() == "true" ||
+                            value.ToString()!.ToLower() == "yes") ? true : false;
             } else if (underlyingType != null) {// Nullable types
                 if (underlyingType == typeof(DateTime))
                     newValue = Convert.ToDateTime(value);
@@ -186,11 +186,11 @@ namespace YetaWF.DataProvider.SQL {
                 else if (underlyingType == typeof(sbyte))
                     newValue = Convert.ToSByte(value);
                 else if (underlyingType == typeof(Guid))
-                    newValue = new Guid(Convert.ToString(value));
+                    newValue = new Guid(Convert.ToString(value)!);
                 else
                     throw new InternalError($"Unsupported type {fieldType.FullName}");
             } else if (fieldType == typeof(Guid)) {
-                newValue = new Guid(value.ToString());
+                newValue = new Guid(value.ToString()!);
             } else if (fieldType  == typeof(TimeSpan)) {
                 newValue = new TimeSpan(Convert.ToInt64(value));
             } else if (baseType != null && fieldType.BaseType == typeof(Enum)) {
@@ -199,7 +199,7 @@ namespace YetaWF.DataProvider.SQL {
                     newValue = intEnum;
                 else {
                     try {
-                        newValue = Enum.Parse(fieldType, value.ToString());
+                        newValue = Enum.Parse(fieldType, value.ToString()!);
                     } catch (Exception) {
                         newValue = Enum.ToObject(fieldType, value);
                     }
@@ -221,7 +221,7 @@ namespace YetaWF.DataProvider.SQL {
         public Task<SqlDataReader> ExecuteReaderAsync(string text) {
             return ExecuteReaderAsync(SqlConnection, SqlTransaction, CommandType.Text, text, Params);
         }
-        public Task<object> ExecuteScalarAsync(string text) {
+        public Task<object?> ExecuteScalarAsync(string text) {
             return ExecuteScalarAsync(SqlConnection, SqlTransaction, CommandType.Text, text, Params);
         }
         public Task<int> ExecuteNonQueryAsync(string text) {
@@ -231,7 +231,7 @@ namespace YetaWF.DataProvider.SQL {
             return ExecuteReaderAsync(SqlConnection, SqlTransaction, CommandType.StoredProcedure, sproc, Params);
         }
 
-        private static async Task<SqlDataReader> ExecuteReaderAsync(SqlConnection connection, SqlTransaction transaction, CommandType commandType, string commandText, List<SqlParameter> sqlParms) {
+        private static async Task<SqlDataReader> ExecuteReaderAsync(SqlConnection connection, SqlTransaction? transaction, CommandType commandType, string commandText, List<SqlParameter>? sqlParms) {
             using (SqlCommand cmd = new SqlCommand()) {
                 YetaWF.Core.Log.Logging.AddTraceLog(commandText);
                 PrepareCommand(cmd, connection, transaction, commandType, commandText, sqlParms);
@@ -241,7 +241,7 @@ namespace YetaWF.DataProvider.SQL {
                     return await cmd.ExecuteReaderAsync();
             }
         }
-        private static async Task<object> ExecuteScalarAsync(SqlConnection connection, SqlTransaction transaction, CommandType commandType, string commandText, List<SqlParameter> sqlParms) {
+        private static async Task<object?> ExecuteScalarAsync(SqlConnection connection, SqlTransaction? transaction, CommandType commandType, string commandText, List<SqlParameter>? sqlParms) {
             using (SqlCommand cmd = new SqlCommand()) {
                 YetaWF.Core.Log.Logging.AddTraceLog(commandText);
                 PrepareCommand(cmd, connection, transaction, commandType, commandText, sqlParms);
@@ -251,7 +251,7 @@ namespace YetaWF.DataProvider.SQL {
                     return await cmd.ExecuteScalarAsync();
             }
         }
-        private static async Task<int> ExecuteNonQueryAsync(SqlConnection connection, SqlTransaction transaction, CommandType commandType, string commandText, List<SqlParameter> sqlParms) {
+        private static async Task<int> ExecuteNonQueryAsync(SqlConnection connection, SqlTransaction? transaction, CommandType commandType, string commandText, List<SqlParameter>? sqlParms) {
             using (SqlCommand cmd = new SqlCommand()) {
                 YetaWF.Core.Log.Logging.AddTraceLog(commandText);
                 PrepareCommand(cmd, connection, transaction, commandType, commandText, sqlParms);
@@ -263,7 +263,7 @@ namespace YetaWF.DataProvider.SQL {
         }
 
         [System.Diagnostics.CodeAnalysis.SuppressMessage("Microsoft.Security", "CA2100:Review SQL queries for security vulnerabilities")]
-        private static void PrepareCommand(SqlCommand command, SqlConnection connection, SqlTransaction transaction, CommandType commandType, string commandText, List<SqlParameter> sqlParms) {
+        private static void PrepareCommand(SqlCommand command, SqlConnection connection, SqlTransaction? transaction, CommandType commandType, string commandText, List<SqlParameter>? sqlParms) {
 
             command.Connection = connection;
             command.CommandText = commandText;
@@ -278,7 +278,7 @@ namespace YetaWF.DataProvider.SQL {
             if (sqlParms != null)
                 AttachParameters(command, sqlParms);
         }
-        private static void AttachParameters(SqlCommand command, List<SqlParameter> sqlParms) {
+        private static void AttachParameters(SqlCommand command, List<SqlParameter>? sqlParms) {
             if (sqlParms != null) {
                 foreach (SqlParameter p in sqlParms) {
                     if (p != null) {
@@ -294,15 +294,15 @@ namespace YetaWF.DataProvider.SQL {
         // EXPR
         // EXPR
 
-        internal void AddWhereExpr(SQLBuilder sb, string tableName, List<DataProviderFilterInfo> filters, Dictionary<string, string> visibleColumns) {
+        internal void AddWhereExpr(SQLBuilder sb, string tableName, List<DataProviderFilterInfo> filters, Dictionary<string, string>? visibleColumns) {
             List<DataProviderFilterInfo> list = new List<DataProviderFilterInfo>(filters);
             if (list.Count == 1 && list[0].Filters != null && list[0].Logic == "&&") {
                 // topmost entry is just one filter, remove it - it's redundant
-                list = new List<DataProviderFilterInfo>(list[0].Filters);
+                list = new List<DataProviderFilterInfo>(list[0].Filters!);
             }
             AddFiltersExpr(sb, tableName, list, "and", visibleColumns);
         }
-        private void AddFiltersExpr(SQLBuilder sb, string tableName, List<DataProviderFilterInfo> filter, string logic, Dictionary<string, string> visibleColumns) {
+        private void AddFiltersExpr(SQLBuilder sb, string tableName, List<DataProviderFilterInfo> filter, string logic, Dictionary<string, string>? visibleColumns) {
             bool firstDone = false;
             foreach (DataProviderFilterInfo f in filter) {
                 if (firstDone) {
@@ -313,11 +313,11 @@ namespace YetaWF.DataProvider.SQL {
                 bool? isNull = null;
                 if (f.Filters != null) {
                     sb.Add("(");
-                    AddFiltersExpr(sb, tableName, new List<DataProviderFilterInfo>(f.Filters), f.Logic, visibleColumns);
+                    AddFiltersExpr(sb, tableName, new List<DataProviderFilterInfo>(f.Filters), f.Logic!, visibleColumns);
                     sb.Add(")");
                 } else {
                     string oper = "";
-                    object val = f.Value;
+                    object? val = f.Value;
                     if (val != null && val.GetType() == typeof(DateTime)) {
                         val = ((DateTime)val).ToString("yyyy-MM-dd HH:mm:ss");
                     }
@@ -351,26 +351,26 @@ namespace YetaWF.DataProvider.SQL {
                             isNull = false;
                             oper = ">="; break;
                         case "startswith":
-                            oper = "LIKE"; val = sb.EscapeForLike((val ?? "").ToString(), false) + "%"; break;
+                            oper = "LIKE"; val = sb.EscapeForLike((val ?? "").ToString()!, false) + "%"; break;
                         case "notstartswith":
                             isNull = true;
-                            oper = "NOT LIKE"; val = sb.EscapeForLike((val ?? "").ToString(), false) + "%"; break;
+                            oper = "NOT LIKE"; val = sb.EscapeForLike((val ?? "").ToString()!, false) + "%"; break;
                         case "endswith":
-                            oper = "LIKE"; val = "%" + sb.EscapeForLike((val ?? "").ToString(), false); break;
+                            oper = "LIKE"; val = "%" + sb.EscapeForLike((val ?? "").ToString()!, false); break;
                         case "notendswith":
                             isNull = true;
-                            oper = "NOT LIKE"; val = "%" + sb.EscapeForLike((val ?? "").ToString(), false); break;
+                            oper = "NOT LIKE"; val = "%" + sb.EscapeForLike((val ?? "").ToString()!, false); break;
                         case "contains":
-                            oper = "LIKE"; val = "%" + sb.EscapeForLike((val ?? "").ToString(), false) + "%"; break;
+                            oper = "LIKE"; val = "%" + sb.EscapeForLike((val ?? "").ToString()!, false) + "%"; break;
                         case "notcontains":
                             isNull = true;
-                            oper = "NOT LIKE"; val = "%" + sb.EscapeForLike((val ?? "").ToString(), false) + "%"; break;
+                            oper = "NOT LIKE"; val = "%" + sb.EscapeForLike((val ?? "").ToString()!, false) + "%"; break;
                         default:
                             throw new InternalError("Invalid operator {0}", f.Operator);
                     }
                     if (isNull != null) {
                         sb.Add("(");
-                        string s = sb.BuildFullColumnName(f.Field, visibleColumns);
+                        string s = sb.BuildFullColumnName(f.Field!, visibleColumns);
                         AddExpr(sb, s, oper, val);
                         if (isNull == true)
                             sb.Add($" OR {s} IS NULL");
@@ -378,13 +378,13 @@ namespace YetaWF.DataProvider.SQL {
                             sb.Add($" AND {s} IS NOT NULL");
                         sb.Add(")");
                     } else {
-                        AddExpr(sb, sb.BuildFullColumnName(f.Field, visibleColumns), oper, val);
+                        AddExpr(sb, sb.BuildFullColumnName(f.Field!, visibleColumns), oper, val);
                     }
                 }
                 firstDone = true;
             }
         }
-        public string Expr(string wherecolumn, string @operator, object value, bool isSet = false) {
+        public string Expr(string wherecolumn, string @operator, object? value, bool isSet = false) {
             SQLBuilder sb = new SQLBuilder();
             AddExpr(sb, wherecolumn, @operator, value, isSet);
             return sb.ToString();
@@ -397,7 +397,7 @@ namespace YetaWF.DataProvider.SQL {
         /// <param name="operator">The operator, e.g. = &lt;= LIKE &lt;&gt; etc.</param>
         /// <param name="value">The value. If it is a string it is properly escaped etc.</param>
         /// <param name="isSet">Identifies this comparison as a set statement. Needed for setting null values.</param>
-        internal void AddExpr(SQLBuilder sb, string wherecolumn, string @operator, object value, bool isSet = false) {
+        internal void AddExpr(SQLBuilder sb, string wherecolumn, string @operator, object? value, bool isSet = false) {
             if (!wherecolumn.Contains(".") && !wherecolumn.StartsWith("["))
                 wherecolumn = SQLBuilder.WrapIdentifier(wherecolumn);
 
@@ -419,7 +419,7 @@ namespace YetaWF.DataProvider.SQL {
         /// </summary>
         /// <param name="value">The value of the parameter</param>
         /// <returns>The generated name for the parameter</returns>
-        public string AddTempParam(object value) {
+        public string AddTempParam(object? value) {
             string name = "_tempParam" + Params.Count;
             AddParam(name, value);
             return "@" + name;
@@ -432,7 +432,7 @@ namespace YetaWF.DataProvider.SQL {
         /// <param name="DbType">The optional type of the parameter value.</param>
         /// <param name="DataTypeName">The optional SQL type of the parameter value. A corresponding User-Defined Type must exist in the database.</param>
         /// <param name="direction">The direction of the parameter (input or output).</param>
-        public void AddParam(string name, object value, ParameterDirection direction = ParameterDirection.Input, SqlDbType? DbType = null, string DataTypeName = null)/*<<<*/ {
+        public void AddParam(string name, object? value, ParameterDirection direction = ParameterDirection.Input, SqlDbType? DbType = null, string? DataTypeName = null)/*<<<*/ {
 
             if (name.StartsWith("@"))
                 name = name.Substring(1);

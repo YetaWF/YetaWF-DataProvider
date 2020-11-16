@@ -69,7 +69,7 @@ namespace YetaWF.DataProvider {
     /// </summary>
     /// <typeparam name="KEYTYPE">The type of the primary key property.</typeparam>
     /// <typeparam name="OBJTYPE">The type of the object (one record) in the dataset.</typeparam>
-    public class FileDataProvider<KEYTYPE, OBJTYPE> : FileDataProviderBase, IDataProvider<KEYTYPE, OBJTYPE>, IDisposable, IDataProviderTransactions {
+    public class FileDataProvider<KEYTYPE, OBJTYPE> : FileDataProviderBase, IDataProvider<KEYTYPE, OBJTYPE>, IDisposable, IDataProviderTransactions where KEYTYPE : notnull where OBJTYPE : notnull {
 
         /// <summary>
         /// A dictionary of options and optional parameters as provided to the YetaWF.Core.DataProvider.DataProviderImpl.MakeDataProvider method when the data provider was created.
@@ -125,7 +125,7 @@ namespace YetaWF.DataProvider {
         ///
         /// This callback is typically set by the data provider itself, in its constructor or as the data provider is being created.
         /// </remarks>
-        public Func<string, object, Task<object>> CalculatedPropertyCallbackAsync { get; set; }
+        public Func<string, object, Task<object>>? CalculatedPropertyCallbackAsync { get; set; }
 
         private const int ChunkSize = 100;
 
@@ -158,18 +158,13 @@ namespace YetaWF.DataProvider {
 
             this.IdentitySeed = IdentitySeed == 0 ? FileIdentityCount.IDENTITY_SEED : IdentitySeed;
 
-            string baseFolder = WebConfigHelper.GetValue<string>(Dataset, "FileBaseFolder", null);
+            string? baseFolder = WebConfigHelper.GetValue<string>(Dataset, "FileBaseFolder", null);
             if (!string.IsNullOrWhiteSpace(baseFolder)) {
 #if DEBUG
                 if (SiteIdentity == 0 && baseFolder.Contains("{SiteIdentity}"))
                     throw new InternalError($"Can't use site identity in base folder {baseFolder} for {Dataset} - No site identity available");
 #endif
-                string rootFolder;
-#if MVC6
-                rootFolder = YetaWFManager.RootFolderWebProject;
-#else
-                rootFolder = YetaWFManager.RootFolder;
-#endif
+                string rootFolder = YetaWFManager.RootFolderWebProject;
                 baseFolder = baseFolder.Replace("{RootFolder}", rootFolder);
                 baseFolder = baseFolder.Replace("{DataFolder}", YetaWFManager.DataFolder);
                 baseFolder = baseFolder.Replace("{SiteIdentity}", SiteIdentity.ToString());
@@ -261,7 +256,7 @@ namespace YetaWF.DataProvider {
             }
             return _key1Name;
         }
-        private string _key1Name;
+        private string? _key1Name;
 
         private string GetIdentityName() {
             if (_identityName == null) {
@@ -272,11 +267,11 @@ namespace YetaWF.DataProvider {
                         return _identityName;
                     }
                 }
-                _identityName = "";
+                _identityName = string.Empty;
             }
             return _identityName;
         }
-        private string _identityName;
+        private string? _identityName;
 
         private const string InternalFilePrefix = "__";
 
@@ -290,7 +285,7 @@ namespace YetaWF.DataProvider {
 
             FileData<OBJTYPE> fd = new FileData<OBJTYPE> {
                 BaseFolder = BaseFolder,
-                FileName = key.ToString().ToLower(),
+                FileName = key.ToString()!.ToLower(),
                 Cacheable = Cacheable
             };
             return fd;
@@ -301,10 +296,10 @@ namespace YetaWF.DataProvider {
         /// <param name="key">The primary key.</param>
         /// <returns>Returns the record with the specified primary key, or null if there is no record with the specified primary key.
         /// Other errors cause an exception.</returns>
-        public async Task<OBJTYPE> GetAsync(KEYTYPE key) {
+        public async Task<OBJTYPE?> GetAsync(KEYTYPE key) {
             FileData<OBJTYPE> fd = GetFileDataObject(key);
-            OBJTYPE o = await fd.LoadAsync();
-            if (o == null) return default(OBJTYPE);
+            OBJTYPE? o = await fd.LoadAsync();
+            if (o == null) return default;
             return await UpdateCalculatedPropertiesAsync(o);
         }
         /// <summary>
@@ -316,12 +311,12 @@ namespace YetaWF.DataProvider {
         public async Task<bool> AddAsync(OBJTYPE obj) {
 
             PropertyInfo piKey = ObjectSupport.GetProperty(typeof(OBJTYPE), Key1Name);
-            KEYTYPE key = (KEYTYPE)piKey.GetValue(obj);
+            KEYTYPE key = (KEYTYPE)piKey.GetValue(obj)!;
 
             if (!string.IsNullOrWhiteSpace(IdentityName)) {
                 // using identity
                 int identity = 0;
-                PropertyInfo piIdent = ObjectSupport.GetProperty(typeof(OBJTYPE), IdentityName);
+                PropertyInfo? piIdent = ObjectSupport.GetProperty(typeof(OBJTYPE), IdentityName);
                 if (piIdent == null) throw new InternalError("Type {0} has no identity property named {1}", typeof(OBJTYPE).FullName, IdentityName);
                 if (piIdent.PropertyType != typeof(int)) throw new InternalError("FileDataProvider only supports object identities of type int");
 
@@ -330,7 +325,7 @@ namespace YetaWF.DataProvider {
                     FileName = InternalFilePrefix + IdentityName,
                 };
                 using (ILockObject lockObject = await YetaWF.Core.IO.Caching.LockProvider.LockResourceAsync($"{AreaRegistration.CurrentPackage.AreaName}_FileDataProvider_{BaseFolder}")) {
-                    FileIdentityCount ident = await fdIdent.LoadAsync();
+                    FileIdentityCount? ident = await fdIdent.LoadAsync();
                     if (ident == null) { // new
                         ident = new FileIdentityCount(IdentitySeed);
                         await fdIdent.AddAsync(ident);
@@ -360,7 +355,7 @@ namespace YetaWF.DataProvider {
         }
         private async Task<UpdateStatusEnum> UpdateFileAsync(KEYTYPE origKey, KEYTYPE newKey, OBJTYPE obj) {
             FileData<OBJTYPE> fd = GetFileDataObject(origKey);
-            return await fd.UpdateFileAsync(newKey.ToString().ToLower(), obj);
+            return await fd.UpdateFileAsync(newKey.ToString()!.ToLower(), obj);
         }
         /// <summary>
         /// Removes an existing record with the specified primary key.
@@ -401,10 +396,13 @@ namespace YetaWF.DataProvider {
         /// If no record matches, null is returned.</returns>
         /// <remarks>
         /// </remarks>
-        public async Task<OBJTYPE> GetOneRecordAsync(List<DataProviderFilterInfo> filters, List<JoinData> Joins = null) {
+        public async Task<OBJTYPE?> GetOneRecordAsync(List<DataProviderFilterInfo>? filters, List<JoinData>? Joins = null) {
             if (Joins != null) throw new InternalError("Joins not supported");
             DataProviderGetRecords<OBJTYPE> objs = await GetRecords(0, 1, null, filters);
-            return await UpdateCalculatedPropertiesAsync(objs.Data.FirstOrDefault());
+            OBJTYPE? data = objs.Data.FirstOrDefault();
+            if (data != null)
+                data = await UpdateCalculatedPropertiesAsync(data);
+            return data;
         }
         /// <summary>
         /// Retrieves a collection of records using filtering criteria with sorting, with support for paging.
@@ -415,10 +413,10 @@ namespace YetaWF.DataProvider {
         /// <param name="filters">A collection describing the filtering criteria.</param>
         /// <param name="Joins">A collection describing the dataset joins. Not supported by file data providers. Must be null for file data providers.</param>
         /// <returns>Returns a YetaWF.Core.DataProvider.DataProviderGetRecords object describing the data returned.</returns>
-        public Task<DataProviderGetRecords<OBJTYPE>> GetRecordsAsync(int skip, int take, List<DataProviderSortInfo> sort, List<DataProviderFilterInfo> filters, List<JoinData> Joins = null) {
+        public Task<DataProviderGetRecords<OBJTYPE>> GetRecordsAsync(int skip, int take, List<DataProviderSortInfo>? sort, List<DataProviderFilterInfo>? filters, List<JoinData>? Joins = null) {
             return GetRecords(skip, take, sort, filters, Joins: Joins);
         }
-        private async Task<DataProviderGetRecords<OBJTYPE>> GetRecords(int skip, int take, List<DataProviderSortInfo> sort, List<DataProviderFilterInfo> filters, List<JoinData> Joins = null) {
+        private async Task<DataProviderGetRecords<OBJTYPE>> GetRecords(int skip, int take, List<DataProviderSortInfo>? sort, List<DataProviderFilterInfo>? filters, List<JoinData>? Joins = null) {
 
             if (Joins != null) throw new InternalError("Joins not supported");
             List<string> files = await DataFilesProvider.GetDataFileNamesAsync(BaseFolder);
@@ -480,7 +478,7 @@ namespace YetaWF.DataProvider {
         /// </summary>
         /// <param name="filters">A collection describing the filtering criteria.</param>
         /// <returns>Returns the number of records removed.</returns>
-        public async Task<int> RemoveRecordsAsync(List<DataProviderFilterInfo> filters) {
+        public async Task<int> RemoveRecordsAsync(List<DataProviderFilterInfo>? filters) {
             List<string> files = await DataFilesProvider.GetDataFileNamesAsync(BaseFolder);
 
             int total = 0;
@@ -610,13 +608,14 @@ namespace YetaWF.DataProvider {
         /// </remarks>
         public async Task<DataProviderExportChunk> ExportChunkAsync(int chunk, SerializableList<SerializableFile> fileList) {
             DataProviderGetRecords<OBJTYPE> recs = await GetRecordsAsync(chunk * ChunkSize, ChunkSize, null, null);
-            SerializableList<OBJTYPE> serList = new SerializableList<OBJTYPE>(recs.Data);
-            object obj = serList;
-            int count = serList.Count();
+            SerializableList<OBJTYPE>? serList;
+            int count = recs.Data.Count;
             if (count == 0)
-                obj = null;
+                serList = null;
+            else
+                serList = new SerializableList<OBJTYPE>(recs.Data);
             return new DataProviderExportChunk {
-                ObjectList = obj,
+                ObjectList = serList,
                 More = count >= ChunkSize,
             };
         }
@@ -675,7 +674,7 @@ namespace YetaWF.DataProvider {
             foreach (OBJTYPE record in data.Data) {
                 bool changed = await ObjectSupport.TranslateObject(record, language, isHtml, translateStringsAsync, translateComplexStringAsync, props);
                 if (changed) {
-                    KEYTYPE key1 = (KEYTYPE)key1Prop.GetValue(record);
+                    KEYTYPE key1 = (KEYTYPE)key1Prop.GetValue(record)!;
                     UpdateStatusEnum status = await UpdateAsync(key1, key1, record);
                     if (status != UpdateStatusEnum.OK)
                         throw new InternalError($"Update failed for type {typeof(OBJTYPE).FullName} ({status})");

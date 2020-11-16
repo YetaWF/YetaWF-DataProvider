@@ -63,7 +63,7 @@ namespace YetaWF.DataProvider.Localization {
             return Path.Combine(YetaWFManager.RootFolderWebProject, LocalizationFolder, language, package.LanguageDomain, package.Product);
         }
 
-        private LocalizationData Load(Package package, string type, YetaWF.Core.IO.Localization.Location location) {
+        private LocalizationData? Load(Package package, string type, YetaWF.Core.IO.Localization.Location location) {
 
             YetaWFManager manager;
             if (location == YetaWF.Core.IO.Localization.Location.Merge) {
@@ -83,14 +83,13 @@ namespace YetaWF.DataProvider.Localization {
 
             // check if we have this cached
             if (location == YetaWF.Core.IO.Localization.Location.Merge && package.CachedLocalization != null) {
-                Dictionary<string, LocalizationData> cachedFiles = (Dictionary<string, LocalizationData>) package.CachedLocalization;
-                LocalizationData localizationData = null;
-                if (cachedFiles.TryGetValue(MakeKey(file), out localizationData))
+                Dictionary<string, LocalizationData?> cachedFiles = (Dictionary<string, LocalizationData?>) package.CachedLocalization;
+                if (cachedFiles.TryGetValue(MakeKey(file), out LocalizationData? localizationData))
                     return localizationData;
             }
 
             FileData<LocalizationData> fd;
-            LocalizationData data = null;
+            LocalizationData? data = null;
 
             YetaWFManager.Syncify(async () => { // This must be sync because this is called from all kinds of property getters which can't be async, fortunately this is cached so it only happens once
 
@@ -125,7 +124,7 @@ namespace YetaWF.DataProvider.Localization {
                             break;
                         }
                     case YetaWF.Core.IO.Localization.Location.Merge: {
-                            LocalizationData newData = null;
+                            LocalizationData? newData = null;
                             fd = new FileData<LocalizationData> {
                                 BaseFolder = customLanguageFolder,
                                 FileName = file,
@@ -162,8 +161,8 @@ namespace YetaWF.DataProvider.Localization {
                             }
                             lock (package) { // lock used for local data
                                 if (package.CachedLocalization == null)
-                                    package.CachedLocalization = new Dictionary<string, LocalizationData>();
-                                Dictionary<string, LocalizationData> cachedFiles = (Dictionary<string, LocalizationData>)package.CachedLocalization;
+                                    package.CachedLocalization = new Dictionary<string, LocalizationData?>();
+                                Dictionary<string, LocalizationData?> cachedFiles = (Dictionary<string, LocalizationData?>)package.CachedLocalization;
                                 string key = MakeKey(file);
                                 if (!cachedFiles.ContainsKey(key))
                                     cachedFiles.Add(key, data);
@@ -182,13 +181,13 @@ namespace YetaWF.DataProvider.Localization {
 
         private void Merge(LocalizationData data, LocalizationData newData) {
             foreach (LocalizationData.ClassData newCls in newData.Classes) {
-                LocalizationData.ClassData cls = data.FindClass(newCls.Name);
+                LocalizationData.ClassData? cls = data.FindClass(newCls.Name);
                 if (cls != null) {
                     if (!string.IsNullOrWhiteSpace(newCls.Header)) cls.Header = newCls.Header;
                     if (!string.IsNullOrWhiteSpace(newCls.Footer)) cls.Footer = newCls.Footer;
                     if (!string.IsNullOrWhiteSpace(newCls.Legend)) cls.Legend = newCls.Legend;
                     foreach (LocalizationData.PropertyData newProp in newCls.Properties) {
-                        LocalizationData.PropertyData prop = data.FindProperty(newCls.Name, newProp.Name);
+                        LocalizationData.PropertyData? prop = data.FindProperty(newCls.Name, newProp.Name);
                         if (prop != null) {
                             if (!string.IsNullOrWhiteSpace(newProp.Caption)) prop.Caption = newProp.Caption;
                             if (!string.IsNullOrWhiteSpace(newProp.Description)) prop.Description = newProp.Description;
@@ -200,10 +199,10 @@ namespace YetaWF.DataProvider.Localization {
                 }
             }
             foreach (LocalizationData.EnumData newEnum in newData.Enums) {
-                LocalizationData.EnumData enm = data.FindEnum(newEnum.Name);
+                LocalizationData.EnumData? enm = data.FindEnum(newEnum.Name);
                 if (enm != null) {
                     foreach (LocalizationData.EnumDataEntry newEntry in newEnum.Entries) {
-                        LocalizationData.EnumDataEntry entry = enm.FindEntry(newEntry.Name);
+                        LocalizationData.EnumDataEntry? entry = enm.FindEntry(newEntry.Name);
                         if (entry != null) {
                             if (!string.IsNullOrWhiteSpace(newEntry.Caption)) entry.Caption = newEntry.Caption;
                             if (!string.IsNullOrWhiteSpace(newEntry.Description)) entry.Description = newEntry.Description;
@@ -212,13 +211,13 @@ namespace YetaWF.DataProvider.Localization {
                 }
             }
             foreach (LocalizationData.StringData newString in newData.Strings) {
-                LocalizationData.StringData str = data.FindStringEntry(newString.Name);
+                LocalizationData.StringData? str = data.FindStringEntry(newString.Name);
                 if (str != null) {
                     if (!string.IsNullOrWhiteSpace(str.Text)) str.Text = newString.Text;
                 }
             }
         }
-        private async Task SaveAsync(Package package, string type, YetaWF.Core.IO.Localization.Location location, LocalizationData data) {
+        private async Task SaveAsync(Package package, string type, YetaWF.Core.IO.Localization.Location location, LocalizationData? data) {
             if (!Startup.Started || !HaveManager) throw new InternalError("Can't save resource files during startup");
             if (!Manager.LocalizationSupportEnabled) throw new InternalError("Can't save resource files during startup");
 
@@ -227,7 +226,7 @@ namespace YetaWF.DataProvider.Localization {
 
             lock (package) { // lock used for local data
                 if (package.CachedLocalization != null) {
-                    Dictionary<string, LocalizationData> cachedFiles = (Dictionary<string, LocalizationData>) package.CachedLocalization;
+                    Dictionary<string, LocalizationData?> cachedFiles = (Dictionary<string, LocalizationData?>) package.CachedLocalization;
                     cachedFiles.Remove(MakeKey(file));
                 }
             }
@@ -310,7 +309,7 @@ namespace YetaWF.DataProvider.Localization {
             List<string> entries = await GetFilesAsync(package, language, false);
             foreach (var file in entries) {
                 FileData<LocalizationData> fd = new FileData<LocalizationData> {
-                    BaseFolder = Path.GetDirectoryName(file),
+                    BaseFolder = Path.GetDirectoryName(file)!,
                     FileName = Path.GetFileName(file),
                     Format = LocalizationFormat,
                     Cacheable = false,

@@ -42,7 +42,7 @@ namespace YetaWF.DataProvider.PostgreSQL {
         /// If <paramref name="Offset"/> and <paramref name="Next"/> are specified (not 0),
         /// OFFSET <paramref name="Offset"/> ROWS FETCH NEXT <paramref name="Next"/> ROWS ONLY is appended to the generated ORDER BY clause.
         /// </remarks>
-        internal void AddOrderBy(Dictionary<string, string> visibleColumns, List<DataProviderSortInfo> sorts, int Offset = 0, int Next = 0) {
+        internal void AddOrderBy(Dictionary<string, string>? visibleColumns, List<DataProviderSortInfo>? sorts, int Offset = 0, int Next = 0) {
             Add(GetOrderBy(visibleColumns, sorts, Offset:Offset, Next: Next));
         }
 
@@ -57,14 +57,16 @@ namespace YetaWF.DataProvider.PostgreSQL {
         /// If <paramref name="Offset"/> and <paramref name="Next"/> are specified (not 0),
         /// OFFSET <paramref name="Offset"/> ROWS FETCH NEXT <paramref name="Next"/> ROWS ONLY is appended to the generated ORDER BY clause.
         /// </remarks>
-        internal string GetOrderBy(Dictionary<string, string> visibleColumns, List<DataProviderSortInfo> sorts, int Offset = 0, int Next = 0) {
+        internal string GetOrderBy(Dictionary<string, string>? visibleColumns, List<DataProviderSortInfo>? sorts, int Offset = 0, int Next = 0) {
             StringBuilder sb = new StringBuilder();
             sb.Append("ORDER BY ");
             bool first = true;
-            foreach (DataProviderSortInfo sortInfo in sorts) {
-                if (!first) sb.Append(", ");
-                sb.Append(BuildFullColumnName(sortInfo.Field, visibleColumns) + " " + (sortInfo.Order == DataProviderSortInfo.SortDirection.Ascending ? "ASC" : "DESC"));
-                first = false;
+            if (sorts != null) {
+                foreach (DataProviderSortInfo sortInfo in sorts) {
+                    if (!first) sb.Append(", ");
+                    sb.Append(BuildFullColumnName(sortInfo.Field, visibleColumns) + " " + (sortInfo.Order == DataProviderSortInfo.SortDirection.Ascending ? "ASC" : "DESC"));
+                    first = false;
+                }
             }
             if (Offset > 0 || Next > 0)
                 sb.Append($" OFFSET {Offset} ROWS FETCH NEXT {Next} ROWS ONLY");
@@ -159,10 +161,9 @@ namespace YetaWF.DataProvider.PostgreSQL {
         /// <param name="visibleColumns">The collection of columns visible in the table.</param>
         /// <returns>Returns a formatted name, with brackets.</returns>
         /// <remarks>The result is bracketed. This method considers whether any of the parameters is already bracketed in which case no further brackets are added.</remarks>
-        internal string BuildFullColumnName(string column, Dictionary<string, string> visibleColumns) {
+        internal string BuildFullColumnName(string column, Dictionary<string, string>? visibleColumns) {
             if (visibleColumns != null) {
-                string longColumn;
-                if (!visibleColumns.TryGetValue(column, out longColumn))
+                if (!visibleColumns.TryGetValue(column, out string? longColumn))
                     throw new InternalError($"Column {column} not found in list of visible columns");
                 return longColumn;
             } else {

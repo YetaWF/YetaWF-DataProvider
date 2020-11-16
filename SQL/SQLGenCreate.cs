@@ -26,9 +26,9 @@ namespace YetaWF.DataProvider.SQL {
         public List<LanguageData> Languages { get; private set; }
 
         private class TableInfo {
-            public Table CurrentTable { get; set; }
-            public Table NewTable { get; set; }
-            public List<TableInfo> SubTables { get; set; }
+            public Table? CurrentTable { get; set; }
+            public Table NewTable { get; set; } = null!;
+            public List<TableInfo> SubTables { get; set; } = null!;
         }
 
         public SQLGen(SqlConnection conn, List<LanguageData> languages, int identitySeed, bool logging) {
@@ -38,11 +38,11 @@ namespace YetaWF.DataProvider.SQL {
             Logging = logging;
         }
 
-        public bool CreateTableFromModel(string dbName, string schema, string tableName, string key1Name, string key2Name, string identityName, List<PropertyData> propData, Type tpProps,
+        public bool CreateTableFromModel(string dbName, string schema, string tableName, string key1Name, string? key2Name, string? identityName, List<PropertyData> propData, Type tpProps,
                 List<string> errorList,
                 bool TopMost = false,
                 bool SiteSpecific = false,
-                string ForeignKeyTable = null,
+                string? ForeignKeyTable = null,
                 bool WithDerivedInfo = false,
                 bool SubTable = false) {
 
@@ -58,17 +58,17 @@ namespace YetaWF.DataProvider.SQL {
             return true;
         }
 
-        private TableInfo CreateSimpleTableFromModel(string dbName, string schema, string tableName, string key1Name, string key2Name, string identityName, List<PropertyData> propData, Type tpProps,
+        private TableInfo CreateSimpleTableFromModel(string dbName, string schema, string tableName, string key1Name, string? key2Name, string? identityName, List<PropertyData> propData, Type tpProps,
                 List<string> errorList,
                 bool TopMost = false,
                 bool SiteSpecific = false,
-                string ForeignKeyTable = null,
+                string? ForeignKeyTable = null,
                 bool WithDerivedInfo = false,
                 bool SubTable = false) {
 
             try {
                 SQLManager sqlManager = new SQLManager();
-                Table currentTable = null;
+                Table? currentTable = null;
                 Table newTable = new Table {
                     Name = tableName,
                 };
@@ -260,14 +260,14 @@ namespace YetaWF.DataProvider.SQL {
         }
 
         private bool AddTableColumns(string dbName, string schema, TableInfo tableInfo,
-                string key1Name, string key2Name, string identityName,
+                string key1Name, string? key2Name, string? identityName,
                 List<PropertyData> propData, Type tpContainer, string prefix, bool topMost, List<string> errorList,
                 bool SiteSpecific = false,
                 bool WithDerivedInfo = false,
                 bool SubTable = false) {
 
             Table newTable = tableInfo.NewTable;
-            Table currentTable = tableInfo.CurrentTable;
+            Table? currentTable = tableInfo.CurrentTable;
 
             string result = ProcessColumns(
                 (prefix, container, prop) => { // regular property
@@ -278,7 +278,7 @@ namespace YetaWF.DataProvider.SQL {
                     };
                     newColumn.DataType = GetDataType(pi);
                     if (pi.PropertyType == typeof(string)) {
-                        StringLengthAttribute attr = (StringLengthAttribute)pi.GetCustomAttribute(typeof(StringLengthAttribute));
+                        StringLengthAttribute? attr = (StringLengthAttribute?)pi.GetCustomAttribute(typeof(StringLengthAttribute));
                         if (attr == null)
                             throw new InternalError($"StringLength attribute missing for property {prop.Name}");
                         int len = attr.MaximumLength;
@@ -291,7 +291,7 @@ namespace YetaWF.DataProvider.SQL {
                     if (prop.ColumnName != key1Name && prop.ColumnName != key2Name && (pi.PropertyType == typeof(string) || Nullable.GetUnderlyingType(pi.PropertyType) != null))
                         nullable = true;
                     newColumn.Nullable = nullable;
-                    Data_NewValue newValAttr = (Data_NewValue)pi.GetCustomAttribute(typeof(Data_NewValue));
+                    Data_NewValue? newValAttr = (Data_NewValue?)pi.GetCustomAttribute(typeof(Data_NewValue));
                     if (currentTable != null && !currentTable.HasColumn($"{prefix}{prop.ColumnName}")) {
                         if (newValAttr == null)
                             throw new InternalError($"Property {prop.Name} in table {newTable.Name} doesn't have a Data_NewValue attribute, which is required when updating tables");
@@ -329,7 +329,7 @@ namespace YetaWF.DataProvider.SQL {
                             Name = $"{prefix}{colName}",
                             DataType = SqlDbType.NVarChar,
                         };
-                        StringLengthAttribute attr = (StringLengthAttribute)prop.PropInfo.GetCustomAttribute(typeof(StringLengthAttribute));
+                        StringLengthAttribute? attr = (StringLengthAttribute?)prop.PropInfo.GetCustomAttribute(typeof(StringLengthAttribute));
                         if (attr == null)
                             throw new InternalError("StringLength attribute missing for property {0}", prefix + prop.Name);
                         if (attr.MaximumLength >= 4000)

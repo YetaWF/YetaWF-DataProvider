@@ -23,25 +23,25 @@ namespace YetaWF.DataProvider.PostgreSQL {
     /// </summary>
     public class TempDesignedModule {
         /// <summary>
-        /// The module's unique identitfier.
+        /// The module's unique identifier.
         /// </summary>
         [Data_PrimaryKey]
         public Guid ModuleGuid { get; set; }
         /// <summary>
         /// The defined name of the module.
         /// </summary>
-        public string Name { get; set; }
+        public string Name { get; set; } = null!;
         /// <summary>
         /// The name of the assembly implementing the module type.
         /// </summary>
-        public string DerivedAssemblyName { get; set; }
+        public string DerivedAssemblyName { get; set; } = null!;
         /// <summary>
         /// The name of the System.Type implementing the module type.
         /// </summary>
-        public string DerivedDataType { get; set; }
+        public string DerivedDataType { get; set; } = null!;
 
         /// <summary>
-        /// Consstructor
+        /// Constructor
         /// </summary>
         public TempDesignedModule() { }
     }
@@ -50,7 +50,7 @@ namespace YetaWF.DataProvider.PostgreSQL {
     /// This class implements the base functionality to access the repository containing YetaWF modules.
     /// It is only used by the YetaWF.DataProvider.ModuleDefinition package and is not intended for application use.
     /// </summary>
-    public class SQLModuleObject<KEY, OBJTYPE> : SQLSimpleObject<KEY, OBJTYPE>, IDataProvider<KEY, OBJTYPE> {
+    public class SQLModuleObject<KEY, OBJTYPE> : SQLSimpleObject<KEY, OBJTYPE>, IDataProvider<KEY, OBJTYPE> where KEY : notnull where OBJTYPE : notnull {
 
         /// <summary>
         /// The PostgreSQL table name of the base dataset for all modules.
@@ -60,7 +60,7 @@ namespace YetaWF.DataProvider.PostgreSQL {
         /// <summary>
         /// The PG type for module derived info.
         /// </summary>
-        internal const string DerivedInfoType = "Y_DerivedInfo_T"; 
+        internal const string DerivedInfoType = "Y_DerivedInfo_T";
 
         /// <summary>
         /// Constructor.
@@ -85,9 +85,9 @@ namespace YetaWF.DataProvider.PostgreSQL {
         public string BaseDataset { get; protected set; }
 
         internal class DerivedInfo {
-            public string DerivedTableName { get; set; }
-            public string DerivedDataType { get; set; }
-            public string DerivedAssemblyName { get; set; }
+            public string DerivedTableName { get; set; } = null!;
+            public string DerivedDataType { get; set; } = null!;
+            public string DerivedAssemblyName { get; set; } = null!;
         }
 
         /// <summary>
@@ -95,7 +95,7 @@ namespace YetaWF.DataProvider.PostgreSQL {
         /// </summary>
         /// <param name="key">The primary key value.</param>
         /// <returns>Returns the record that satisfies the specified primary key. If no record exists null is returned.</returns>
-        public new async Task<OBJTYPE> GetAsync(KEY key) {
+        public new async Task<OBJTYPE?> GetAsync(KEY key) {
 
             await EnsureOpenAsync();
 
@@ -109,7 +109,7 @@ namespace YetaWF.DataProvider.PostgreSQL {
                 sqlHelper.AddParam("Key1Val", key);
                 sqlHelper.AddParam(SQLGen.ValSiteIdentity, SiteIdentity);
                 AddCompositeMapping(typeof(DerivedInfo), DerivedInfoType);
-                DerivedInfo info = null;
+                DerivedInfo info;
                 using (NpgsqlDataReader reader = await sqlHelper.ExecuteReaderStoredProcAsync($@"""{Schema}"".""{BaseDataset}__GetBase""")) {
                     if (!(YetaWFManager.IsSync() ? reader.Read() : await reader.ReadAsync())) return default(OBJTYPE);
                     info = sqlHelper.CreateObject<DerivedInfo>(reader);
@@ -164,7 +164,7 @@ namespace YetaWF.DataProvider.PostgreSQL {
             GetParameterList(sqlHelper, obj, Database, Schema, Dataset, propDataNoDups, Prefix: null, TopMost: false, SiteSpecific: false, WithDerivedInfo: false, SubTable: false);
             sqlHelper.AddParam(SQLGen.ValDerivedTableName, Dataset);
             sqlHelper.AddParam(SQLGen.ValDerivedDataType, typeof(OBJTYPE).FullName);
-            sqlHelper.AddParam(SQLGen.ValDerivedAssemblyName, typeof(OBJTYPE).Assembly.FullName.Split(new char[] { ',' }, 2).First());
+            sqlHelper.AddParam(SQLGen.ValDerivedAssemblyName, typeof(OBJTYPE).Assembly.FullName!.Split(new char[] { ',' }, 2).First());
             sqlHelper.AddParam(SQLGen.ValSiteIdentity, SiteIdentity);
 
             try {
@@ -174,7 +174,7 @@ namespace YetaWF.DataProvider.PostgreSQL {
                     return added > 0;
                 }
             } catch (Exception exc) {
-                Npgsql.PostgresException sqlExc = exc as Npgsql.PostgresException;
+                Npgsql.PostgresException? sqlExc = exc as Npgsql.PostgresException;
                 if (sqlExc != null && sqlExc.SqlState == PostgresErrorCodes.UniqueViolation) // already exists
                     return false;
                 throw new InternalError($"Add failed for type {typeof(OBJTYPE).FullName} - {ErrorHandling.FormatExceptionMessage(exc)}");
@@ -206,7 +206,7 @@ namespace YetaWF.DataProvider.PostgreSQL {
             GetParameterList(sqlHelper, obj, Database, Schema, Dataset, propDataNoDups, Prefix: null, TopMost: false, SiteSpecific: false, WithDerivedInfo: false, SubTable: false);
             sqlHelper.AddParam(SQLGen.ValDerivedTableName, Dataset);
             sqlHelper.AddParam(SQLGen.ValDerivedDataType, typeof(OBJTYPE).FullName);
-            sqlHelper.AddParam(SQLGen.ValDerivedAssemblyName, typeof(OBJTYPE).Assembly.FullName.Split(new char[] { ',' }, 2).First());
+            sqlHelper.AddParam(SQLGen.ValDerivedAssemblyName, typeof(OBJTYPE).Assembly.FullName!.Split(new char[] { ',' }, 2).First());
             sqlHelper.AddParam(SQLGen.ValSiteIdentity, SiteIdentity);
 
             try {
@@ -216,7 +216,7 @@ namespace YetaWF.DataProvider.PostgreSQL {
                     return updated > 0 ? UpdateStatusEnum.OK : UpdateStatusEnum.NewKeyExists;
                 }
             } catch (Exception exc) {
-                Npgsql.PostgresException sqlExc = exc as Npgsql.PostgresException;
+                Npgsql.PostgresException? sqlExc = exc as Npgsql.PostgresException;
                 if (sqlExc != null && sqlExc.SqlState == PostgresErrorCodes.UniqueViolation) // already exists
                     return UpdateStatusEnum.NewKeyExists;
                 throw new InternalError($"Update failed for type {typeof(OBJTYPE).FullName} - {ErrorHandling.FormatExceptionMessage(exc)}");
@@ -243,7 +243,7 @@ namespace YetaWF.DataProvider.PostgreSQL {
             sqlHelper.AddParam("Key1Val", key);
             sqlHelper.AddParam(SQLGen.ValSiteIdentity, SiteIdentity);
             AddCompositeMapping(typeof(DerivedInfo), DerivedInfoType);
-            DerivedInfo info = null;
+            DerivedInfo info;
             using (NpgsqlDataReader reader = await sqlHelper.ExecuteReaderStoredProcAsync($@"""{Schema}"".""{BaseDataset}__GetBase""")) {
                 if (!(YetaWFManager.IsSync() ? reader.Read() : await reader.ReadAsync())) return false;
                 info = sqlHelper.CreateObject<DerivedInfo>(reader);
@@ -269,7 +269,7 @@ namespace YetaWF.DataProvider.PostgreSQL {
         /// <remarks>
         /// This is not implemented as it is not required for module storage.
         /// </remarks>
-        public new Task<OBJTYPE> GetOneRecordAsync(List<DataProviderFilterInfo> filters, List<JoinData> Joins = null) {
+        public new Task<OBJTYPE?> GetOneRecordAsync(List<DataProviderFilterInfo>? filters, List<JoinData>? Joins = null) {
             throw new NotImplementedException();
         }
 
@@ -282,7 +282,7 @@ namespace YetaWF.DataProvider.PostgreSQL {
         /// <param name="filters">A collection describing the filtering criteria.</param>
         /// <param name="Joins">A collection describing the dataset joins.</param>
         /// <returns>Returns a YetaWF.Core.DataProvider.DataProviderGetRecords object describing the data returned.</returns>
-        public new async Task<DataProviderGetRecords<OBJTYPE>> GetRecordsAsync(int skip, int take, List<DataProviderSortInfo> sorts, List<DataProviderFilterInfo> filters, List<JoinData> Joins = null) {
+        public new async Task<DataProviderGetRecords<OBJTYPE>> GetRecordsAsync(int skip, int take, List<DataProviderSortInfo>? sorts, List<DataProviderFilterInfo>? filters, List<JoinData>? Joins = null) {
 
             if (Dataset == BaseDataset) {
 
@@ -329,7 +329,7 @@ LEFT JOIN {fullTableName} ON {fullBaseTableName}.""{Key1Name}"" = {fullTableName
 {MakeFilter(sqlHelper, filters, visibleColumns)}
 ; --- result set");
 
-                    object scalar = await sqlHelper.ExecuteScalarAsync(sb.ToString());
+                    object? scalar = await sqlHelper.ExecuteScalarAsync(sb.ToString());
                     total = Convert.ToInt32(scalar);
                     if (total == 0)
                         return new DataProviderGetRecords<OBJTYPE> { Total = 0, };
@@ -339,7 +339,7 @@ LEFT JOIN {fullTableName} ON {fullBaseTableName}.""{Key1Name}"" = {fullTableName
                 sqlHelper = new SQLHelper(Conn, null, Languages);
                 string filterExpr = MakeFilter(sqlHelper, filters, visibleColumns);
 
-                string orderByExpr = null;
+                string? orderByExpr = null;
                 {
                     sb = new SQLBuilder();
                     if (sorts == null || sorts.Count == 0)
@@ -378,7 +378,7 @@ LEFT JOIN {fullTableName} ON {fullBaseTableName}.""{Key1Name}"" = {fullTableName
                         recs.Total = total;
                     return recs;
                 }
-            }            
+            }
         }
 
         /// <summary>
@@ -400,7 +400,7 @@ LEFT JOIN {fullTableName} ON {fullBaseTableName}.""{Key1Name}"" = {fullTableName
                 _basePropertyData = ObjectSupport.GetPropertyData(typeof(ModuleDefinition));
             return _basePropertyData;
         }
-        private static List<PropertyData> _basePropertyData;
+        private static List<PropertyData>? _basePropertyData;
 
         internal new List<PropertyData> GetPropertyData() {
             if (_propertyData == null) {
@@ -413,7 +413,7 @@ LEFT JOIN {fullTableName} ON {fullBaseTableName}.""{Key1Name}"" = {fullTableName
                         // The primary key has to be present in both derived and base table because they're used as foreign key
                         _propertyData.Add(p);
                     } else {
-                        PropertyData first = (from bp in basePropData where bp.Name == p.Name select p).FirstOrDefault();
+                        PropertyData? first = (from bp in basePropData where bp.Name == p.Name select p).FirstOrDefault();
                         if (first == null)
                             _propertyData.Add(p);
                     }
@@ -421,7 +421,7 @@ LEFT JOIN {fullTableName} ON {fullBaseTableName}.""{Key1Name}"" = {fullTableName
             }
             return _propertyData;
         }
-        List<PropertyData> _propertyData;
+        List<PropertyData>? _propertyData;
 
         // IINSTALLABLEMODEL
         // IINSTALLABLEMODEL
@@ -533,7 +533,7 @@ DELETE {BaseDataset} FROM {BaseDataset}
                     sb.Add($@"
 SELECT COUNT(*) FROM  {BaseDataset}
 ");
-                    object val = await sqlHelper.ExecuteScalarAsync(sb.ToString());
+                    object? val = await sqlHelper.ExecuteScalarAsync(sb.ToString());
                     int count = Convert.ToInt32(val);
                     if (count == 0)
                         SQLManager.DropTable(Conn, dbName, Schema, Dataset);
@@ -665,9 +665,9 @@ DELETE FROM ""{Schema}"".""{BaseDataset}"" WHERE ""{SQLGen.DerivedTableName}"" =
                 async (int offset, int skip) => {
                     return await GetRecordsAsync(offset, skip, null, null);
                 },
-                async (OBJTYPE record, PropertyInfo pi, PropertyInfo pi2) => {
+                async (OBJTYPE record, PropertyInfo pi, PropertyInfo? pi2) => {
                     UpdateStatusEnum status;
-                    KEY key1 = (KEY)pi.GetValue(record);
+                    KEY key1 = (KEY)pi.GetValue(record)!;
                     status = await UpdateAsync(key1, key1, record);
                     return status;
                 });

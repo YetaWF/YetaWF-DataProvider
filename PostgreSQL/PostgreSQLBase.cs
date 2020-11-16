@@ -86,7 +86,7 @@ namespace YetaWF.DataProvider.PostgreSQL {
                         Conn.Close();
                         Conn.Dispose();
                     }
-                    Conn = null;
+                    Conn = null!;
                 }
             }
         }
@@ -109,7 +109,7 @@ namespace YetaWF.DataProvider.PostgreSQL {
         private static readonly object OpenLock = new object();
 
         private string GetPostgreSqlConnectionString() {
-            string connString = WebConfigHelper.GetValue<string>(string.IsNullOrWhiteSpace(WebConfigArea) ? Dataset : WebConfigArea, PostgreSQLConnectString);
+            string? connString = WebConfigHelper.GetValue<string>(string.IsNullOrWhiteSpace(WebConfigArea) ? Dataset : WebConfigArea, PostgreSQLConnectString);
             if (string.IsNullOrWhiteSpace(connString)) {
                 if (string.IsNullOrWhiteSpace(WebConfigArea))
                     connString = WebConfigHelper.GetValue<string>(Package.AreaName, PostgreSQLConnectString);
@@ -126,7 +126,7 @@ namespace YetaWF.DataProvider.PostgreSQL {
             return connString;
         }
         private string GetPostgreSqlSchema() {
-            string schema = WebConfigHelper.GetValue<string>(string.IsNullOrWhiteSpace(WebConfigArea) ? Dataset : WebConfigArea, PostgreSQLSchemaString);
+            string? schema = WebConfigHelper.GetValue<string>(string.IsNullOrWhiteSpace(WebConfigArea) ? Dataset : WebConfigArea, PostgreSQLSchemaString);
             if (string.IsNullOrWhiteSpace(schema)) {
                 if (string.IsNullOrWhiteSpace(WebConfigArea))
                     schema = WebConfigHelper.GetValue<string>(Package.AreaName, PostgreSQLSchemaString);
@@ -142,8 +142,8 @@ namespace YetaWF.DataProvider.PostgreSQL {
             if (string.IsNullOrWhiteSpace(schema)) throw new InternalError($"No PostgreSQLSchema schema provided (also no default)");
             return schema;
         }
-        private static string _defaultConnectString;
-        private static string _defaultSchema;
+        private static string? _defaultConnectString;
+        private static string? _defaultSchema;
 
         internal void AddCompositeMapping(Type type, string pgType) {
             lock (lockObject) {
@@ -160,7 +160,7 @@ namespace YetaWF.DataProvider.PostgreSQL {
         // IDATAPROVIDERTRANSACTIONS
         // IDATAPROVIDERTRANSACTIONS
 
-        private TransactionScope Trans { get; set; }
+        private TransactionScope? Trans { get; set; }
 
         /// <summary>
         /// Starts a transaction that can be committed, saving all updates, or aborted to abandon all updates.
@@ -183,7 +183,7 @@ namespace YetaWF.DataProvider.PostgreSQL {
             if (!ConnDependent) {
                 Conn.Dispose();
                 Conn.Close();
-                Conn = null;
+                Conn = null!;
             }
             // release all dependent dataprovider's connection
             foreach (DataProviderImpl dp in dps) {
@@ -192,7 +192,7 @@ namespace YetaWF.DataProvider.PostgreSQL {
                     sqlBase.Conn.Close();
                     sqlBase.Conn.Dispose();
                 }
-                sqlBase.Conn = null;
+                sqlBase.Conn = null!;
             }
 
             // Make a new connection
@@ -235,7 +235,7 @@ namespace YetaWF.DataProvider.PostgreSQL {
 
         // Flatten the current table(with joins) and create a lookup table for all fields.
         // If a joined table has a field with the same name as the lookup table, it is not accessible.
-        internal async Task<Dictionary<string, string>> GetVisibleColumnsAsync(string databaseName, string dbOwner, string tableName, Type objType, List<JoinData> joins) {
+        internal async Task<Dictionary<string, string>> GetVisibleColumnsAsync(string databaseName, string dbOwner, string tableName, Type objType, List<JoinData>? joins) {
             SQLManager sqlManager = new SQLManager();
             SQLBuilder sqlBuilder = new SQLBuilder();
             Dictionary<string, string> visibleColumns = new Dictionary<string, string>();
@@ -275,7 +275,7 @@ namespace YetaWF.DataProvider.PostgreSQL {
                     visibleColumns.Add(column.Name, sqlBuilder.BuildFullColumnName(databaseName, dbOwner, tableName, column.Name));
             }
         }
-        internal string MakeColumnList(SQLHelper sqlHelper, Dictionary<string, string> visibleColumns, List<JoinData> joins) {
+        internal string MakeColumnList(SQLHelper sqlHelper, Dictionary<string, string> visibleColumns, List<JoinData>? joins) {
             SQLBuilder sb = new SQLBuilder();
             if (joins != null && joins.Count > 0) {
                 foreach (string col in visibleColumns.Values) {
@@ -287,7 +287,7 @@ namespace YetaWF.DataProvider.PostgreSQL {
             }
             return sb.ToString();
         }
-        internal async Task<string> MakeJoinsAsync(SQLHelper helper, List<JoinData> joins) {
+        internal async Task<string> MakeJoinsAsync(SQLHelper helper, List<JoinData>? joins) {
             SQLBuilder sb = new SQLBuilder();
             if (joins != null) {
                 SQLBuilder sqlBuilder = new SQLBuilder();
@@ -318,7 +318,7 @@ namespace YetaWF.DataProvider.PostgreSQL {
         // SORTS, FILTERS
         // SORTS, FILTERS
 
-        internal string MakeFilter(SQLHelper sqlHelper, List<DataProviderFilterInfo> filters, Dictionary<string, string> visibleColumns = null) {
+        internal string MakeFilter(SQLHelper sqlHelper, List<DataProviderFilterInfo>? filters, Dictionary<string, string>? visibleColumns = null) {
             SQLBuilder sb = new SQLBuilder();
             if (filters != null && filters.Count() > 0) {
                 if (SiteIdentity > 0)
@@ -369,7 +369,7 @@ namespace YetaWF.DataProvider.PostgreSQL {
             sql = sql.Replace("{TableName}", SQLBuilder.WrapIdentifier(tableName));
             if (SiteIdentity > 0)
                 sql = sql.Replace($"{{{SiteColumn}}}", $@"""{SiteColumn}"" = {SiteIdentity}");
-            object o = await sqlHelper.ExecuteScalarAsync(sql);
+            object? o = await sqlHelper.ExecuteScalarAsync(sql);
             if (o == null || o.GetType() == typeof(System.DBNull))
                 return 0;
             return Convert.ToInt32(o);
@@ -426,7 +426,7 @@ namespace YetaWF.DataProvider.PostgreSQL {
         /// SQL injection attacks are not possible when using parameters.
         /// </remarks>
         /// <returns>Some forms of this method return an object of type {i}TYPE{/i}.</returns>
-        public async Task<TYPE> Direct_QueryAsync<TYPE>(string sql) {
+        public async Task<TYPE?> Direct_QueryAsync<TYPE>(string sql) {
             return await Direct_QueryAsync<TYPE>(sql, Array.Empty<object>());
         }
         /// <summary>
@@ -441,7 +441,7 @@ namespace YetaWF.DataProvider.PostgreSQL {
         /// SQL injection attacks are not possible when using parameters.
         /// </remarks>
         /// <returns>Some forms of this method return an object of type {i}TYPE{/i}.</returns>
-        public async Task<TYPE> Direct_QueryAsync<TYPE>(string sql, params object[] args) {
+        public async Task<TYPE?> Direct_QueryAsync<TYPE>(string sql, params object[] args) {
             await EnsureOpenAsync();
             SQLHelper sqlHelper = new SQLHelper(Conn, null, Languages);
             string tableName = GetTableName();
@@ -517,7 +517,7 @@ namespace YetaWF.DataProvider.PostgreSQL {
         ///
         /// Two SQL statements must be provided, one to return a scalar value with the total number of records (not paged) and the second to return a collection of objects of type {i}TYPE{/i}.
         /// </remarks>
-        public async Task<DataProviderGetRecords<TYPE>> Direct_QueryPagedListAsync<TYPE>(string sqlCount, string sql, int skip, int take, List<DataProviderSortInfo> sort, List<DataProviderFilterInfo> filters, params object[] args) {
+        public async Task<DataProviderGetRecords<TYPE>> Direct_QueryPagedListAsync<TYPE>(string sqlCount, string sql, int skip, int take, List<DataProviderSortInfo>? sort, List<DataProviderFilterInfo>? filters, params object[] args) {
 
             await EnsureOpenAsync();
 
@@ -593,7 +593,7 @@ namespace YetaWF.DataProvider.PostgreSQL {
         /// <remarks>This is used by application data providers to build and execute complex queries that are not possible with the standard data providers.
         /// Use of this method limits the application data provider to SQL repositories.</remarks>
         /// <returns>Returns a collection of objects (one for each row retrieved) of type {i}TYPE{/i}.</returns>
-        public async Task<DataProviderGetRecords<TYPE>> Direct_StoredProcAsync<TYPE>(string sqlProc, object parms = null) {
+        public async Task<DataProviderGetRecords<TYPE>> Direct_StoredProcAsync<TYPE>(string sqlProc, object? parms = null) {
             await EnsureOpenAsync();
             SQLHelper sqlHelper = new SQLHelper(Conn, null, Languages);
 

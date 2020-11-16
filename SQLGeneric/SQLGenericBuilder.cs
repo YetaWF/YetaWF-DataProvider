@@ -27,13 +27,13 @@ namespace YetaWF.DataProvider.SQLGeneric {
         /// Appends a string.
         /// </summary>
         /// <param name="s">The string to append.</param>
-        public void Add(string s) { _sb.Append(s); }
+        public void Add(string? s) { _sb.Append(s); }
 
         /// <summary>
         /// Appends a string.
         /// </summary>
         /// <param name="s">The string to append.</param>
-        public void Append(string s) { _sb.Append(s); }
+        public void Append(string? s) { _sb.Append(s); }
 
         /// <summary>
         /// Returns the complete SQL string built using this instance.

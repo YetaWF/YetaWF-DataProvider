@@ -23,8 +23,8 @@ namespace YetaWF.DataProvider.SQL {
 
         public const string ValSiteIdentity = "valSiteIdentity"; // sproc argument with site identity
 
-        internal async Task<bool> MakeFunctionsAsync(string dbName, string schema, string dataset, string key1Name, string key2Name, string identityName, List<PropertyData> propData, Type objType, int siteIdentity,
-                Func<string, Task<string>> calculatedPropertyCallbackAsync) {
+        internal async Task<bool> MakeFunctionsAsync(string dbName, string schema, string dataset, string key1Name, string? key2Name, string identityName, List<PropertyData> propData, Type objType, int siteIdentity,
+                Func<string, Task<string>>? calculatedPropertyCallbackAsync) {
 
             using (new SQLBuilder.GeneratingProcs()) {
 
@@ -38,8 +38,8 @@ namespace YetaWF.DataProvider.SQL {
                 Column colKey1 = sqlManager.GetColumn(Conn, dbName, schema, dataset, key1Name);
                 string typeKey1 = GetDataTypeArgumentString(colKey1);
 
-                Column colKey2 = null;
-                string typeKey2 = null;
+                Column? colKey2 = null;
+                string? typeKey2 = null;
                 if (!string.IsNullOrWhiteSpace(key2Name)) {
                     colKey2 = sqlManager.GetColumn(Conn, dbName, schema, dataset, key2Name);
                     typeKey2 = GetDataTypeArgumentString(colKey2);
@@ -594,7 +594,7 @@ IF EXISTS (
             return sb.ToString();
         }
 
-        internal static async Task<string> CalculatedPropertiesAsync(Type objType, Func<string, Task<string>> calculatedPropertyCallbackAsync) {
+        internal static async Task<string?> CalculatedPropertiesAsync(Type objType, Func<string, Task<string>> calculatedPropertyCallbackAsync) {
             if (calculatedPropertyCallbackAsync == null) return null;
             SQLBuilder sb = new SQLBuilder();
             List<PropertyData> props = ObjectSupport.GetPropertyData(objType);
@@ -612,7 +612,7 @@ IF EXISTS (
             return identityName;
         }
 
-        internal string GetArgumentNameList(string dbName, string schema, string dataset, List<PropertyData> propData, Type tpContainer, string Prefix = null, bool TopMost = true, bool SiteSpecific = false, bool WithDerivedInfo = false, bool SubTable = false) {
+        internal string GetArgumentNameList(string dbName, string schema, string dataset, List<PropertyData> propData, Type tpContainer, string? Prefix = null, bool TopMost = true, bool SiteSpecific = false, bool WithDerivedInfo = false, bool SubTable = false) {
             SQLManager sqlManager = new SQLManager();
             return ProcessColumns(
                 (prefix, container, prop) => { // prop
@@ -664,7 +664,7 @@ IF EXISTS (
                 },
                 dbName, schema, dataset, null, propData, tpContainer, Prefix, TopMost, SiteSpecific, WithDerivedInfo, SubTable);
         }
-        internal string GetTypeNameList(string dbName, string schema, string dataset, List<PropertyData> propData, Type tpContainer, string Prefix = null, bool TopMost = true, bool SiteSpecific = false, bool WithDerivedInfo = false, bool SubTable = false) {
+        internal string GetTypeNameList(string dbName, string schema, string dataset, List<PropertyData> propData, Type tpContainer, string? Prefix = null, bool TopMost = true, bool SiteSpecific = false, bool WithDerivedInfo = false, bool SubTable = false) {
             SQLManager sqlManager = new SQLManager();
             return ProcessColumns(
                 (prefix, container, prop) => {
@@ -715,8 +715,8 @@ IF EXISTS (
                 },
                 dbName, schema, dataset, null, propData, tpContainer, Prefix, TopMost, SiteSpecific, WithDerivedInfo, SubTable);
         }
-        internal string GetColumnNameList(string dbName, string schema, string dataset, List<PropertyData> propData, Type tpContainer, bool Add = false, string Prefix = null, bool TopMost = true, string IdentityName = null, bool SiteSpecific = false, bool WithDerivedInfo = false, bool SubTable = false,
-                Dictionary<string, string> VisibleColumns = null) {
+        internal string GetColumnNameList(string dbName, string schema, string dataset, List<PropertyData> propData, Type tpContainer, bool Add = false, string? Prefix = null, bool TopMost = true, string? IdentityName = null, bool SiteSpecific = false, bool WithDerivedInfo = false, bool SubTable = false,
+                Dictionary<string, string>? VisibleColumns = null) {
             SQLBuilder sb = new SQLBuilder();
             SQLManager sqlManager = new SQLManager();
             return ProcessColumns(
@@ -792,7 +792,7 @@ IF EXISTS (
                 },
                 dbName, schema, dataset, null, propData, tpContainer, Prefix, TopMost, SiteSpecific, WithDerivedInfo, SubTable);
         }
-        internal string GetValueNameList(string dbName, string schema, string dataset, List<PropertyData> propData, Type tpContainer, string Prefix = null, bool TopMost = true, bool SiteSpecific = false, bool WithDerivedInfo = false, bool SubTable = false) {
+        internal string GetValueNameList(string dbName, string schema, string dataset, List<PropertyData> propData, Type tpContainer, string? Prefix = null, bool TopMost = true, bool SiteSpecific = false, bool WithDerivedInfo = false, bool SubTable = false) {
             return ProcessColumns(
                 (prefix, container, prop) => {
                     if (SubTable)
@@ -839,7 +839,7 @@ IF EXISTS (
                 },
                 dbName, schema, dataset, null, propData, tpContainer, Prefix, TopMost, SiteSpecific, WithDerivedInfo, SubTable);
         }
-        internal string GetSetList(string dbName, string schema, string dataset, List<PropertyData> propData, Type tpContainer, bool Add = false, string Prefix = null, bool TopMost = true, bool SiteSpecific = false, bool WithDerivedInfo = false, bool SubTable = false) {
+        internal string GetSetList(string dbName, string schema, string dataset, List<PropertyData> propData, Type tpContainer, bool Add = false, string? Prefix = null, bool TopMost = true, bool SiteSpecific = false, bool WithDerivedInfo = false, bool SubTable = false) {
             if (SubTable) throw new InternalError($"{nameof(GetSetList)} called for subtable which is not supported");
             return ProcessColumns(
                 (prefix, container, prop) => { return $@"[{prefix}{prop.ColumnName}]=@arg{prefix}{prop.Name},"; },
@@ -862,16 +862,16 @@ IF EXISTS (
                 dbName, schema, dataset, null, propData, tpContainer, Prefix, TopMost, SiteSpecific, WithDerivedInfo, SubTable);
         }
         internal static string ProcessColumns(
-                Func<string, object, PropertyData, string> fmt,
-                Func<string, object, PropertyData, string> fmtIdentity,
-                Func<string, object, PropertyData, string> fmtBinary,
-                Func<string, object, PropertyData, string> fmtImage,
-                Func<string, object, PropertyData, string> fmtLanguage,
-                Func<string, object, string, string> fmtPredef,
-                Func<string, object, PropertyData, List<PropertyData>, Type, string, string> fmtSubtable,
+                Func<string?, object?, PropertyData, string?> fmt,
+                Func<string?, object?, PropertyData, string?> fmtIdentity,
+                Func<string?, object?, PropertyData, string?> fmtBinary,
+                Func<string?, object?, PropertyData, string?> fmtImage,
+                Func<string?, object?, PropertyData, string?> fmtLanguage,
+                Func<string?, object?, string, string?> fmtPredef,
+                Func<string?, object?, PropertyData, List<PropertyData>, Type, string, string?> fmtSubtable,
                 string dbName, string schema, string dataset,
-                object container, List<PropertyData> propData, Type tpContainer,
-                string Prefix = null, bool TopMost = true, bool SiteSpecific = false, bool WithDerivedInfo = false, bool SubTable = false) {
+                object? container, List<PropertyData> propData, Type tpContainer,
+                string? Prefix = null, bool TopMost = true, bool SiteSpecific = false, bool WithDerivedInfo = false, bool SubTable = false) {
 
             SQLBuilder sb = new SQLBuilder();
             foreach (PropertyData prop in propData) {
@@ -898,12 +898,12 @@ IF EXISTS (
                         if (SubTable) throw new InternalError("Nested subtables not supported");
                         PropertyInfo pi = prop.PropInfo;
                         Type subType = pi.PropertyType.GetInterfaces().Where(t => t.IsGenericType == true && t.GetGenericTypeDefinition() == typeof(IEnumerable<>))
-                                .Select(t => t.GetGenericArguments()[0]).FirstOrDefault();
+                                .Select(t => t.GetGenericArguments()[0]).First();
                         List<PropertyData> subPropData = ObjectSupport.GetPropertyData(subType);
                         string subTableName = dataset + "_" + prop.Name;
                         sb.Add(fmtSubtable(Prefix, container, prop, subPropData, subType, subTableName));
                     } else if (propertyType.IsClass) {
-                        object sub = null;
+                        object? sub = null;
                         if (container != null)
                             sub = prop.PropInfo.GetValue(container);
                         List<PropertyData> subPropData = ObjectSupport.GetPropertyData(propertyType);

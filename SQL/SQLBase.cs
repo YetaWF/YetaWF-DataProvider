@@ -52,7 +52,7 @@ namespace YetaWF.DataProvider.SQL {
         /// <summary>
         /// The underlying Microsoft.Data.SqlClient.SqlConnection object used to connect to the database.
         /// </summary>
-        public SqlConnection Conn { get; private set; }
+        public SqlConnection Conn { get; private set; } = null!;
         /// <summary>
         /// Dynamically allocated SQL connection with a use count, otherwise it's explicitly allocated.
         /// </summary>
@@ -89,7 +89,7 @@ namespace YetaWF.DataProvider.SQL {
                         ReleaseSqlConnection(ConnectionString);
                     else
                         Conn.Close();
-                    Conn = null;
+                    Conn = null!;
                 }
             }
         }
@@ -112,13 +112,12 @@ namespace YetaWF.DataProvider.SQL {
         private static readonly object OpenLock = new object();
 
         private class ConnectionEntry {
-            public SqlConnection Conn { get; set; }
+            public SqlConnection Conn { get; set; } = null!;
             public int UseCount { get; set; }
         }
         private SqlConnection GetSqlConnection(string connectionString) {
             lock (ConnectionCacheLock) {
-                ConnectionEntry entry;
-                if (ConnectionCache.TryGetValue(connectionString, out entry)) {
+                if (ConnectionCache.TryGetValue(connectionString, out ConnectionEntry? entry)) {
                     entry.UseCount++;
                     return entry.Conn;
                 }
@@ -132,8 +131,7 @@ namespace YetaWF.DataProvider.SQL {
         }
         private void ReleaseSqlConnection(string connectionString) {
             lock (ConnectionCacheLock) {
-                ConnectionEntry entry;
-                if (!ConnectionCache.TryGetValue(connectionString, out entry))
+                if (!ConnectionCache.TryGetValue(connectionString, out ConnectionEntry? entry))
                     throw new InternalError($"Releasing unallocated sql connection");
                 entry.UseCount--;
                 if (entry.UseCount <= 0) {
@@ -149,7 +147,7 @@ namespace YetaWF.DataProvider.SQL {
 
 
         private string GetSqlConnectionString() {
-            string connString = WebConfigHelper.GetValue<string>(string.IsNullOrWhiteSpace(WebConfigArea) ? Dataset : WebConfigArea, SQLConnectString);
+            string? connString = WebConfigHelper.GetValue<string>(string.IsNullOrWhiteSpace(WebConfigArea) ? Dataset : WebConfigArea, SQLConnectString);
             if (string.IsNullOrWhiteSpace(connString)) {
                 if (string.IsNullOrWhiteSpace(WebConfigArea))
                     connString = WebConfigHelper.GetValue<string>(Package.AreaName, SQLConnectString);
@@ -166,7 +164,7 @@ namespace YetaWF.DataProvider.SQL {
             return connString;
         }
         private string GetSqlDbo() {
-            string dbo = WebConfigHelper.GetValue<string>(string.IsNullOrWhiteSpace(WebConfigArea) ? Dataset : WebConfigArea, SQLDboString);
+            string? dbo = WebConfigHelper.GetValue<string>(string.IsNullOrWhiteSpace(WebConfigArea) ? Dataset : WebConfigArea, SQLDboString);
             if (string.IsNullOrWhiteSpace(dbo)) {
                 if (string.IsNullOrWhiteSpace(WebConfigArea))
                     dbo = WebConfigHelper.GetValue<string>(Package.AreaName, SQLDboString);
@@ -182,14 +180,14 @@ namespace YetaWF.DataProvider.SQL {
             if (string.IsNullOrWhiteSpace(dbo)) throw new InternalError($"No SQL dbo provided (also no default)");
             return dbo;
         }
-        private static string _defaultConnectString;
-        private static string _defaultDbo;
+        private static string? _defaultConnectString;
+        private static string? _defaultDbo;
 
         // IDATAPROVIDERTRANSACTIONS
         // IDATAPROVIDERTRANSACTIONS
         // IDATAPROVIDERTRANSACTIONS
 
-        private TransactionScope Trans { get; set; }
+        private TransactionScope? Trans { get; set; }
 
         /// <summary>
         /// Starts a transaction that can be committed, saving all updates, or aborted to abandon all updates.
@@ -213,7 +211,7 @@ namespace YetaWF.DataProvider.SQL {
                 ownerSqlBase.ReleaseSqlConnection(ownerSqlBase.ConnectionString);
             else if (ownerSqlBase.Conn != null)
                 ownerSqlBase.Conn.Close();
-            ownerSqlBase.Conn = null;
+            ownerSqlBase.Conn = null!;
 
             // release all dependent dataprovider's connection
             foreach (DataProviderImpl dp in dps) {
@@ -222,7 +220,7 @@ namespace YetaWF.DataProvider.SQL {
                     sqlBase.ReleaseSqlConnection(sqlBase.ConnectionString);
                 else if (ownerSqlBase.Conn != null)
                     sqlBase.Conn.Close();
-                sqlBase.Conn = null;
+                sqlBase.Conn = null!;
             }
 
             // Make a new connection
@@ -265,7 +263,7 @@ namespace YetaWF.DataProvider.SQL {
 
         // Flatten the current table(with joins) and create a lookup table for all fields.
         // If a joined table has a field with the same name as the lookup table, it is not accessible.
-        internal async Task<Dictionary<string, string>> GetVisibleColumnsAsync(string databaseName, string dbOwner, string tableName, Type objType, List<JoinData> joins) {
+        internal async Task<Dictionary<string, string>> GetVisibleColumnsAsync(string databaseName, string dbOwner, string tableName, Type objType, List<JoinData>? joins) {
             SQLManager sqlManager = new SQLManager();
             SQLBuilder sqlBuilder = new SQLBuilder();
             Dictionary<string, string> visibleColumns = new Dictionary<string, string>();
@@ -305,7 +303,7 @@ namespace YetaWF.DataProvider.SQL {
                     visibleColumns.Add(column.Name, sqlBuilder.BuildFullColumnName(databaseName, dbOwner, tableName, column.Name));
             }
         }
-        internal string MakeColumnList(SQLHelper sqlHelper, Dictionary<string, string> visibleColumns, List<JoinData> joins) {
+        internal string MakeColumnList(SQLHelper sqlHelper, Dictionary<string, string> visibleColumns, List<JoinData>? joins) {
             SQLBuilder sb = new SQLBuilder();
             if (joins != null && joins.Count > 0) {
                 foreach (string col in visibleColumns.Values) {
@@ -317,7 +315,7 @@ namespace YetaWF.DataProvider.SQL {
             }
             return sb.ToString();
         }
-        internal async Task<string> MakeJoinsAsync(SQLHelper helper, List<JoinData> joins) {
+        internal async Task<string> MakeJoinsAsync(SQLHelper helper, List<JoinData>? joins) {
             SQLBuilder sb = new SQLBuilder();
             if (joins != null) {
                 SQLBuilder sqlBuilder = new SQLBuilder();
@@ -348,7 +346,7 @@ namespace YetaWF.DataProvider.SQL {
         // SORTS, FILTERS
         // SORTS, FILTERS
 
-        internal string MakeFilter(SQLHelper sqlHelper, List<DataProviderFilterInfo> filters, Dictionary<string, string> visibleColumns = null) {
+        internal string MakeFilter(SQLHelper sqlHelper, List<DataProviderFilterInfo>? filters, Dictionary<string, string>? visibleColumns = null) {
             SQLBuilder sb = new SQLBuilder();
             if (filters != null && filters.Count() > 0) {
                 if (SiteIdentity > 0)
@@ -399,7 +397,7 @@ namespace YetaWF.DataProvider.SQL {
             sql = sql.Replace("{TableName}", SQLBuilder.WrapIdentifier(tableName));
             if (SiteIdentity > 0)
                 sql = sql.Replace($"{{{SiteColumn}}}", $"[{SiteColumn}] = {SiteIdentity}");
-            object o = await sqlHelper.ExecuteScalarAsync(sql);
+            object? o = await sqlHelper.ExecuteScalarAsync(sql);
             if (o == null || o.GetType() == typeof(System.DBNull))
                 return 0;
             return Convert.ToInt32(o);
@@ -456,7 +454,7 @@ namespace YetaWF.DataProvider.SQL {
         /// SQL injection attacks are not possible when using parameters.
         /// </remarks>
         /// <returns>Some forms of this method return an object of type {i}TYPE{/i}.</returns>
-        public async Task<TYPE> Direct_QueryAsync<TYPE>(string sql) {
+        public async Task<TYPE?> Direct_QueryAsync<TYPE>(string sql) {
             return await Direct_QueryAsync<TYPE>(sql, Array.Empty<object>());
         }
         /// <summary>
@@ -471,7 +469,7 @@ namespace YetaWF.DataProvider.SQL {
         /// SQL injection attacks are not possible when using parameters.
         /// </remarks>
         /// <returns>Some forms of this method return an object of type {i}TYPE{/i}.</returns>
-        public async Task<TYPE> Direct_QueryAsync<TYPE>(string sql, params object[] args) {
+        public async Task<TYPE?> Direct_QueryAsync<TYPE>(string sql, params object[] args) {
             await EnsureOpenAsync();
             SQLHelper sqlHelper = new SQLHelper(Conn, null, Languages);
             string tableName = GetTableName();
@@ -488,7 +486,7 @@ namespace YetaWF.DataProvider.SQL {
                 if (YetaWFManager.IsSync() ? reader.Read() : await reader.ReadAsync())
                     return sqlHelper.CreateObject<TYPE>(reader);
                 else
-                    return default(TYPE);
+                    return default;
             }
         }
         /// <summary>
@@ -546,7 +544,7 @@ namespace YetaWF.DataProvider.SQL {
         ///
         /// The SQL statements must create two result sets. The first, a scalar value with the total number of records (not paged) and the second result set is a collection of objects of type {i}TYPE{/i}.
         /// </remarks>
-        public async Task<DataProviderGetRecords<TYPE>> Direct_QueryPagedListAsync<TYPE>(string sql, int skip, int take, List<DataProviderSortInfo> sort, List<DataProviderFilterInfo> filters, params object[] args) {
+        public async Task<DataProviderGetRecords<TYPE>> Direct_QueryPagedListAsync<TYPE>(string sql, int skip, int take, List<DataProviderSortInfo>? sort, List<DataProviderFilterInfo>? filters, params object[] args) {
             await EnsureOpenAsync();
             SQLHelper sqlHelper = new SQLHelper(Conn, null, Languages);
             SQLBuilder sb = new SQLBuilder();
@@ -594,7 +592,7 @@ namespace YetaWF.DataProvider.SQL {
         /// <remarks>This is used by application data providers to build and execute complex queries that are not possible with the standard data providers.
         /// Use of this method limits the application data provider to SQL repositories.</remarks>
         /// <returns>Returns a collection of objects (one for each row retrieved) of type {i}TYPE{/i}.</returns>
-        public async Task<DataProviderGetRecords<TYPE>> Direct_StoredProcAsync<TYPE>(string sqlProc, object parms = null) {
+        public async Task<DataProviderGetRecords<TYPE>> Direct_StoredProcAsync<TYPE>(string sqlProc, object? parms = null) {
             await EnsureOpenAsync();
             SQLHelper sqlHelper = new SQLHelper(Conn, null, Languages);
 

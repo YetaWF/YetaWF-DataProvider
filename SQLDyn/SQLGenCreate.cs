@@ -1,5 +1,6 @@
 ﻿/* Copyright © 2020 Softel vdm, Inc. - https://yetawf.com/Documentation/YetaWF/Licensing */
 
+using Microsoft.Data.SqlClient;
 using System;
 using System.Collections;
 using System.Collections.Generic;
@@ -14,9 +15,7 @@ using YetaWF.Core.Language;
 using YetaWF.Core.Models;
 using YetaWF.Core.Models.Attributes;
 using YetaWF.Core.Support;
-using YetaWF.DataProvider.SQL;
 using YetaWF.DataProvider.SQLGeneric;
-using Microsoft.Data.SqlClient;
 
 namespace YetaWF.DataProvider.SQL {
 
@@ -28,9 +27,9 @@ namespace YetaWF.DataProvider.SQL {
         public List<LanguageData> Languages { get; private set; }
 
         private class TableInfo {
-            public Table CurrentTable { get; set; }
-            public Table NewTable { get; set; }
-            public List<TableInfo> SubTables { get; set; }
+            public Table? CurrentTable { get; set; }
+            public Table NewTable { get; set; } = null!;
+            public List<TableInfo> SubTables { get; set; } = null!;
         }
 
         public SQLGen(SqlConnection conn, List<LanguageData> languages, int identitySeed, bool logging) {
@@ -40,15 +39,15 @@ namespace YetaWF.DataProvider.SQL {
             Logging = logging;
         }
 
-        public bool CreateTableFromModel(string dbName, string dbOwner, string tableName, string key1Name, string key2Name, string identityName, List<PropertyData> propData, Type tpProps,
+        public bool CreateTableFromModel(string dbName, string dbOwner, string tableName, string key1Name, string? key2Name, string identityName, List<PropertyData> propData, Type tpProps,
                 List<string> errorList,
                 bool TopMost = false,
                 bool SiteSpecific = false,
-                string ForeignKeyTable = null,
-                string DerivedDataTableName = null, string DerivedDataTypeName = null, string DerivedAssemblyName = null,
+                string? ForeignKeyTable = null,
+                string? DerivedDataTableName = null, string? DerivedDataTypeName = null, string? DerivedAssemblyName = null,
                 bool SubTable = false) {
 
-            TableInfo tableInfo = CreateSimpleTableFromModel(dbName, dbOwner, tableName, key1Name, key2Name, identityName, propData, tpProps,
+            TableInfo? tableInfo = CreateSimpleTableFromModel(dbName, dbOwner, tableName, key1Name, key2Name, identityName, propData, tpProps,
                 errorList,
                 TopMost, SiteSpecific, ForeignKeyTable, DerivedDataTableName, DerivedDataTypeName, DerivedAssemblyName,
                 SubTable);
@@ -60,16 +59,16 @@ namespace YetaWF.DataProvider.SQL {
             return true;
         }
 
-        private TableInfo CreateSimpleTableFromModel(string dbName, string dbOwner, string tableName, string key1Name, string key2Name, string identityName, List<PropertyData> propData, Type tpProps,
+        private TableInfo? CreateSimpleTableFromModel(string dbName, string dbOwner, string tableName, string key1Name, string? key2Name, string identityName, List<PropertyData> propData, Type tpProps,
                 List<string> errorList,
                 bool TopMost = false,
                 bool SiteSpecific = false,
-                string ForeignKeyTable = null,
-                string DerivedDataTableName = null, string DerivedDataTypeName = null, string DerivedAssemblyName = null,
+                string? ForeignKeyTable = null,
+                string? DerivedDataTableName = null, string? DerivedDataTypeName = null, string? DerivedAssemblyName = null,
                 bool SubTable = false) {
             try {
                 SQLManager sqlManager = new SQLManager();
-                Table currentTable = null;
+                Table? currentTable = null;
                 Table newTable = new Table {
                     Name = tableName,
                 };
@@ -98,13 +97,13 @@ namespace YetaWF.DataProvider.SQL {
                     });
 
                     newTable.Columns.Add(new Column {
-                        Name = DerivedDataTypeName,
+                        Name = DerivedDataTypeName!,
                         DataType = SqlDbType.NVarChar,
                         Length = 200,
                     });
 
                     newTable.Columns.Add(new Column {
-                        Name = DerivedAssemblyName,
+                        Name = DerivedAssemblyName!,
                         DataType = SqlDbType.NVarChar,
                         Length = 200,
                     });
@@ -289,12 +288,12 @@ namespace YetaWF.DataProvider.SQL {
         }
 
         private bool AddTableColumns(string dbName, string dbOwner, TableInfo tableInfo,
-                string key1Name, string key2Name, string identityName,
-                List<PropertyData> propData, Type tpContainer, string prefix, bool topMost, List<string> errorList,
+                string? key1Name, string? key2Name, string identityName,
+                List<PropertyData> propData, Type tpContainer, string? prefix, bool topMost, List<string> errorList,
                 bool SubTable = false) {
 
             Table newTable = tableInfo.NewTable;
-            Table currentTable = tableInfo.CurrentTable;
+            Table? currentTable = tableInfo.CurrentTable;
             bool hasSubTable = false;
 
             foreach (PropertyData prop in propData) {
@@ -327,7 +326,7 @@ namespace YetaWF.DataProvider.SQL {
                                 Name = colName,
                                 DataType = SqlDbType.NVarChar,
                             };
-                            StringLengthAttribute attr = (StringLengthAttribute)pi.GetCustomAttribute(typeof(StringLengthAttribute));
+                            StringLengthAttribute? attr = (StringLengthAttribute?)pi.GetCustomAttribute(typeof(StringLengthAttribute));
                             if (attr == null)
                                 throw new InternalError("StringLength attribute missing for property {0}", prefix + prop.Name);
                             if (attr.MaximumLength >= 4000)
@@ -354,7 +353,7 @@ namespace YetaWF.DataProvider.SQL {
                         };
                         newColumn.DataType = GetDataType(pi);
                         if (pi.PropertyType == typeof(string)) {
-                            StringLengthAttribute attr = (StringLengthAttribute)pi.GetCustomAttribute(typeof(StringLengthAttribute));
+                            StringLengthAttribute? attr = (StringLengthAttribute?)pi.GetCustomAttribute(typeof(StringLengthAttribute));
                             if (attr == null)
                                 throw new InternalError("StringLength attribute missing for property {0}", pi.Name);
                             int len = attr.MaximumLength;
@@ -367,7 +366,7 @@ namespace YetaWF.DataProvider.SQL {
                         if (colName != key1Name && colName != key2Name && (pi.PropertyType == typeof(string) || Nullable.GetUnderlyingType(pi.PropertyType) != null))
                             nullable = true;
                         newColumn.Nullable = nullable;
-                        Data_NewValue newValAttr = (Data_NewValue)pi.GetCustomAttribute(typeof(Data_NewValue));
+                        Data_NewValue? newValAttr = (Data_NewValue?)pi.GetCustomAttribute(typeof(Data_NewValue));
                         if (currentTable != null && !currentTable.HasColumn(colName)) {
                             if (newValAttr == null)
                                 throw new InternalError("Property {0} in table {1} doesn't have a Data_NewValue attribute, which is required when updating tables", prop.Name, newTable.Name);
@@ -378,12 +377,12 @@ namespace YetaWF.DataProvider.SQL {
                         if (SubTable) throw new InternalError("Nested subtables not supported");
                         // determine the enumerated type
                         Type subType = pi.PropertyType.GetInterfaces().Where(t => t.IsGenericType == true && t.GetGenericTypeDefinition() == typeof(IEnumerable<>))
-                                .Select(t => t.GetGenericArguments()[0]).FirstOrDefault();
+                                .Select(t => t.GetGenericArguments()[0]).First();
                         // create a table that links the main table and this enumerated type using the key of the table
                         string subTableName = newTable.Name + "_" + pi.Name;
                         List<PropertyData> subPropData = ObjectSupport.GetPropertyData(subType);
 
-                        TableInfo subTableInfo = CreateSimpleTableFromModel(dbName, dbOwner, subTableName, SQLBase.SubTableKeyColumn, null,
+                        TableInfo? subTableInfo = CreateSimpleTableFromModel(dbName, dbOwner, subTableName, SQLBase.SubTableKeyColumn, null,
                             HasIdentity(identityName) ? identityName : SQLBase.IdentityColumn, subPropData, subType, errorList,
                             TopMost: false,
                             ForeignKeyTable: newTable.Name,
@@ -406,9 +405,7 @@ namespace YetaWF.DataProvider.SQL {
         }
 
         private void MakeTables(string dbName, string dbOwner, TableInfo tableInfo) {
-            if (tableInfo.CurrentTable != null) {
-                RemoveIndexesAndForeignKeys(dbName, dbOwner, tableInfo);
-            }
+            RemoveIndexesAndForeignKeys(dbName, dbOwner, tableInfo);
             MakeTable(dbName, dbOwner, tableInfo);
             MakeForeignKeys(dbName, dbOwner, tableInfo);// we can't make foreign keys until all tables have been created/updated
         }
@@ -493,6 +490,8 @@ namespace YetaWF.DataProvider.SQL {
         }
 
         private void RemoveIndexesAndForeignKeys(string dbName, string dbOwner, TableInfo tableInfo) {
+
+            if (tableInfo.CurrentTable == null) return;
 
             foreach (TableInfo t in tableInfo.SubTables) {
                 RemoveIndexesAndForeignKeys(dbName, dbOwner, t);

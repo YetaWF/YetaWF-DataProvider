@@ -21,7 +21,7 @@ namespace YetaWF.DataProvider.SQL {
     /// <summary>
     /// This class implements access to objects (records), with one primary key and without identity column.
     /// </summary>
-    public partial class SQLSimpleObject<KEYTYPE, OBJTYPE> : SQLSimpleObjectBase<KEYTYPE, object, OBJTYPE> {
+    public partial class SQLSimpleObject<KEYTYPE, OBJTYPE> : SQLSimpleObjectBase<KEYTYPE, object, OBJTYPE> where KEYTYPE : notnull where OBJTYPE : notnull {
 
         /// <summary>
         /// Constructor.
@@ -38,7 +38,7 @@ namespace YetaWF.DataProvider.SQL {
     /// This base class implements access to objects (records), with a primary and secondary key (composite) and without identity column.
     /// This base class is not intended for use by application data providers. These use one of the more specialized derived classes instead.
     /// </summary>
-    public class SQLSimpleObjectBase<KEYTYPE, KEYTYPE2, OBJTYPE> : SQLBase, IDataProvider<KEYTYPE, OBJTYPE>, ISQLTableInfo {
+    public class SQLSimpleObjectBase<KEYTYPE, KEYTYPE2, OBJTYPE> : SQLBase, IDataProvider<KEYTYPE, OBJTYPE>, ISQLTableInfo where KEYTYPE : notnull where OBJTYPE : notnull {
 
         internal SQLSimpleObjectBase(Dictionary<string, object> options, bool HasKey2 = false) : base(options, HasKey2) { }
 
@@ -59,14 +59,14 @@ namespace YetaWF.DataProvider.SQL {
                 _propertyData = ObjectSupport.GetPropertyData(typeof(OBJTYPE));
             return _propertyData;
         }
-        List<PropertyData> _propertyData;
+        List<PropertyData>? _propertyData;
 
         /// <summary>
         /// Retrieves one record from the database table that satisfies the specified keys.
         /// </summary>
         /// <param name="key">The primary key value.</param>
         /// <returns>Returns the record that satisfies the specified keys. If no record exists null is returned.</returns>
-        public Task<OBJTYPE> GetAsync(KEYTYPE key) {
+        public Task<OBJTYPE?> GetAsync(KEYTYPE key) {
             return GetAsync(key, default(KEYTYPE2));
         }
         /// <summary>
@@ -75,7 +75,7 @@ namespace YetaWF.DataProvider.SQL {
         /// <param name="key">The primary key value.</param>
         /// <param name="key2">The secondary key value.</param>
         /// <returns>Returns the record that satisfies the specified keys. If no record exists null is returned.</returns>
-        public async Task<OBJTYPE> GetAsync(KEYTYPE key, KEYTYPE2 key2) {
+        public async Task<OBJTYPE?> GetAsync(KEYTYPE key, KEYTYPE2? key2) {
 
             await EnsureOpenAsync();
 
@@ -124,7 +124,7 @@ namespace YetaWF.DataProvider.SQL {
                     }
                 }
             } catch (Exception exc) {
-                SqlException sqlExc = exc as SqlException;
+                SqlException? sqlExc = exc as SqlException;
                 if (sqlExc != null && sqlExc.Number == 2627) // already exists
                     return false;
                 throw new InternalError($"{nameof(AddAsync)} failed for type {typeof(OBJTYPE).FullName} - {ErrorHandling.FormatExceptionMessage(exc)}");
@@ -154,7 +154,7 @@ namespace YetaWF.DataProvider.SQL {
         /// <param name="newKey2">The new secondary key value of the record. This may be the same value as <paramref name="origKey2"/>. </param>
         /// <param name="obj">The object being updated.</param>
         /// <returns>Returns a status indicator.</returns>
-        public async Task<UpdateStatusEnum> UpdateAsync(KEYTYPE origKey, KEYTYPE2 origKey2, KEYTYPE newKey, KEYTYPE2 newKey2, OBJTYPE obj) {
+        public async Task<UpdateStatusEnum> UpdateAsync(KEYTYPE origKey, KEYTYPE2? origKey2, KEYTYPE newKey, KEYTYPE2? newKey2, OBJTYPE obj) {
 
             await EnsureOpenAsync();
 
@@ -176,7 +176,7 @@ namespace YetaWF.DataProvider.SQL {
                 }
             } catch (Exception exc) {
                 if (!newKey.Equals(origKey)) {
-                    SqlException sqlExc = exc as SqlException;
+                    SqlException? sqlExc = exc as SqlException;
                     if (sqlExc != null && sqlExc.Number == 2627) // already exists
                         return UpdateStatusEnum.NewKeyExists;
                 }
@@ -199,7 +199,7 @@ namespace YetaWF.DataProvider.SQL {
         /// <param name="key">The primary key value of the record to remove.</param>
         /// <param name="key2">The secondary key value of the record to remove.</param>
         /// <returns>Returns true if the record was removed, or false if the record was not found. Other errors cause an exception.</returns>
-        public async Task<bool> RemoveAsync(KEYTYPE key, KEYTYPE2 key2) {
+        public async Task<bool> RemoveAsync(KEYTYPE key, KEYTYPE2? key2) {
 
             await EnsureOpenAsync();
 
@@ -218,7 +218,7 @@ namespace YetaWF.DataProvider.SQL {
                     return removed > 0;
                 }
             } catch (Exception exc) {
-                SqlException sqlExc = exc as SqlException;
+                SqlException? sqlExc = exc as SqlException;
                 if (sqlExc != null && sqlExc.Number == 547) // ref integrity
                     return false;
                 throw new InternalError($"{nameof(RemoveAsync)} failed for type {typeof(OBJTYPE).FullName} - {ErrorHandling.FormatExceptionMessage(exc)}");
@@ -234,7 +234,7 @@ namespace YetaWF.DataProvider.SQL {
         /// If no record matches, null is returned.</returns>
         /// <remarks>
         /// </remarks>
-        public async Task<OBJTYPE> GetOneRecordAsync(List<DataProviderFilterInfo> filters, List<JoinData> Joins = null) {
+        public async Task<OBJTYPE?> GetOneRecordAsync(List<DataProviderFilterInfo>? filters, List<JoinData>? Joins = null) {
             DataProviderGetRecords<OBJTYPE> recs = await GetRecordsAsync(0, 1, null, filters, Joins: Joins);
             return recs.Data.FirstOrDefault();
         }
@@ -248,7 +248,7 @@ namespace YetaWF.DataProvider.SQL {
         /// <param name="filters">A collection describing the filtering criteria.</param>
         /// <param name="Joins">A collection describing the dataset joins.</param>
         /// <returns>Returns a YetaWF.Core.DataProvider.DataProviderGetRecords object describing the data returned.</returns>
-        public async Task<DataProviderGetRecords<OBJTYPE>> GetRecordsAsync(int skip, int take, List<DataProviderSortInfo> sorts, List<DataProviderFilterInfo> filters, List<JoinData> Joins = null) {
+        public async Task<DataProviderGetRecords<OBJTYPE>> GetRecordsAsync(int skip, int take, List<DataProviderSortInfo>? sorts, List<DataProviderFilterInfo>? filters, List<JoinData>? Joins = null) {
             if (Joins == null)
                 Joins = new List<JoinData>();
 
@@ -295,7 +295,7 @@ FROM {fullTableName} WITH(NOLOCK)
 
             // Get records
 
-            string top;
+            string? top;
             if (skip > 0 || take > 0) {
                 top = null;
             } else {
@@ -374,7 +374,7 @@ DROP TABLE #{TempId}
         /// </summary>
         /// <param name="filters">A collection describing the filtering criteria.</param>
         /// <returns>Returns the number of records removed.</returns>
-        public async Task<int> RemoveRecordsAsync(List<DataProviderFilterInfo> filters) {
+        public async Task<int> RemoveRecordsAsync(List<DataProviderFilterInfo>? filters) {
 
             await EnsureOpenAsync();
 
@@ -414,7 +414,7 @@ FROM {fullTableName}
     SELECT @@ROWCOUNT --- result set
 ");
 
-            object val = await sqlHelper.ExecuteScalarAsync(sb.ToString());
+            object? val = await sqlHelper.ExecuteScalarAsync(sb.ToString());
             int deleted = Convert.ToInt32(val);
             return deleted;
         }
@@ -423,11 +423,11 @@ FROM {fullTableName}
 
             List<SQLGenericGen.SubTableInfo> subTables = SQLGen.GetSubTables(tableName, GetPropertyData());
             foreach (SQLGenericGen.SubTableInfo subTable in subTables) {
-                object subContainer = subTable.PropInfo.GetValue(container);
+                object? subContainer = subTable.PropInfo.GetValue(container);
                 if (subContainer == null) throw new InternalError($"{nameof(ReadSubTablesAsync)} encountered an enumeration property that is null");
 
                 // find the Add method for the collection so we can add each item as its read
-                MethodInfo addMethod = subTable.PropInfo.PropertyType.GetMethod("Add", new Type[] { subTable.Type });
+                MethodInfo? addMethod = subTable.PropInfo.PropertyType.GetMethod("Add", new Type[] { subTable.Type });
                 if (addMethod == null) throw new InternalError($"{nameof(ReadSubTablesAsync)} encountered an enumeration property that doesn't have an Add method");
 
                 if (!(YetaWFManager.IsSync() ? reader.NextResult() : await reader.NextResultAsync())) throw new InternalError("Expected next result set (subtable)");
@@ -449,7 +449,7 @@ FROM {fullTableName}
                     while ((YetaWFManager.IsSync() ? reader.Read() : await reader.ReadAsync())) {
 
                         // find the Add method for the collection so we can add each item as its read
-                        MethodInfo addMethod = subTable.PropInfo.PropertyType.GetMethod("Add", new Type[] { subTable.Type });
+                        MethodInfo? addMethod = subTable.PropInfo.PropertyType.GetMethod("Add", new Type[] { subTable.Type });
                         if (addMethod == null) throw new InternalError($"{nameof(ReadSubTablesMatchupAsync)} encountered a enumeration property that doesn't have an Add method");
 
                         int key = (int)reader[SubTableKeyColumn];
@@ -468,7 +468,7 @@ FROM {fullTableName}
             PropertyInfo piIdent = ObjectSupport.GetProperty(typeof(OBJTYPE), IdentityNameOrDefault);
             if (piIdent.PropertyType != typeof(int)) throw new InternalError($"Object identities must be of type int in {typeof(OBJTYPE).FullName}");
             foreach (OBJTYPE c in containers) {
-                int identity = (int)piIdent.GetValue(c);
+                int identity = (int)piIdent.GetValue(c)!;
                 list.Add(identity);
             }
             return list;
@@ -480,7 +480,7 @@ FROM {fullTableName}
             if (index < 0) throw new InternalError($"Subtable {subTable.Name} has key {key} that doesn't match any main record");
 
             OBJTYPE container = containers[index];
-            object subContainer = subTable.PropInfo.GetValue(container);
+            object? subContainer = subTable.PropInfo.GetValue(container);
             if (subContainer == null) throw new InternalError($"{nameof(AddToContainer)} encountered a enumeration property that is null");
 
             addMethod.Invoke(subContainer, new object[] { obj });
@@ -685,13 +685,13 @@ DELETE FROM {fullTableName} WHERE [{SiteColumn}] = {SiteIdentity}
                 async (int offset, int skip) => {
                     return await GetRecordsAsync(offset, skip, null, null);
                 },
-                async (OBJTYPE record, PropertyInfo pi, PropertyInfo pi2) => {
+                async (OBJTYPE record, PropertyInfo pi, PropertyInfo? pi2) => {
                     UpdateStatusEnum status;
-                    KEYTYPE key1 = (KEYTYPE)pi.GetValue(record);
+                    KEYTYPE key1 = (KEYTYPE)pi.GetValue(record)!;
                     Warnings = false; // we're turning warnings off in case strings get truncated
                     try {
                         if (HasKey2) {
-                            KEYTYPE2 key2 = (KEYTYPE2)pi2.GetValue(record);
+                            KEYTYPE2 key2 = (KEYTYPE2)pi2!.GetValue(record);
                             status = await UpdateAsync(key1, key2, key1, key2, record);
                         } else {
                             status = await UpdateAsync(key1, key1, record);
@@ -731,13 +731,13 @@ DELETE FROM {fullTableName} WHERE [{SiteColumn}] = {SiteIdentity}
 #pragma warning restore 1734
         protected async Task LocalizeModelAsync(string language,
                 Func<string, bool> isHtml,
-                Func<List<string>, Task<List<string>>> translateStringsAsync, Func<string, Task<string>> translateComplexStringAsync, Func<int, int, Task<DataProviderGetRecords<OBJTYPE>>> getRecordsAsync, Func<OBJTYPE, PropertyInfo, PropertyInfo, Task<UpdateStatusEnum>> saveRecordAsync) {
+                Func<List<string>, Task<List<string>>> translateStringsAsync, Func<string, Task<string>> translateComplexStringAsync, Func<int, int, Task<DataProviderGetRecords<OBJTYPE>>> getRecordsAsync, Func<OBJTYPE, PropertyInfo, PropertyInfo?, Task<UpdateStatusEnum>> saveRecordAsync) {
 
             const int RECORDS = 20;
 
             List<PropertyInfo> props = ObjectSupport.GetProperties(typeof(OBJTYPE));
             PropertyInfo key1Prop = ObjectSupport.GetProperty(typeof(OBJTYPE), Key1Name);
-            PropertyInfo key2Prop = null;
+            PropertyInfo? key2Prop = null;
             if (HasKey2)
                 key2Prop = ObjectSupport.GetProperty(typeof(OBJTYPE), Key2Name);
 
@@ -761,12 +761,12 @@ DELETE FROM {fullTableName} WHERE [{SiteColumn}] = {SiteIdentity}
 
         // Helpers
 
-        internal string GetParameterList(SQLHelper sqlHelper, OBJTYPE obj, string dbName, string schema, string dataset, List<PropertyData> propData, string Prefix = null, bool TopMost = true, bool SiteSpecific = false, bool WithDerivedInfo = false, bool SubTable = false) {
+        internal string GetParameterList(SQLHelper sqlHelper, OBJTYPE obj, string dbName, string schema, string dataset, List<PropertyData> propData, string? Prefix = null, bool TopMost = true, bool SiteSpecific = false, bool WithDerivedInfo = false, bool SubTable = false) {
             SQLManager sqlManager = new SQLManager();
             return SQLGen.ProcessColumns(
                 (prefix, container, prop) => { // Property
                     SQLGenericGen.Column col = sqlManager.GetColumn(Conn, dbName, schema, dataset, $"{prefix}{prop.ColumnName}");
-                    object val = prop.PropInfo.GetValue(container);
+                    object? val = prop.PropInfo.GetValue(container);
                     sqlHelper.AddParam($"arg{prefix}{prop.Name}", val, DbType: (SqlDbType)col.DataType);
                     return null;
                 },
@@ -775,8 +775,8 @@ DELETE FROM {fullTableName} WHERE [{SiteColumn}] = {SiteIdentity}
                 },
                 (prefix, container, prop) => { // Binary
                     SQLGenericGen.Column col = sqlManager.GetColumn(Conn, dbName, schema, dataset, $"{prefix}{prop.ColumnName}");
-                    object val = prop.PropInfo.GetValue(container);
-                    byte[] data = null;
+                    object? val = prop.PropInfo.GetValue(container);
+                    byte[]? data = null;
                     if (val != null) {
                         PropertyInfo pi = prop.PropInfo;
                         if (pi.PropertyType == typeof(byte[])) {
@@ -791,12 +791,12 @@ DELETE FROM {fullTableName} WHERE [{SiteColumn}] = {SiteIdentity}
                 },
                 (prefix, container, prop) => { // Image
                     SQLGenericGen.Column col = sqlManager.GetColumn(Conn, dbName, schema, dataset, $"{prefix}{prop.ColumnName}");
-                    object val = prop.PropInfo.GetValue(container);
+                    object? val = prop.PropInfo.GetValue(container);
                     sqlHelper.AddParam($"arg{prefix}{prop.Name}", val, DbType: (SqlDbType)col.DataType);
                     return null;
                 },
                 (prefix, container, prop) => { // Language
-                    MultiString ms = (MultiString)prop.PropInfo.GetValue(container);
+                    MultiString ms = (MultiString)prop.PropInfo.GetValue(container)!;
                     foreach (LanguageData lang in Languages) {
                         string colName = ColumnFromPropertyWithLanguage(lang.Id, prop.ColumnName);
                         SQLGenericGen.Column col = sqlManager.GetColumn(Conn, dbName, schema, dataset, $"{prefix}{colName}");
@@ -811,7 +811,7 @@ DELETE FROM {fullTableName} WHERE [{SiteColumn}] = {SiteIdentity}
                 },
                 (prefix, container, prop, subPropData, subType, subtableName) => { // Subtable
 
-                    GetSubtableParm(sqlHelper, dbName, schema, subtableName, prefix, container, prop, subPropData, subType);
+                    GetSubtableParm(sqlHelper, dbName, schema, subtableName, prefix!, container!, prop, subPropData, subType);
                     return null;
                 },
                 dbName, schema, dataset, obj, propData, obj.GetType(), Prefix, TopMost, SiteSpecific, WithDerivedInfo, SubTable);
@@ -854,7 +854,7 @@ DELETE FROM {fullTableName} WHERE [{SiteColumn}] = {SiteIdentity}
                     return null;
                 },
                 (prefix, container, prop) => { // Language
-                    MultiString ms = (MultiString)prop.PropInfo.GetValue(container);
+                    MultiString ms = (MultiString)prop.PropInfo.GetValue(container)!;
                     foreach (LanguageData lang in Languages) {
                         string colName = ColumnFromPropertyWithLanguage(lang.Id, prop.ColumnName);
                         dataTable.Columns.Add(new DataColumn(colName, typeof(string)));
@@ -873,7 +873,7 @@ DELETE FROM {fullTableName} WHERE [{SiteColumn}] = {SiteIdentity}
             // Get all rows
 
             List<object> list = new List<object>();
-            object val = prop.PropInfo.GetValue(container);
+            object? val = prop.PropInfo.GetValue(container);
             if (val == null) {
                 sqlHelper.AddParam($"arg{prefix}{prop.Name}", null);
                 return;
@@ -898,8 +898,8 @@ DELETE FROM {fullTableName} WHERE [{SiteColumn}] = {SiteIdentity}
                     return null;
                 },
                 (prefix, container, prop) => { // Binary
-                    object val = prop.PropInfo.GetValue(container);
-                    byte[] data = null;
+                    object? val = prop.PropInfo.GetValue(container);
+                    byte[]? data = null;
                     if (val != null) {
                         PropertyInfo pi = prop.PropInfo;
                         if (pi.PropertyType == typeof(byte[])) {
@@ -916,7 +916,7 @@ DELETE FROM {fullTableName} WHERE [{SiteColumn}] = {SiteIdentity}
                     return null;
                 },
                 (prefix, container, prop) => { // Language
-                    MultiString ms = (MultiString)prop.PropInfo.GetValue(container);
+                    MultiString ms = (MultiString)prop.PropInfo.GetValue(container)!;
                     foreach (LanguageData lang in Languages) {
                         string colName = ColumnFromPropertyWithLanguage(lang.Id, prop.ColumnName);
                         row[$"{prefix}{colName}"] = ms[lang.Id] ?? "";

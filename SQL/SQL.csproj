@@ -15,7 +15,8 @@
     <GenerateAssemblyProductAttribute>false</GenerateAssemblyProductAttribute>
     <GenerateAssemblyVersionAttribute>false</GenerateAssemblyVersionAttribute>
     <RootNamespace>YetaWF.DataProvider.SQL</RootNamespace>
-    </PropertyGroup>
+    <Nullable>enable</Nullable>
+</PropertyGroup>
 
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|AnyCPU'">
     <DocumentationFile>YetaWF.DataProvider.SQL.xml</DocumentationFile>

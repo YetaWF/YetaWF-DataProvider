@@ -43,7 +43,7 @@ namespace YetaWF.DataProvider.SQL {
         /// <param name="package">The package.</param>
         public async Task InitializeAsync(Package package) {
 
-            string connString = GetConnectionString(package);
+            string? connString = GetConnectionString(package);
             if (string.IsNullOrWhiteSpace(connString)) {
                 if ((SiteDefinition.INITIAL_INSTALL || !YetaWF.Core.Support.Startup.Started) && GetType() == typeof(SQLInitialization)) // for sql initialization, ignore if there is no connection string
                     return;
@@ -93,10 +93,10 @@ namespace YetaWF.DataProvider.SQL {
 
         private Regex reGo = new Regex(@"^\s*GO\s*$", RegexOptions.Compiled | RegexOptions.Multiline);
 
-        private string GetConnectionString(Package package) {
+        private string? GetConnectionString(Package package) {
 
             // verify correct I/O mode
-            string ioMode = WebConfigHelper.GetValue<string>(package.AreaName, DataProviderImpl.IOModeString);
+            string? ioMode = WebConfigHelper.GetValue<string>(package.AreaName, DataProviderImpl.IOModeString);
             if (string.IsNullOrWhiteSpace(ioMode))
                 ioMode = WebConfigHelper.GetValue<string>(DataProviderImpl.DefaultString, DataProviderImpl.IOModeString);
             if (string.IsNullOrWhiteSpace(ioMode))
@@ -105,7 +105,7 @@ namespace YetaWF.DataProvider.SQL {
                 return null;
 
             // retrieve connection string
-            string connString = WebConfigHelper.GetValue<string>(package.AreaName, SQLBase.SQLConnectString);
+            string? connString = WebConfigHelper.GetValue<string>(package.AreaName, SQLBase.SQLConnectString);
             if (string.IsNullOrWhiteSpace(connString))
                 connString = WebConfigHelper.GetValue<string>(DataProviderImpl.DefaultString, SQLBase.SQLConnectString);
             if (string.IsNullOrWhiteSpace(connString))

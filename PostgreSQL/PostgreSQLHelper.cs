@@ -22,11 +22,11 @@ namespace YetaWF.DataProvider.PostgreSQL {
     internal class SQLHelper {
 
         public NpgsqlConnection NpqsqlConnection;
-        public NpgsqlTransaction NpgsqlTransaction;
+        public NpgsqlTransaction? NpgsqlTransaction;
         private List<LanguageData> Languages { get; set; }
         private List<NpgsqlParameter> Params = new List<NpgsqlParameter>();
 
-        public SQLHelper(NpgsqlConnection conn, NpgsqlTransaction trans, List<LanguageData> languages) {
+        public SQLHelper(NpgsqlConnection conn, NpgsqlTransaction? trans, List<LanguageData> languages) {
             NpqsqlConnection = conn;
             NpgsqlTransaction = trans;
             Languages = languages;
@@ -38,7 +38,7 @@ namespace YetaWF.DataProvider.PostgreSQL {
                 SQLBuilder sb = new SQLBuilder();
                 sb.Add("-- Debug"); sb.Add(Environment.NewLine);
                 foreach (NpgsqlParameter p in Params) {
-                    string val = p.Value?.ToString();
+                    string? val = p.Value?.ToString();
                     if (val != null) val = val.Replace('\r', ' ').Replace('\n', ' ');
                     sb.Add($"-- {p.ParameterName} - {val}"); sb.Add(Environment.NewLine);
                 }
@@ -56,8 +56,8 @@ namespace YetaWF.DataProvider.PostgreSQL {
 
         public Type GetDerivedType(string dataType, string assemblyName) {
             try {
-                Assembly asm = Assemblies.Load(assemblyName);
-                return asm.GetType(dataType, true);
+                Assembly asm = Assemblies.Load(assemblyName)!;
+                return asm.GetType(dataType, true)!;
             } catch (Exception exc) {
                 throw new InternalError($"Invalid Type {dataType}/{assemblyName} requested - {ErrorHandling.FormatExceptionMessage(exc)}");
             }
@@ -70,7 +70,7 @@ namespace YetaWF.DataProvider.PostgreSQL {
             return (T)CreateObject(dr, t);
         }
         public object CreateObject(NpgsqlDataReader dr, Type tp) {
-            object obj = Activator.CreateInstance(tp);
+            object obj = Activator.CreateInstance(tp)!;
             FillObject(dr, obj);
             return obj;
         }
@@ -96,7 +96,7 @@ namespace YetaWF.DataProvider.PostgreSQL {
                                     if (btes.Length > 0)
                                         pi.SetValue(container, btes, null);
                                 } else {
-                                    object data = new GeneralFormatter().Deserialize<object>(btes);
+                                    object? data = new GeneralFormatter().Deserialize<object>(btes);
                                     pi.SetValue(container, data, null);
                                 }
                             }
@@ -128,7 +128,7 @@ namespace YetaWF.DataProvider.PostgreSQL {
                         object value = dr[colName];
                         pi.SetValue(container, GetValue(pi.PropertyType, value), BindingFlags.Default, null, null, null);
                     } else if (pi.PropertyType.IsClass && ComplexTypeInColumns(columns, colName + "_")) {// This is SLOW so it should be last
-                        object propVal = pi.GetValue(container);
+                        object? propVal = pi.GetValue(container);
                         if (propVal != null)
                             FillObject(dr, propVal, columns, colName + "_");
                     }
@@ -143,11 +143,11 @@ namespace YetaWF.DataProvider.PostgreSQL {
             }
             return false;
         }
-        public object GetValue(Type fieldType, object value) {
+        public object? GetValue(Type fieldType, object value) {
 
-            object newValue = null;
-            Type baseType = fieldType.BaseType;
-            Type underlyingType = Nullable.GetUnderlyingType(fieldType);
+            object? newValue = null;
+            Type? baseType = fieldType.BaseType;
+            Type? underlyingType = Nullable.GetUnderlyingType(fieldType);
 
             if (value == null || value is System.DBNull) {
                 if (fieldType.Name == "SerializableList`1") {
@@ -160,9 +160,9 @@ namespace YetaWF.DataProvider.PostgreSQL {
                 newValue = value;
             } else if (fieldType == typeof(bool)) {
                 newValue = (value.ToString() == "1" ||
-                            value.ToString().ToLower() == "on" ||
-                            value.ToString().ToLower() == "true" ||
-                            value.ToString().ToLower() == "yes") ? true : false;
+                            value.ToString()!.ToLower() == "on" ||
+                            value.ToString()!.ToLower() == "true" ||
+                            value.ToString()!.ToLower() == "yes") ? true : false;
             } else if (underlyingType != null) {// Nullable types
                 if (underlyingType == typeof(DateTime))
                     newValue = Convert.ToDateTime(value);
@@ -191,11 +191,11 @@ namespace YetaWF.DataProvider.PostgreSQL {
                 else if (underlyingType == typeof(sbyte))
                     newValue = Convert.ToSByte(value);
                 else if (underlyingType == typeof(Guid))
-                    newValue = new Guid(Convert.ToString(value));
+                    newValue = new Guid(Convert.ToString(value)!);
                 else
                     throw new InternalError($"Unsupported type {fieldType.FullName}");
             } else if (fieldType == typeof(Guid)) {
-                newValue = new Guid(value.ToString());
+                newValue = new Guid(value.ToString()!);
             } else if (fieldType == typeof(TimeSpan)) {
                 newValue = new TimeSpan(Convert.ToInt64(value));
             } else if (baseType != null && fieldType.BaseType == typeof(Enum)) {
@@ -204,7 +204,7 @@ namespace YetaWF.DataProvider.PostgreSQL {
                     newValue = intEnum;
                 else {
                     try {
-                        newValue = Enum.Parse(fieldType, value.ToString());
+                        newValue = Enum.Parse(fieldType, value.ToString()!);
                     } catch (Exception) {
                         newValue = Enum.ToObject(fieldType, value);
                     }
@@ -225,11 +225,11 @@ namespace YetaWF.DataProvider.PostgreSQL {
 
         private object ConvertArrayToSerializableList(Type fieldType, Type baseType, object value) {
             Type valueType = value.GetType();
-            Type elemType = valueType.GetElementType();
+            Type? elemType = valueType.GetElementType();
             if (!valueType.IsArray || baseType.GenericTypeArguments.Length != 1)
                 throw new InternalError($"Unexpected generic type {fieldType.FullName}");
 
-            Type genType = baseType.GenericTypeArguments[0];// get the target type 
+            Type genType = baseType.GenericTypeArguments[0];// get the target type
 
             // single array of native type, used for subtables which have only one column (PG doesn't support TYPEs with just one column)
             // get the property to set on the type instance
@@ -239,24 +239,24 @@ namespace YetaWF.DataProvider.PostgreSQL {
                     throw new InternalError($"native array element has more than one property");
             }
             // create serializablelist and find add method for serializablelist
-            object list = Activator.CreateInstance(fieldType);
-            MethodInfo addMethod = fieldType.GetMethod("Add", new Type[] { typeof(object) });
+            object list = Activator.CreateInstance(fieldType)!;
+            MethodInfo? addMethod = fieldType.GetMethod("Add", new Type[] { typeof(object) });
             if (addMethod == null)
                 throw new InternalError($"Add method not found on type {fieldType.FullName}");
             // build list of instances
-            IEnumerable ienumerable = value as IEnumerable;
+            IEnumerable? ienumerable = value as IEnumerable;
             if (ienumerable == null)
                 throw new InternalError($"IEnumerable expected in {fieldType.FullName}");
             IEnumerator ienum = ienumerable.GetEnumerator();
             if (elemType == genType) {
                 while (ienum.MoveNext()) {
-                    addMethod.Invoke(list, new object[] { ienum.Current });
+                    addMethod.Invoke(list, new object?[] { ienum.Current });
                 }
             } else {
                 while (ienum.MoveNext()) {
-                    object vObj = Activator.CreateInstance(genType);// create the target instance
+                    object? vObj = Activator.CreateInstance(genType);// create the target instance
                     genProps[0].SetValue(vObj, ienum.Current); // we're setting the native value via property name because we don't know/care what constructors are available
-                    addMethod.Invoke(list, new object[] { vObj });
+                    addMethod.Invoke(list, new object?[] { vObj });
                 }
             }
             return list;
@@ -267,7 +267,7 @@ namespace YetaWF.DataProvider.PostgreSQL {
         public Task<NpgsqlDataReader> ExecuteReaderAsync(string text) {
             return ExecuteReaderAsync(NpqsqlConnection, NpgsqlTransaction, CommandType.Text, text, Params);
         }
-        public Task<object> ExecuteScalarAsync(string text) {
+        public Task<object?> ExecuteScalarAsync(string text) {
             return ExecuteScalarAsync(NpqsqlConnection, NpgsqlTransaction, CommandType.Text, text, Params);
         }
         public Task ExecuteNonQueryAsync(string text) {
@@ -277,7 +277,7 @@ namespace YetaWF.DataProvider.PostgreSQL {
             return ExecuteReaderAsync(NpqsqlConnection, NpgsqlTransaction, CommandType.StoredProcedure, sproc, Params);
         }
 
-        private static async Task<NpgsqlDataReader> ExecuteReaderAsync(NpgsqlConnection connection, NpgsqlTransaction transaction, CommandType commandType, string commandText, List<NpgsqlParameter> sqlParms) {
+        private static async Task<NpgsqlDataReader> ExecuteReaderAsync(NpgsqlConnection connection, NpgsqlTransaction? transaction, CommandType commandType, string commandText, List<NpgsqlParameter> sqlParms) {
             using (NpgsqlCommand cmd = new NpgsqlCommand()) {
                 YetaWF.Core.Log.Logging.AddTraceLog(commandText);
                 PrepareCommand(cmd, connection, transaction, commandType, commandText, sqlParms);
@@ -287,7 +287,7 @@ namespace YetaWF.DataProvider.PostgreSQL {
                     return await cmd.ExecuteReaderAsync();
             }
         }
-        private static async Task<object> ExecuteScalarAsync(NpgsqlConnection connection, NpgsqlTransaction transaction, CommandType commandType, string commandText, List<NpgsqlParameter> sqlParms) {
+        private static async Task<object?> ExecuteScalarAsync(NpgsqlConnection connection, NpgsqlTransaction? transaction, CommandType commandType, string commandText, List<NpgsqlParameter> sqlParms) {
             using (NpgsqlCommand cmd = new NpgsqlCommand()) {
                 YetaWF.Core.Log.Logging.AddTraceLog(commandText);
                 PrepareCommand(cmd, connection, transaction, commandType, commandText, sqlParms);
@@ -297,7 +297,7 @@ namespace YetaWF.DataProvider.PostgreSQL {
                     return await cmd.ExecuteScalarAsync();
             }
         }
-        private static async Task ExecuteNonQueryAsync(NpgsqlConnection connection, NpgsqlTransaction transaction, CommandType commandType, string commandText, List<NpgsqlParameter> sqlParms) {
+        private static async Task ExecuteNonQueryAsync(NpgsqlConnection connection, NpgsqlTransaction? transaction, CommandType commandType, string commandText, List<NpgsqlParameter> sqlParms) {
             using (NpgsqlCommand cmd = new NpgsqlCommand()) {
                 YetaWF.Core.Log.Logging.AddTraceLog(commandText);
                 PrepareCommand(cmd, connection, transaction, commandType, commandText, sqlParms);
@@ -309,7 +309,7 @@ namespace YetaWF.DataProvider.PostgreSQL {
         }
 
         [System.Diagnostics.CodeAnalysis.SuppressMessage("Microsoft.Security", "CA2100:Review SQL queries for security vulnerabilities")]
-        private static void PrepareCommand(NpgsqlCommand command, NpgsqlConnection connection, NpgsqlTransaction transaction, CommandType commandType, string commandText, List<NpgsqlParameter> sqlParms) {
+        private static void PrepareCommand(NpgsqlCommand command, NpgsqlConnection connection, NpgsqlTransaction? transaction, CommandType commandType, string commandText, List<NpgsqlParameter> sqlParms) {
 
             command.Connection = connection;
             command.CommandText = commandText;
@@ -324,7 +324,7 @@ namespace YetaWF.DataProvider.PostgreSQL {
             if (sqlParms != null)
                 AttachParameters(command, sqlParms);
         }
-        private static void AttachParameters(NpgsqlCommand command, List<NpgsqlParameter> sqlParms) {
+        private static void AttachParameters(NpgsqlCommand command, List<NpgsqlParameter>? sqlParms) {
             if (sqlParms != null) {
                 foreach (NpgsqlParameter p in sqlParms) {
                     if (p != null) {
@@ -340,15 +340,15 @@ namespace YetaWF.DataProvider.PostgreSQL {
         // EXPR
         // EXPR
 
-        internal void AddWhereExpr(SQLBuilder sb, string tableName, List<DataProviderFilterInfo> filters, Dictionary<string, string> visibleColumns) {
+        internal void AddWhereExpr(SQLBuilder sb, string tableName, List<DataProviderFilterInfo> filters, Dictionary<string, string>? visibleColumns) {
             List<DataProviderFilterInfo> list = new List<DataProviderFilterInfo>(filters);
             if (list.Count == 1 && list[0].Filters != null && list[0].Logic == "&&") {
                 // topmost entry is just one filter, remove it - it's redundant
-                list = new List<DataProviderFilterInfo>(list[0].Filters);
+                list = new List<DataProviderFilterInfo>(list[0].Filters!);
             }
             AddFiltersExpr(sb, tableName, list, "and", visibleColumns);
         }
-        private void AddFiltersExpr(SQLBuilder sb, string tableName, List<DataProviderFilterInfo> filter, string logic, Dictionary<string, string> visibleColumns) {
+        private void AddFiltersExpr(SQLBuilder sb, string tableName, List<DataProviderFilterInfo> filter, string logic, Dictionary<string, string>? visibleColumns) {
             bool firstDone = false;
             foreach (DataProviderFilterInfo f in filter) {
                 if (firstDone) {
@@ -359,11 +359,11 @@ namespace YetaWF.DataProvider.PostgreSQL {
                 bool? isNull = null;
                 if (f.Filters != null) {
                     sb.Add("(");
-                    AddFiltersExpr(sb, tableName, new List<DataProviderFilterInfo>(f.Filters), f.Logic, visibleColumns);
+                    AddFiltersExpr(sb, tableName, new List<DataProviderFilterInfo>(f.Filters), f.Logic!, visibleColumns);
                     sb.Add(")");
                 } else {
                     string oper = "";
-                    object val = f.Value;
+                    object? val = f.Value;
                     string cast = "";
                     if (val != null && val.GetType() == typeof(DateTime)) {
                         val = ((DateTime)val).ToString("yyyy-MM-dd HH:mm:ss");
@@ -409,26 +409,26 @@ namespace YetaWF.DataProvider.PostgreSQL {
                             isNull = false;
                             oper = ">="; break;
                         case "startswith":
-                            oper = "ILIKE"; val = SQLBuilder.EscapeForLike((val ?? "").ToString(), false) + "%"; break;
+                            oper = "ILIKE"; val = SQLBuilder.EscapeForLike((val ?? "").ToString()!, false) + "%"; break;
                         case "notstartswith":
                             isNull = true;
-                            oper = "NOT ILIKE"; val = SQLBuilder.EscapeForLike((val ?? "").ToString(), false) + "%"; break;
+                            oper = "NOT ILIKE"; val = SQLBuilder.EscapeForLike((val ?? "").ToString()!, false) + "%"; break;
                         case "endswith":
-                            oper = "ILIKE"; val = "%" + SQLBuilder.EscapeForLike((val ?? "").ToString(), false); break;
+                            oper = "ILIKE"; val = "%" + SQLBuilder.EscapeForLike((val ?? "").ToString()!, false); break;
                         case "notendswith":
                             isNull = true;
-                            oper = "NOT ILIKE"; val = "%" + SQLBuilder.EscapeForLike((val ?? "").ToString(), false); break;
+                            oper = "NOT ILIKE"; val = "%" + SQLBuilder.EscapeForLike((val ?? "").ToString()!, false); break;
                         case "contains":
-                            oper = "ILIKE"; val = "%" + SQLBuilder.EscapeForLike((val ?? "").ToString(), false) + "%"; break;
+                            oper = "ILIKE"; val = "%" + SQLBuilder.EscapeForLike((val ?? "").ToString()!, false) + "%"; break;
                         case "notcontains":
                             isNull = true;
-                            oper = "NOT ILIKE"; val = "%" + SQLBuilder.EscapeForLike((val ?? "").ToString(), false) + "%"; break;
+                            oper = "NOT ILIKE"; val = "%" + SQLBuilder.EscapeForLike((val ?? "").ToString()!, false) + "%"; break;
                         default:
                             throw new InternalError("Invalid operator {0}", f.Operator);
                     }
                     if (isNull != null) {
                         sb.Add("(");
-                        string s = sb.BuildFullColumnName(f.Field, visibleColumns);
+                        string s = sb.BuildFullColumnName(f.Field!, visibleColumns);
                         AddExpr(sb, s, oper, val, cast);
                         if (isNull == true)
                             sb.Add($" OR {s} IS NULL");
@@ -436,7 +436,7 @@ namespace YetaWF.DataProvider.PostgreSQL {
                             sb.Add($" AND {s} IS NOT NULL");
                         sb.Add(")");
                     } else {
-                        AddExpr(sb, sb.BuildFullColumnName(f.Field, visibleColumns), oper, val, cast);
+                        AddExpr(sb, sb.BuildFullColumnName(f.Field!, visibleColumns), oper, val, cast);
                     }
                 }
                 firstDone = true;
@@ -452,7 +452,7 @@ namespace YetaWF.DataProvider.PostgreSQL {
         /// <param name="value">The value. If it is a string it is properly escaped etc.</param>
         /// <param name="cast">An optional string used to cast the PostgreSQL value type.</param>
         /// <param name="isSet">Identifies this comparison as a set statement. Needed for setting null values.</param>
-        internal void AddExpr(SQLBuilder sb, string wherecolumn, string @operator, object value, string cast = null, bool isSet = false) {
+        internal void AddExpr(SQLBuilder sb, string wherecolumn, string @operator, object? value, string? cast = null, bool isSet = false) {
             if (!wherecolumn.Contains(".") && !wherecolumn.StartsWith("\""))
                 wherecolumn = SQLBuilder.WrapIdentifier(wherecolumn);
 
@@ -491,7 +491,7 @@ namespace YetaWF.DataProvider.PostgreSQL {
         /// <param name="DbType">The optional type of the parameter value.</param>
         /// <param name="DataTypeName">The optional PostgreSQL type of the parameter value. A corresponding User-Defined Type must exist in the database.</param>
         /// <param name="Direction">The direction of the parameter (input or output).</param>
-        public void AddParam(string name, object value, ParameterDirection Direction = ParameterDirection.Input, NpgsqlDbType DbType = NpgsqlDbType.Unknown, string DataTypeName = null)/*<<<*/ {
+        public void AddParam(string name, object? value, ParameterDirection Direction = ParameterDirection.Input, NpgsqlDbType DbType = NpgsqlDbType.Unknown, string? DataTypeName = null)/*<<<*/ {
 
             if (name.StartsWith("@"))
                 name = name.Substring(1);
@@ -546,7 +546,7 @@ namespace YetaWF.DataProvider.PostgreSQL {
 
         public void AddKeyParam(string name, object value, Type keyType) {
             if (keyType == typeof(string) && value != null) {
-                string stringVal = value.ToString();
+                string stringVal = value.ToString()!;
                 AddParam(name, SQLBuilder.EscapeForLike(stringVal));
             } else {
                 AddParam(name, value);

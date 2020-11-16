@@ -27,9 +27,9 @@ namespace YetaWF.DataProvider.PostgreSQL {
         public List<LanguageData> Languages { get; private set; }
 
         private class TableInfo {
-            public Table CurrentTable { get; set; }
-            public Table NewTable { get; set; }
-            public List<TableInfo> SubTables { get; set; }
+            public Table? CurrentTable { get; set; }
+            public Table NewTable { get; set; } = null!;
+            public List<TableInfo> SubTables { get; set; } = null!;
         }
 
         public SQLGen(NpgsqlConnection conn, List<LanguageData> languages, int identitySeed, bool logging) {
@@ -39,15 +39,15 @@ namespace YetaWF.DataProvider.PostgreSQL {
             Logging = logging;
         }
 
-        public bool CreateTableFromModel(string dbName, string schema, string tableName, string key1Name, string key2Name, string identityName, List<PropertyData> propData, Type tpProps,
-                List<string> errorList, 
+        public bool CreateTableFromModel(string dbName, string schema, string tableName, string key1Name, string? key2Name, string identityName, List<PropertyData> propData, Type tpProps,
+                List<string> errorList,
                 bool TopMost = false,
                 bool SiteSpecific = false,
-                string ForeignKeyTable = null,
+                string? ForeignKeyTable = null,
                 bool WithDerivedInfo = false,
                 bool SubTable = false) {
 
-            TableInfo tableInfo = CreateSimpleTableFromModel(dbName, schema, tableName, key1Name, key2Name, identityName, propData, tpProps,
+            TableInfo? tableInfo = CreateSimpleTableFromModel(dbName, schema, tableName, key1Name, key2Name, identityName, propData, tpProps,
                 errorList,
                 TopMost, SiteSpecific, ForeignKeyTable, WithDerivedInfo,
                 SubTable);
@@ -59,17 +59,17 @@ namespace YetaWF.DataProvider.PostgreSQL {
             return true;
         }
 
-        private TableInfo CreateSimpleTableFromModel(string dbName, string schema, string tableName, string key1Name, string key2Name, string identityName, List<PropertyData> propData, Type tpProps,
+        private TableInfo? CreateSimpleTableFromModel(string dbName, string schema, string tableName, string key1Name, string? key2Name, string identityName, List<PropertyData> propData, Type tpProps,
                 List<string> errorList,
                 bool TopMost = false,
                 bool SiteSpecific = false,
-                string ForeignKeyTable = null,
+                string? ForeignKeyTable = null,
                 bool WithDerivedInfo = false,
                 bool SubTable = false) {
 
             try {
                 SQLManager sqlManager = new SQLManager();
-                Table currentTable = null;
+                Table? currentTable = null;
                 Table newTable = new Table {
                     Name = tableName,
                 };
@@ -261,14 +261,14 @@ namespace YetaWF.DataProvider.PostgreSQL {
         }
 
         private bool AddTableColumns(string dbName, string schema, TableInfo tableInfo,
-                string key1Name, string key2Name, string identityName,
+                string key1Name, string? key2Name, string identityName,
                 List<PropertyData> propData, Type tpContainer, string prefix, bool topMost, List<string> errorList,
                 bool SiteSpecific = false,
                 bool WithDerivedInfo = false,
                 bool SubTable = false) {
 
             Table newTable = tableInfo.NewTable;
-            Table currentTable = tableInfo.CurrentTable;
+            Table? currentTable = tableInfo.CurrentTable;
 
             string result = ProcessColumns(
                 (prefix, container, prop) => { // regular property
@@ -279,7 +279,7 @@ namespace YetaWF.DataProvider.PostgreSQL {
                     };
                     newColumn.DataType = GetDataType(pi);
                     if (pi.PropertyType == typeof(string)) {
-                        StringLengthAttribute attr = (StringLengthAttribute)pi.GetCustomAttribute(typeof(StringLengthAttribute));
+                        StringLengthAttribute? attr = (StringLengthAttribute?)pi.GetCustomAttribute(typeof(StringLengthAttribute));
                         if (attr == null)
                             throw new InternalError($"StringLength attribute missing for property {prop.Name}");
                         int len = attr.MaximumLength;
@@ -292,7 +292,7 @@ namespace YetaWF.DataProvider.PostgreSQL {
                     if (prop.ColumnName != key1Name && prop.ColumnName != key2Name && (pi.PropertyType == typeof(string) || Nullable.GetUnderlyingType(pi.PropertyType) != null))
                         nullable = true;
                     newColumn.Nullable = nullable;
-                    Data_NewValue newValAttr = (Data_NewValue)pi.GetCustomAttribute(typeof(Data_NewValue));
+                    Data_NewValue? newValAttr = (Data_NewValue?)pi.GetCustomAttribute(typeof(Data_NewValue));
                     if (currentTable != null && !currentTable.HasColumn($"{prefix}{prop.ColumnName}")) {
                         if (newValAttr == null)
                             throw new InternalError($"Property {prop.Name} in table {newTable.Name} doesn't have a Data_NewValue attribute, which is required when updating tables");
@@ -330,7 +330,7 @@ namespace YetaWF.DataProvider.PostgreSQL {
                             Name = $"{prefix}{colName}",
                             DataType = NpgsqlDbType.Varchar,
                         };
-                        StringLengthAttribute attr = (StringLengthAttribute)prop.PropInfo.GetCustomAttribute(typeof(StringLengthAttribute));
+                        StringLengthAttribute? attr = (StringLengthAttribute?)prop.PropInfo.GetCustomAttribute(typeof(StringLengthAttribute));
                         if (attr == null)
                             throw new InternalError("StringLength attribute missing for property {0}", prefix + prop.Name);
                         if (attr.MaximumLength >= 4000)
@@ -377,7 +377,7 @@ namespace YetaWF.DataProvider.PostgreSQL {
                 },
                 (prefix, container, prop, subPropData, subType, subTableName) => { // Subtable property
                     // create a table that links the main table and this enumerated type using the key of the table
-                    TableInfo subTableInfo = CreateSimpleTableFromModel(dbName, schema, subTableName, SQLBase.SubTableKeyColumn, null,
+                    TableInfo? subTableInfo = CreateSimpleTableFromModel(dbName, schema, subTableName, SQLBase.SubTableKeyColumn, null,
                         HasIdentity(identityName) ? identityName : SQLBase.IdentityColumn, subPropData, subType, errorList,
                         TopMost: false,
                         ForeignKeyTable: newTable.Name,

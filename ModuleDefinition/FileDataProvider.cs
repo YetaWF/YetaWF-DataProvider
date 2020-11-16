@@ -12,7 +12,7 @@ namespace YetaWF.DataProvider.File {
 
     internal class FileDataProvider {
 
-        internal class ModuleDefinitionDataProvider<KEY, TYPE> : FileDataProvider<KEY, TYPE>, ModuleDefinitionDataProviderIOMode {
+        internal class ModuleDefinitionDataProvider<KEY, TYPE> : FileDataProvider<KEY, TYPE>, ModuleDefinitionDataProviderIOMode where KEY : notnull where TYPE : notnull {
 
             public ModuleDefinitionDataProvider(Dictionary<string, object> options) : base(options) { }
             public override string GetBaseFolder() { return Path.Combine(YetaWFManager.DataFolder, ModuleDefinition.BaseFolderName, SiteIdentity.ToString()); }
@@ -32,7 +32,7 @@ namespace YetaWF.DataProvider.File {
                 SerializableList<DesignedModule> list = new SerializableList<DesignedModule>();
                 List<Guid> modGuids = await GetListOfKeysAsync(BaseFolder);
                 foreach (var modGuid in modGuids) {
-                    ModuleDefinition mod = null;
+                    ModuleDefinition? mod = null;
                     try {
                         mod = await GetAsync(modGuid);
                         if (mod == null)

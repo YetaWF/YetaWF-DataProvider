@@ -47,7 +47,7 @@ namespace YetaWF.DataProvider {
             return string.Format("__Mod_{0}_{1}", YetaWFManager.Manager.CurrentSite.Identity, guid);
         }
         private class GetCachedModuleInfo {
-            public ModuleDefinition Module { get; set; }
+            public ModuleDefinition Module { get; set; } = null!;
             public bool Success { get; set; }
         }
         private async Task<GetCachedModuleInfo> GetCachedModuleAsync(Guid guid) {
@@ -96,10 +96,10 @@ namespace YetaWF.DataProvider {
                 info.Total = recs.Total;
             }
         }
-        private async Task<ModuleDefinition> LoadModuleDefinitionAsync(Guid guid) {
+        private async Task<ModuleDefinition?> LoadModuleDefinitionAsync(Guid guid) {
             using (GenericModuleDefinitionDataProvider modDP = new GenericModuleDefinitionDataProvider()) {
                 GetCachedModuleInfo modInfo = await GetCachedModuleAsync(guid);
-                ModuleDefinition mod;
+                ModuleDefinition? mod;
                 if (modInfo.Success) {
                     mod = modInfo.Module;
                 } else {
@@ -168,7 +168,7 @@ namespace YetaWF.DataProvider {
     /// <typeparam name="TYPE">The module type, which is always a class derived from YetaWF.Core.Modules.ModuleDefinition.</typeparam>
     /// <remarks>None of the methods in this class should be called directly by applications.</remarks>
     [System.Diagnostics.CodeAnalysis.SuppressMessage("Microsoft.Design", "CA1063:ImplementIDisposableCorrectly")]
-    public class ModuleDefinitionDataProvider<KEY, TYPE> : DataProviderImpl, IModuleDefinitionIO, IInstallableModel {
+    public class ModuleDefinitionDataProvider<KEY, TYPE> : DataProviderImpl, IModuleDefinitionIO, IInstallableModel where KEY : notnull where TYPE : notnull {
 
         // IMPLEMENTATION
         // IMPLEMENTATION
@@ -216,7 +216,7 @@ namespace YetaWF.DataProvider {
         /// <param name="sort">A collection describing the sort order.</param>
         /// <param name="filters">A collection describing the filtering criteria.</param>
         /// <returns>Returns a YetaWF.Core.DataProvider.DataProviderGetRecords object describing the data returned.</returns>
-        internal async Task<DataProviderGetRecords<TYPE>> GetModulesAsync(int skip, int take, List<DataProviderSortInfo> sort, List<DataProviderFilterInfo> filters) {
+        internal async Task<DataProviderGetRecords<TYPE>> GetModulesAsync(int skip, int take, List<DataProviderSortInfo>? sort, List<DataProviderFilterInfo>? filters) {
             return await DataProvider.GetRecordsAsync(skip, take, sort, filters);
         }
 
@@ -227,8 +227,8 @@ namespace YetaWF.DataProvider {
         /// <returns>Returns the YetaWF.Core.Modules.ModuleDefinition instance or null if module doesn't exist.
         /// If the template class is used with a specific derived module type, the returned instance can be cast to the more specific type.</returns>
         /// <remarks>This is never called directly. Always use YetaWF.Core.Module.ModuleDefinition.LoadModuleDefinitionAsync to load a module.</remarks>
-        public async Task<ModuleDefinition> LoadModuleDefinitionAsync(Guid key) {
-            return (ModuleDefinition)(object)await DataProvider.GetAsync((KEY)(object)key);
+        public async Task<ModuleDefinition?> LoadModuleDefinitionAsync(Guid key) {
+            return (ModuleDefinition?)(object?)await DataProvider.GetAsync((KEY)(object)key);
         }
 
         /// <summary>
@@ -240,7 +240,7 @@ namespace YetaWF.DataProvider {
 
             Guid key = mod.ModuleGuid;
 
-            ModuleDefinition origMod = YetaWF.Core.Audit.Auditing.Active ? (ModuleDefinition)(object)await DataProvider.GetAsync((KEY)(object)key) : null;
+            ModuleDefinition? origMod = YetaWF.Core.Audit.Auditing.Active ? (ModuleDefinition?)(object?)await DataProvider.GetAsync((KEY)(object)key) : null;
 
             mod.DateUpdated = DateTime.UtcNow;
             await SaveImagesAsync(key, mod);
@@ -252,7 +252,7 @@ namespace YetaWF.DataProvider {
                     throw new InternalError("Can't add module definition for {0}", key);
 
             SerializableList<DesignedModule> designedModules = await GetDesignedModulesAsync();
-            DesignedModule desMod = (from d in designedModules where d.ModuleGuid == key select d).FirstOrDefault();
+            DesignedModule? desMod = (from d in designedModules where d.ModuleGuid == key select d).FirstOrDefault();
             if (desMod != null) {
                 desMod.Name = mod.Name;
             } else {
@@ -281,7 +281,7 @@ namespace YetaWF.DataProvider {
         internal async Task<bool> RemoveModuleDefinitionAsync(Guid key) {
 
             bool status = false;
-            ModuleDefinition mod = null;
+            ModuleDefinition? mod = null;
 
             try {
                 mod = await LoadModuleDefinitionAsync(key);
@@ -290,7 +290,7 @@ namespace YetaWF.DataProvider {
             } catch (Exception) { }
 
             SerializableList<DesignedModule> designedModules = await GetDesignedModulesAsync();
-            DesignedModule desMod = (from d in designedModules where d.ModuleGuid == key select d).FirstOrDefault();
+            DesignedModule? desMod = (from d in designedModules where d.ModuleGuid == key select d).FirstOrDefault();
             if (desMod == null)
                 status = false;
             else {

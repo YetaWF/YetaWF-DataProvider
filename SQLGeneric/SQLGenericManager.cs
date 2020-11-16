@@ -83,7 +83,7 @@ namespace YetaWF.DataProvider.SQLGeneric {
         /// <returns>Returns database information.</returns>
         /// <remarks>If the database does not exists, an exception occurs.</remarks>
         public SQLGenericGen.Database GetDatabase(TYPE connInfo, string dbName){
-            SQLGenericGen.Database db = GetDatabaseCond(connInfo, dbName);
+            SQLGenericGen.Database? db = GetDatabaseCond(connInfo, dbName);
             if (db == null)
                 throw new InternalError("Can't connect to database {0}", dbName);
             return db;
@@ -94,17 +94,17 @@ namespace YetaWF.DataProvider.SQLGeneric {
         /// <param name="connInfo">The SQL-specific connection information.</param>
         /// <param name="dbName">The database name.</param>
         /// <returns>Returns database information if the database exists, null otherwise.</returns>
-        public SQLGenericGen.Database GetDatabaseCond(TYPE connInfo, string dbName) {
+        public SQLGenericGen.Database? GetDatabaseCond(TYPE connInfo, string dbName) {
             dbName = dbName.ToLower();
             string connDataSource = GetDataSource(connInfo);
             string connDataSourceLow = connDataSource.ToLower();
-            SQLGenericGen.Database db;
+            SQLGenericGen.Database? db;
             lock (SQLGenericManagerCache.DatabasesLockObject) {
                 db = (from d in SQLGenericManagerCache.Databases where d.DataSource.ToLower() == connDataSourceLow && dbName == d.Name.ToLower() select d).FirstOrDefault();
                 if (db == null) {
                     List<string> dbNames = GetDataBaseNames(connInfo);
                     foreach (string dbn in dbNames) {
-                        SQLGenericGen.Database d = (from s in SQLGenericManagerCache.Databases where s.DataSource.ToLower() == connDataSourceLow && dbn == s.Name.ToLower() select s).FirstOrDefault();
+                        SQLGenericGen.Database? d = (from s in SQLGenericManagerCache.Databases where s.DataSource.ToLower() == connDataSourceLow && dbn == s.Name.ToLower() select s).FirstOrDefault();
                         if (d == null) {
                             SQLGenericManagerCache.Databases.Add(new SQLGenericGen.Database {
                                 Name = dbn,
@@ -137,8 +137,8 @@ namespace YetaWF.DataProvider.SQLGeneric {
         /// <param name="schema">The schema.</param>
         /// <param name="tableName">The table name.</param>
         /// <returns>Returns table information if the table exists, null otherwise.</returns>
-        public SQLGenericGen.Table GetTable(TYPE connInfo, string databaseName, string schema, string tableName) {
-            List<SQLGenericGen.Table> tables = GetTables(connInfo, databaseName, schema);
+        public SQLGenericGen.Table? GetTable(TYPE connInfo, string databaseName, string schema, string tableName) {
+            List<SQLGenericGen.Table>? tables = GetTables(connInfo, databaseName, schema);
             if (tables == null)
                 return null;
             tableName = tableName.ToLower();
@@ -152,8 +152,8 @@ namespace YetaWF.DataProvider.SQLGeneric {
         /// <param name="databaseName">The database name.</param>
         /// <param name="schema">The schema.</param>
         /// <returns>Returns table information for all tables. If the database doesn't exist, null is returned.</returns>
-        public List<SQLGenericGen.Table> GetTables(TYPE connInfo, string databaseName, string schema) {
-            SQLGenericGen.Database db = GetDatabaseCond(connInfo, databaseName);
+        public List<SQLGenericGen.Table>? GetTables(TYPE connInfo, string databaseName, string schema) {
+            SQLGenericGen.Database? db = GetDatabaseCond(connInfo, databaseName);
             if (db == null)
                 return null;
             if (db.CachedTables.Count == 0)
@@ -172,7 +172,7 @@ namespace YetaWF.DataProvider.SQLGeneric {
         /// <returns>Returns column information for all columns.</returns>
         /// <remarks>If the database table doesn't exist, an exception occurs.</remarks>
         public List<SQLGenericGen.Column> GetColumns(TYPE connInfo, string databaseName, string schema, string tableName) {
-            List<SQLGenericGen.Column> columns = GetColumnsCond(connInfo, databaseName, schema, tableName);
+            List<SQLGenericGen.Column>? columns = GetColumnsCond(connInfo, databaseName, schema, tableName);
             if (columns == null)
                 throw new InternalError($"Request for DB {databaseName} table {tableName} which doesn't exist", databaseName, tableName);
             return columns;
@@ -186,8 +186,8 @@ namespace YetaWF.DataProvider.SQLGeneric {
         /// <param name="tableName">The table name.</param>
         /// <returns>Returns column information for all columns. If the database table doesn't exist, null is returned.</returns>
         /// <remarks>If the database table doesn't exist, an exception occurs.</remarks>
-        public List<SQLGenericGen.Column> GetColumnsCond(TYPE connInfo, string databaseName, string schema, string tableName) {
-            SQLGenericGen.Table table = GetTable(connInfo, databaseName, schema, tableName);
+        public List<SQLGenericGen.Column>? GetColumnsCond(TYPE connInfo, string databaseName, string schema, string tableName) {
+            SQLGenericGen.Table? table = GetTable(connInfo, databaseName, schema, tableName);
             if (table == null)
                 return null;
             if (table.CachedColumns.Count == 0)
@@ -207,7 +207,7 @@ namespace YetaWF.DataProvider.SQLGeneric {
         /// <remarks>If the column doesn't exist, an exception occurs.</remarks>
         public SQLGenericGen.Column GetColumn(TYPE connInfo, string databaseName, string schema, string tableName, string columnName) {
             List<SQLGenericGen.Column> columns = GetColumns(connInfo, databaseName, schema, tableName);
-            SQLGenericGen.Column col = (from c in columns where string.Compare(c.Name, columnName, true) == 0 select c).FirstOrDefault();
+            SQLGenericGen.Column? col = (from c in columns where string.Compare(c.Name, columnName, true) == 0 select c).FirstOrDefault();
             if (col == null)
                 throw new InternalError($"Expected column {columnName} not found in {databaseName}, {schema}, {tableName}");
             return col;

@@ -82,7 +82,7 @@ namespace YetaWF.DataProvider.PostgreSQL {
                 // Identity for all columns
                 foreach (SQLGenericGen.Column column in list) {
                     cmd.CommandText = $@"Select is_identity from information_schema.columns WHERE table_schema = '{schema}' AND table_name = '{tableName}' AND column_name = '{column.Name}'";
-                    object o = cmd.ExecuteScalar();
+                    object? o = cmd.ExecuteScalar();
                     if (o != null && !(o is System.DBNull))
                         column.Identity = (string)(o) == "YES";
                 }

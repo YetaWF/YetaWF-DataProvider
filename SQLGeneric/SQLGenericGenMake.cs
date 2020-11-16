@@ -3,6 +3,7 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.Diagnostics.CodeAnalysis;
 using System.Drawing;
 using System.Linq;
 using System.Reflection;
@@ -24,11 +25,11 @@ namespace YetaWF.DataProvider.SQLGeneric {
             /// <summary>
             /// Contains the data source where the database is located. The contents are dependent on the SQL dataprovider used.
             /// </summary>
-            public string DataSource { get; set; }
+            public string DataSource { get; set; } = null!;
             /// <summary>
             /// The database name.
             /// </summary>
-            public string Name { get; set; }
+            public string Name { get; set; } = null!;
             /// <summary>
             /// Constructor.
             /// </summary>
@@ -47,11 +48,11 @@ namespace YetaWF.DataProvider.SQLGeneric {
             /// <summary>
             /// The table name.
             /// </summary>
-            public string Name { get; set; }
+            public string Name { get; set; } = null!;
             /// <summary>
             /// The schema of the table. The contents are dependent on the SQL dataprovider used.
             /// </summary>
-            public string Schema { get; set; }
+            public string Schema { get; set; } = null!;
 
             /// <summary>
             /// List of columns within the table.
@@ -92,7 +93,7 @@ namespace YetaWF.DataProvider.SQLGeneric {
                 return (from c in Columns where c.Name == name select c).FirstOrDefault() != null;
             }
         }
-        
+
         /// <summary>
         /// Defines a subtable.
         /// </summary>
@@ -100,15 +101,15 @@ namespace YetaWF.DataProvider.SQLGeneric {
             /// <summary>
             /// The subtable name.
             /// </summary>
-            public string Name { get; set; }
+            public string Name { get; set; } = null!;
             /// <summary>
             /// The type of the object represented by the subtable.
             /// </summary>
-            public Type Type { get; set; }
+            public Type Type { get; set; } = null!;
             /// <summary>
             /// The container's property that holds this subtable.
             /// </summary>
-            public PropertyInfo PropInfo { get; set; }
+            public PropertyInfo PropInfo { get; set; } = null!;
         }
 
         /// <summary>
@@ -118,11 +119,11 @@ namespace YetaWF.DataProvider.SQLGeneric {
             /// <summary>
             /// The column name.
             /// </summary>
-            public string Name { get; set; }
+            public string Name { get; set; } = null!;
             /// <summary>
             /// The SQL-specific data type represented by this column. The contents are dependent on the SQL dataprovider used.
             /// </summary>
-            public object DataType { get; set; }
+            public object DataType { get; set; } = null!;
             /// <summary>
             /// Defines whether the column is nullable.
             /// </summary>
@@ -157,7 +158,9 @@ namespace YetaWF.DataProvider.SQLGeneric {
             /// <param name="x">The first column.</param>
             /// <param name="y">The second column.</param>
             /// <returns>Returns true if the columns are equal, false otherwise.</returns>
-            public bool Equals(Column x, Column y) {
+            public bool Equals(Column? x, Column? y) {
+                if (x == null && y == null) return true;
+                if (x == null || y == null) return false;
                 return x.Name == y.Name && x.DataType.Equals(y.DataType) && x.Identity == y.Identity && x.Length == y.Length;
             }
             /// <summary>
@@ -180,8 +183,8 @@ namespace YetaWF.DataProvider.SQLGeneric {
             /// <param name="x">The first column.</param>
             /// <param name="y">The second column.</param>
             /// <returns>Returns true if the column names are equal, false otherwise.</returns>
-            public bool Equals(Column x, Column y) {
-                return x.Name == y.Name;
+            public bool Equals(Column? x, Column? y) {
+                return x?.Name == y?.Name;
             }
             /// <summary>
             /// Returns a hash code for the specified object.
@@ -217,7 +220,7 @@ namespace YetaWF.DataProvider.SQLGeneric {
             /// <summary>
             ///  The index name.
             /// </summary>
-            public string Name { get; set; }
+            public string Name { get; set; } = null!;
             /// <summary>
             /// The indexed columns.
             /// </summary>
@@ -246,8 +249,8 @@ namespace YetaWF.DataProvider.SQLGeneric {
             /// <param name="x">The first index.</param>
             /// <param name="y">The second index.</param>
             /// <returns>Returns true if the index name and index type are equal, false otherwise.</returns>
-            public bool Equals(Index x, Index y) {
-                return x.Name == y.Name && x.IndexType == y.IndexType;
+            public bool Equals(Index? x, Index? y) {
+                return x?.Name == y?.Name && x?.IndexType == y?.IndexType;
             }
             /// <summary>
             /// Returns a hash code for the specified object.
@@ -269,8 +272,8 @@ namespace YetaWF.DataProvider.SQLGeneric {
             /// <param name="x">The first index.</param>
             /// <param name="y">The second index.</param>
             /// <returns>Returns true if the index names are equal, false otherwise.</returns>
-            public bool Equals(Index x, Index y) {
-                return x.Name == y.Name;
+            public bool Equals(Index? x, Index? y) {
+                return x?.Name == y?.Name;
             }
             /// <summary>
             /// Returns a hash code for the specified object.
@@ -289,7 +292,7 @@ namespace YetaWF.DataProvider.SQLGeneric {
             /// <summary>
             /// The foreign key name.
             /// </summary>
-            public string Name { get; set; }
+            public string Name { get; set; } = null!;
             /// <summary>
             /// The foreign key columns.
             /// </summary>
@@ -299,7 +302,7 @@ namespace YetaWF.DataProvider.SQLGeneric {
             /// The table referenced by the foreign key.
             /// </summary>
             /// <remarks>This cannot be modified when updating tables.</remarks>
-            public string ReferencedTable { get; set; }
+            public string ReferencedTable { get; set; } = null!;
 
             /// <summary>
             /// Constructor/.
@@ -319,8 +322,8 @@ namespace YetaWF.DataProvider.SQLGeneric {
             /// <param name="x">The first foreign key.</param>
             /// <param name="y">The second foreign key.</param>
             /// <returns>Returns true if the foreign key names are equal, false otherwise.</returns>
-            public bool Equals(ForeignKey x, ForeignKey y) {
-                return x.Name == y.Name;
+            public bool Equals(ForeignKey? x, ForeignKey? y) {
+                return x?.Name == y?.Name;
             }
             /// <summary>
             /// Returns a hash code for the specified object.
@@ -338,11 +341,11 @@ namespace YetaWF.DataProvider.SQLGeneric {
             /// <summary>
             /// The column name.
             /// </summary>
-            public string Column { get; set; }
+            public string Column { get; set; } = null!;
             /// <summary>
             /// The name of the referenced column.
             /// </summary>
-            public string ReferencedColumn { get; set; }
+            public string ReferencedColumn { get; set; } = null!;
         }
 
         /// <summary>
@@ -350,7 +353,7 @@ namespace YetaWF.DataProvider.SQLGeneric {
         /// </summary>
         /// <param name="identityName">The known identity name or null.</param>
         /// <returns>Returns true if an identity name is available, false otherwise.</returns>
-        protected bool HasIdentity(string identityName) {
+        protected bool HasIdentity([NotNullWhen(true)]string? identityName) {
             return !string.IsNullOrWhiteSpace(identityName);
         }
 
@@ -380,7 +383,7 @@ namespace YetaWF.DataProvider.SQLGeneric {
                     } else if (pi.PropertyType.IsClass && typeof(IEnumerable).IsAssignableFrom(pi.PropertyType)) {
                         // enumerated type -> subtable
                         Type subType = pi.PropertyType.GetInterfaces().Where(t => t.IsGenericType == true && t.GetGenericTypeDefinition() == typeof(IEnumerable<>))
-                                .Select(t => t.GetGenericArguments()[0]).FirstOrDefault();
+                                .Select(t => t.GetGenericArguments()[0]).First();
                         string subTableName = tableName + "_" + pi.Name;
                         list.Add(new SubTableInfo {
                             Name = subTableName,
