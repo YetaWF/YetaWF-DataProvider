@@ -59,7 +59,7 @@ namespace YetaWF.DataProvider {
             if (!objInfo.Success)
                 return modInfo;
             modInfo.Success = true;
-            modInfo.Module = objInfo.Data;
+            modInfo.Module = objInfo.RequiredData;
             return modInfo;
         }
         private async Task SetCachedModuleAsync(ModuleDefinition mod) {
@@ -335,7 +335,7 @@ namespace YetaWF.DataProvider {
                 SerializableList<DesignedModule> list;
                 GetObjectInfo<SerializableList<DesignedModule>> info = await staticCacheDP.GetAsync<SerializableList<DesignedModule>>(DESIGNEDMODULESKEY);
                 if (info.Success)
-                    list = info.Data;
+                    list = info.RequiredData;
                 else {
                     list = await DataProviderIOMode.GetDesignedModulesAsync();
                     await staticCacheDP.AddAsync(DESIGNEDMODULESKEY, list);
