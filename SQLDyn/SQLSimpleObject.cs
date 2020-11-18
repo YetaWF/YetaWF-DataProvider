@@ -387,7 +387,7 @@ FROM {fullTableName} WITH(NOLOCK)
 {filter}
 ;
 DELETE
-FROM {fullTableName} WITH(NOLOCK)
+FROM {fullTableName}
 {filter}
 ;
 SELECT @@ROWCOUNT --- result set
