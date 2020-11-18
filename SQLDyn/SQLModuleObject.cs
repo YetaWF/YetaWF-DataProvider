@@ -418,7 +418,7 @@ WHERE {fullBaseTableName}.[DerivedDataTableName] = '{Dataset}' AND {fullBaseTabl
         /// <remarks>
         /// This is not implemented as it is not required for module storage.
         /// </remarks>
-        public new Task<int> RemoveRecordsAsync(List<DataProviderFilterInfo> filters) {
+        public new Task<int> RemoveRecordsAsync(List<DataProviderFilterInfo>? filters) {
             throw new NotImplementedException();
         }
 
