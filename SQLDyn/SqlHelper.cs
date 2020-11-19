@@ -1,5 +1,6 @@
 ﻿/* Copyright © 2020 Softel vdm, Inc. - https://yetawf.com/Documentation/YetaWF/Licensing */
 
+using Microsoft.Data.SqlClient;
 using System;
 using System.Collections.Generic;
 using System.Data;
@@ -13,7 +14,6 @@ using YetaWF.Core.Language;
 using YetaWF.Core.Models;
 using YetaWF.Core.Support;
 using YetaWF.Core.Support.Serializers;
-using Microsoft.Data.SqlClient;
 
 namespace YetaWF.DataProvider.SQL {
 
