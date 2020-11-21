@@ -22,3 +22,7 @@ using YetaWF.PackageAttributes;
     "https://yetawf.com/Documentation/YetaWFSQLDyn#Release%20Notice",
     "https://yetawf.com/Documentation/YetaWFSQLDyn#License")]
 
+// TODO: $$$$ There seems to be a problem with subtables when the primary key doesn't coincide with the identity.
+// This use case is not present in a standard YetaWF distribution, but may be used in some custom sites (unverified at this time).
+// This needs to be addressed with extensive testing (as time permits), to be correctly supported.
+// This affects SQL, SQLDyn and PostgreSQL data providers
