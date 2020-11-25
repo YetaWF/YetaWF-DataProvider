@@ -280,7 +280,6 @@ namespace YetaWF.DataProvider {
         /// <remarks>This is never called directly. Always use YetaWF.Core.Module.ModuleDefinition.RemoveModuleDefinitionAsync to remove a module.</remarks>
         internal async Task<bool> RemoveModuleDefinitionAsync(Guid key) {
 
-            bool status = false;
             ModuleDefinition? mod = null;
 
             try {
@@ -289,23 +288,22 @@ namespace YetaWF.DataProvider {
                     await mod.ModuleRemovingAsync();
             } catch (Exception) { }
 
-            SerializableList<DesignedModule> designedModules = await GetDesignedModulesAsync();
-            DesignedModule? desMod = (from d in designedModules where d.ModuleGuid == key select d).FirstOrDefault();
-            if (desMod == null)
-                status = false;
-            else {
-                designedModules.Remove(desMod);
-                status = await DataProvider.RemoveAsync((KEY)(object)key);
-            }
+            bool status = await DataProvider.RemoveAsync((KEY)(object)key);
             if (status) {
                 // remove the data folder (if any)
                 string dir = ModuleDefinition.GetModuleDataFolder(key);
                 await FileSystem.FileSystemProvider.DeleteDirectoryAsync(dir);
             }
-            await SaveDesignedModulesAsync(designedModules);
 
-            if (mod != null) {
-                await Auditing.AddAuditAsync($"{nameof(ModuleDefinitionDataProvider<KEY, TYPE>)}.{nameof(SaveModuleDefinitionAsync)}", mod.Name, mod.ModuleGuid,
+            SerializableList<DesignedModule> designedModules = await GetDesignedModulesAsync();
+            DesignedModule? desMod = (from d in designedModules where d.ModuleGuid == key select d).FirstOrDefault();
+            if (desMod != null) {
+                designedModules.Remove(desMod);
+                await SaveDesignedModulesAsync(designedModules);
+            }
+
+            if (mod != null || desMod != null) {
+                await Auditing.AddAuditAsync($"{nameof(ModuleDefinitionDataProvider<KEY, TYPE>)}.{nameof(SaveModuleDefinitionAsync)}", mod?.Name ?? desMod?.Name, mod?.ModuleGuid ?? desMod!.ModuleGuid,
                     "Remove Module",
                     DataBefore: mod,
                     DataAfter: null,
