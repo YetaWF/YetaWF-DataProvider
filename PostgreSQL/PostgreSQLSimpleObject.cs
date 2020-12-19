@@ -1,4 +1,4 @@
-﻿/* Copyright © 2020 Softel vdm, Inc. - https://yetawf.com/Documentation/YetaWF/Licensing */
+﻿/* Copyright © 2021 Softel vdm, Inc. - https://yetawf.com/Documentation/YetaWF/Licensing */
 
 using Npgsql;
 using NpgsqlTypes;
@@ -378,7 +378,7 @@ namespace YetaWF.DataProvider.PostgreSQL {
                     subFilters = $@"{filterExpr} AND {sb.GetTable(Database, Schema, subTable.Name)}.""{SQLGenericBase.SubTableKeyColumn}"" = {fullTableName}.""{IdentityNameOrDefault}""";
 
                 sb.Append($@"
-DELETE FROM {sb.GetTable(Database, Schema, subTable.Name)} USING {fullTableName} 
+DELETE FROM {sb.GetTable(Database, Schema, subTable.Name)} USING {fullTableName}
 {subFilters}
 ;
 ");

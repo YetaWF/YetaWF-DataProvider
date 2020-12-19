@@ -1,4 +1,4 @@
-﻿/* Copyright © 2020 Softel vdm, Inc. - https://yetawf.com/Documentation/YetaWF/Licensing */
+﻿/* Copyright © 2021 Softel vdm, Inc. - https://yetawf.com/Documentation/YetaWF/Licensing */
 
 using System;
 using System.Collections.Generic;
@@ -397,7 +397,7 @@ DROP TABLE #{TempId}
 
                 string subName = sb.GetTable(Database, Dbo, subTable.Name);
                 sb.Append($@"
-DELETE {subName} FROM {subName} 
+DELETE {subName} FROM {subName}
 LEFT JOIN {fullTableName} ON {sb.BuildFullColumnName(Dataset, IdentityName)} = {sb.BuildFullColumnName(subTable.Name, SQLGenericBase.SubTableKeyColumn)}
 {subFilters}
 ;

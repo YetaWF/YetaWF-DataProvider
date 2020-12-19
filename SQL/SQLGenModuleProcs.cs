@@ -1,4 +1,4 @@
-﻿/* Copyright © 2020 Softel vdm, Inc. - https://yetawf.com/Documentation/YetaWF/Licensing */
+﻿/* Copyright © 2021 Softel vdm, Inc. - https://yetawf.com/Documentation/YetaWF/Licensing */
 
 using System;
 using System.Collections.Generic;
@@ -40,8 +40,8 @@ namespace YetaWF.DataProvider.SQL {
 
                 sb.Append($@"
 IF EXISTS (
-    SELECT sys.procedures.name FROM sys.procedures WITH(NOLOCK) 
-    WHERE type = 'P' AND schema_id = SCHEMA_ID('{schema}') AND name = '{dataset}__Get' 
+    SELECT sys.procedures.name FROM sys.procedures WITH(NOLOCK)
+    WHERE type = 'P' AND schema_id = SCHEMA_ID('{schema}') AND name = '{dataset}__Get'
 ) DROP PROCEDURE [{schema}].[{dataset}__Get]
 
 GO
@@ -83,8 +83,8 @@ GO
 
                 sb.Append($@"
 IF EXISTS (
-    SELECT sys.procedures.name FROM sys.procedures WITH(NOLOCK) 
-    WHERE type = 'P' AND schema_id = SCHEMA_ID('{schema}') AND name = '{dataset}__Add' 
+    SELECT sys.procedures.name FROM sys.procedures WITH(NOLOCK)
+    WHERE type = 'P' AND schema_id = SCHEMA_ID('{schema}') AND name = '{dataset}__Add'
 ) DROP PROCEDURE [{schema}].[{dataset}__Add]
 
 GO
@@ -132,8 +132,8 @@ GO
 
                 sb.Append($@"
 IF EXISTS (
-    SELECT sys.procedures.name FROM sys.procedures WITH(NOLOCK) 
-    WHERE type = 'P' AND schema_id = SCHEMA_ID('{schema}') AND name = '{dataset}__Update' 
+    SELECT sys.procedures.name FROM sys.procedures WITH(NOLOCK)
+    WHERE type = 'P' AND schema_id = SCHEMA_ID('{schema}') AND name = '{dataset}__Update'
 ) DROP PROCEDURE [{schema}].[{dataset}__Update]
 
 GO
@@ -191,8 +191,8 @@ GO
 
                 sb.Append($@"
 IF EXISTS (
-    SELECT sys.procedures.name FROM sys.procedures WITH(NOLOCK) 
-    WHERE type = 'P' AND schema_id = SCHEMA_ID('{schema}') AND name = '{dataset}__Remove' 
+    SELECT sys.procedures.name FROM sys.procedures WITH(NOLOCK)
+    WHERE type = 'P' AND schema_id = SCHEMA_ID('{schema}') AND name = '{dataset}__Remove'
 ) DROP PROCEDURE [{schema}].[{dataset}__Remove]
 
 GO

@@ -1,4 +1,4 @@
-﻿/* Copyright © 2020 Softel vdm, Inc. - https://yetawf.com/Documentation/YetaWF/Licensing */
+﻿/* Copyright © 2021 Softel vdm, Inc. - https://yetawf.com/Documentation/YetaWF/Licensing */
 
 using Npgsql;
 using NpgsqlTypes;
@@ -786,7 +786,7 @@ ALTER TABLE ""{schema}"".""{newTable.Name}""
     ),");
                     break;
                 case IndexType.UniqueKey:
-                    sb.Append($@"  
+                    sb.Append($@"
     CONSTRAINT ""{index.Name}"" UNIQUE (
         ");
                     foreach (string col in index.IndexedColumns) {

@@ -1,4 +1,4 @@
-﻿/* Copyright © 2020 Softel vdm, Inc. - https://yetawf.com/Documentation/YetaWF/Licensing */
+﻿/* Copyright © 2021 Softel vdm, Inc. - https://yetawf.com/Documentation/YetaWF/Licensing */
 
 using System;
 using System.Collections.Generic;
@@ -851,8 +851,8 @@ GO
 
             sb.Append($@"
 IF EXISTS (
-    SELECT sys.types.name FROM sys.types WITH(NOLOCK) 
-    WHERE is_table_type = 1 AND SCHEMA_ID('{dbo}') = schema_id AND name = '{typeName}' 
+    SELECT sys.types.name FROM sys.types WITH(NOLOCK)
+    WHERE is_table_type = 1 AND SCHEMA_ID('{dbo}') = schema_id AND name = '{typeName}'
 ) DROP TYPE [{dbo}].[{typeName}]");
 
             return sb.ToString();
