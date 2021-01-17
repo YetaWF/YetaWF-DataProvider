@@ -50,7 +50,7 @@ namespace YetaWF.DataProvider.SQL {
                 throw new InternalError($"No {SQLBase.SQLConnectString} connection string found for package {package.AreaName} - must be explicitly specified");
             }
 
-            string path = Path.Combine(package.AddonsFolder, "_Main", "Sql");
+            string path = Path.Combine(package.AddonsSourceFolder, "_Main", "Sql");
             if (!await FileSystem.FileSystemProvider.DirectoryExistsAsync(path))
                 return;
             List<string> files = await FileSystem.FileSystemProvider.GetFilesAsync(path, "*.sql");

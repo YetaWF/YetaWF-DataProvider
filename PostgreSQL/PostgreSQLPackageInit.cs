@@ -48,7 +48,7 @@ namespace YetaWF.DataProvider.PostgreSQL {
                 throw new InternalError($"No {SQLBase.PostgreSQLConnectString} connection string found for package {package.AreaName} and no default defined");
             }
 
-            string path = Path.Combine(package.AddonsFolder, "_Main", "PostgreSql");
+            string path = Path.Combine(package.AddonsSourceFolder, "_Main", "PostgreSql");
             if (!await FileSystem.FileSystemProvider.DirectoryExistsAsync(path))
                 return;
             List<string> files = await FileSystem.FileSystemProvider.GetFilesAsync(path, "*.pgsql");
