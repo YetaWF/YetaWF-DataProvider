@@ -135,7 +135,6 @@ namespace YetaWF.DataProvider {
         /// <remarks>
         /// For debugging purposes, instances of this class are tracked using the DisposableTracker class.
         /// </remarks>
-        [System.Diagnostics.CodeAnalysis.SuppressMessage("Microsoft.Usage", "CA2214:DoNotCallOverridableMethodsInConstructors")]
         public FileDataProvider(Dictionary<string, object> options) {
             Options = options;
             if (!Options.ContainsKey("Package") || !(Options["Package"] is Package))
@@ -637,7 +636,7 @@ namespace YetaWF.DataProvider {
         public async Task ImportChunkAsync(int chunk, SerializableList<SerializableFile> fileList, object obj) {
             if (SiteIdentity > 0 || YetaWFManager.Manager.ImportChunksNonSiteSpecifics) {
                 SerializableList<OBJTYPE> serList = (SerializableList<OBJTYPE>)obj;
-                int total = serList.Count();
+                int total = serList.Count;
                 if (total > 0) {
                     for (int processed = 0; processed < total; ++processed) {
                         OBJTYPE item = serList[processed];

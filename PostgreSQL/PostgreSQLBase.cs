@@ -154,7 +154,7 @@ namespace YetaWF.DataProvider.PostgreSQL {
         }
         internal static NpgsqlNullNameTranslator Translator => new NpgsqlNullNameTranslator();
         private List<string> TypeList => new List<string>();// keep track of mapped types
-        private static object lockObject => new object();
+        private static readonly object lockObject => new object();
 
         // IDATAPROVIDERTRANSACTIONS
         // IDATAPROVIDERTRANSACTIONS
@@ -320,7 +320,7 @@ namespace YetaWF.DataProvider.PostgreSQL {
 
         internal string MakeFilter(SQLHelper sqlHelper, List<DataProviderFilterInfo>? filters, Dictionary<string, string>? visibleColumns = null) {
             SQLBuilder sb = new SQLBuilder();
-            if (filters != null && filters.Count() > 0) {
+            if (filters != null && filters.Count > 0) {
                 if (SiteIdentity > 0)
                     sb.Add("WHERE (");
                 else
@@ -453,7 +453,6 @@ namespace YetaWF.DataProvider.PostgreSQL {
             sql = sql.Replace("{TableName}", SQLBuilder.WrapIdentifier(tableName));
             if (SiteIdentity > 0)
                 sql = sql.Replace($@"{{{SiteColumn}}}", $@"""{SiteColumn}"" = {SiteIdentity}");
-            List<TYPE> list = new List<TYPE>();
             using (NpgsqlDataReader reader = await sqlHelper.ExecuteReaderAsync(sql)) {
                 if (YetaWFManager.IsSync() ? reader.Read() : await reader.ReadAsync())
                     return sqlHelper.CreateObject<TYPE>(reader);
