@@ -154,7 +154,7 @@ namespace YetaWF.DataProvider.PostgreSQL {
         }
         internal static NpgsqlNullNameTranslator Translator => new NpgsqlNullNameTranslator();
         private List<string> TypeList => new List<string>();// keep track of mapped types
-        private static readonly object lockObject => new object();
+        private static object lockObject => new object();
 
         // IDATAPROVIDERTRANSACTIONS
         // IDATAPROVIDERTRANSACTIONS
