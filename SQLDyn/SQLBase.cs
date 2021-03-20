@@ -644,12 +644,12 @@ namespace YetaWF.DataProvider.SQL {
         /// SQL injection attacks are not possible when using parameters.
         /// </remarks>
         /// <returns>Some forms of this method return an object of type {i}TYPE{/i}.</returns>
-        public async Task Direct_QueryAsync(string sql, params object[] args) {
+        public async Task Direct_QueryAsync(string sql, params object?[] args) {
             await EnsureOpenAsync();
             SQLHelper sqlHelper = new SQLHelper(Conn, null, Languages);
             string tableName = GetTableName();
             int count = 0;
-            foreach (object arg in args) {
+            foreach (object? arg in args) {
                 ++count;
                 sqlHelper.AddParam($"p{count}", arg);
             }
