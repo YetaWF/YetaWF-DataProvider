@@ -464,8 +464,8 @@ FROM {fullTableName} WITH(NOLOCK)
 
 {sqlHelper.DebugInfo}";
 
-            string subTablesSelects = "";
             SQLHelper subSqlHelper = new SQLHelper(Conn, null, Languages);
+            sb = new SQLBuilder();
 
             using (SqlDataReader reader = await sqlHelper.ExecuteReaderAsync(script)) {
                 if (skip != 0 || take != 0) {
@@ -479,14 +479,15 @@ FROM {fullTableName} WITH(NOLOCK)
 
                     PropertyInfo piIdent = ObjectSupport.GetProperty(typeof(OBJTYPE), Key1Name);
                     KEYTYPE keyVal = (KEYTYPE)piIdent.GetValue(o)!;
-                    KEYTYPE2 key2Val = default(KEYTYPE2);
+                    KEYTYPE2? key2Val = default(KEYTYPE2);
                     if (HasKey2) {
                         PropertyInfo piIdent2 = ObjectSupport.GetProperty(typeof(OBJTYPE), Key2Name);
-                        key2Val = (KEYTYPE2)piIdent2.GetValue(o);
+                        key2Val = (KEYTYPE2?)piIdent2.GetValue(o);
                     }
-                    subTablesSelects += SubTablesSelectsUsingJoin(subSqlHelper, Dataset, keyVal, key2Val, propData, typeof(OBJTYPE));
+                    sb.Append( SubTablesSelectsUsingJoin(subSqlHelper, Dataset, keyVal, key2Val, propData, typeof(OBJTYPE)) );
                 }
             }
+            string subTablesSelects = sb.ToString();
             if (!string.IsNullOrWhiteSpace(subTablesSelects)) {
                 subTablesSelects += $@"
 
@@ -843,13 +844,11 @@ DELETE FROM {fullTableName} WHERE [{SiteColumn}] = {SiteIdentity}
                     Warnings = false; // we're turning warnings off in case strings get truncated
                     try {
                         if (HasKey2) {
-                            KEYTYPE2 key2 = (KEYTYPE2)pi2!.GetValue(record);
+                            KEYTYPE2? key2 = (KEYTYPE2?)pi2!.GetValue(record);
                             status = await UpdateAsync(key1, key2, key1, key2, record);
                         } else {
                             status = await UpdateAsync(key1, key1, record);
                         }
-                    } catch (Exception) {
-                        throw;
                     } finally {
                         Warnings = true;// turn warnings back on
                     }

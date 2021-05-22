@@ -436,7 +436,7 @@ namespace YetaWF.DataProvider {
                 else
                     throw new InternalError("FileDataProvider only supports object keys of type string, int or Guid");
 
-                OBJTYPE obj;
+                OBJTYPE? obj;
                 obj = await GetAsync(key);
                 if (obj == null)
                     continue;
@@ -492,7 +492,7 @@ namespace YetaWF.DataProvider {
                     key = (KEYTYPE)(object)Convert.ToInt32(file);
                 else
                     throw new InternalError("FileDataProvider only supports object keys of type string, int or Guid");
-                OBJTYPE obj = await GetAsync(key);
+                OBJTYPE? obj = await GetAsync(key);
                 if (obj == null)
                     throw new InternalError("Object in file {0} is invalid", file);
 

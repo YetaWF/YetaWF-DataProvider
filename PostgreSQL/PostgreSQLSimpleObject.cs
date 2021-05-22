@@ -612,13 +612,11 @@ DELETE FROM {fullTableName} WHERE ""{SiteColumn}"" = {SiteIdentity}
                     Warnings = false; // we're turning warnings off in case strings get truncated
                     try {
                         if (HasKey2) {
-                            KEYTYPE2 key2 = (KEYTYPE2)pi2!.GetValue(record);
+                            KEYTYPE2? key2 = (KEYTYPE2?)pi2!.GetValue(record);
                             status = await UpdateAsync(key1, key2, key1, key2, record);
                         } else {
                             status = await UpdateAsync(key1, key1, record);
                         }
-                    } catch (Exception) {
-                        throw;
                     } finally {
                         Warnings = true;// turn warnings back on
                     }
