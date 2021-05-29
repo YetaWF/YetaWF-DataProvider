@@ -320,7 +320,7 @@ namespace YetaWF.DataProvider.PostgreSQL {
 
         internal string MakeFilter(SQLHelper sqlHelper, List<DataProviderFilterInfo>? filters, Dictionary<string, string>? visibleColumns = null) {
             SQLBuilder sb = new SQLBuilder();
-            if (filters != null && filters.Count() > 0) {
+            if (filters != null && filters.Count > 0) {
                 if (SiteIdentity > 0)
                     sb.Add("WHERE (");
                 else
@@ -401,12 +401,12 @@ namespace YetaWF.DataProvider.PostgreSQL {
         /// SQL injection attacks are not possible when using parameters.
         /// </remarks>
         /// <returns>Some forms of this method return an object of type {i}TYPE{/i}.</returns>
-        public async Task Direct_QueryAsync(string sql, params object[] args) {
+        public async Task Direct_QueryAsync(string sql, params object?[] args) {
             await EnsureOpenAsync();
             SQLHelper sqlHelper = new SQLHelper(Conn, null, Languages);
             string tableName = GetTableName();
             int count = 0;
-            foreach (object arg in args) {
+            foreach (object? arg in args) {
                 ++count;
                 sqlHelper.AddParam($"@p{count}", arg);
             }
@@ -453,7 +453,6 @@ namespace YetaWF.DataProvider.PostgreSQL {
             sql = sql.Replace("{TableName}", SQLBuilder.WrapIdentifier(tableName));
             if (SiteIdentity > 0)
                 sql = sql.Replace($@"{{{SiteColumn}}}", $@"""{SiteColumn}"" = {SiteIdentity}");
-            List<TYPE> list = new List<TYPE>();
             using (NpgsqlDataReader reader = await sqlHelper.ExecuteReaderAsync(sql)) {
                 if (YetaWFManager.IsSync() ? reader.Read() : await reader.ReadAsync())
                     return sqlHelper.CreateObject<TYPE>(reader);

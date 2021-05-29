@@ -135,7 +135,6 @@ namespace YetaWF.DataProvider {
         /// <remarks>
         /// For debugging purposes, instances of this class are tracked using the DisposableTracker class.
         /// </remarks>
-        [System.Diagnostics.CodeAnalysis.SuppressMessage("Microsoft.Usage", "CA2214:DoNotCallOverridableMethodsInConstructors")]
         public FileDataProvider(Dictionary<string, object> options) {
             Options = options;
             if (!Options.ContainsKey("Package") || !(Options["Package"] is Package))
@@ -437,7 +436,7 @@ namespace YetaWF.DataProvider {
                 else
                     throw new InternalError("FileDataProvider only supports object keys of type string, int or Guid");
 
-                OBJTYPE obj;
+                OBJTYPE? obj;
                 obj = await GetAsync(key);
                 if (obj == null)
                     continue;
@@ -493,7 +492,7 @@ namespace YetaWF.DataProvider {
                     key = (KEYTYPE)(object)Convert.ToInt32(file);
                 else
                     throw new InternalError("FileDataProvider only supports object keys of type string, int or Guid");
-                OBJTYPE obj = await GetAsync(key);
+                OBJTYPE? obj = await GetAsync(key);
                 if (obj == null)
                     throw new InternalError("Object in file {0} is invalid", file);
 
@@ -637,7 +636,7 @@ namespace YetaWF.DataProvider {
         public async Task ImportChunkAsync(int chunk, SerializableList<SerializableFile> fileList, object obj) {
             if (SiteIdentity > 0 || YetaWFManager.Manager.ImportChunksNonSiteSpecifics) {
                 SerializableList<OBJTYPE> serList = (SerializableList<OBJTYPE>)obj;
-                int total = serList.Count();
+                int total = serList.Count;
                 if (total > 0) {
                     for (int processed = 0; processed < total; ++processed) {
                         OBJTYPE item = serList[processed];

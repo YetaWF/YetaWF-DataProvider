@@ -162,7 +162,7 @@ namespace YetaWF.DataProvider.PostgreSQL {
                 newValue = (value.ToString() == "1" ||
                             value.ToString()!.ToLower() == "on" ||
                             value.ToString()!.ToLower() == "true" ||
-                            value.ToString()!.ToLower() == "yes") ? true : false;
+                            value.ToString()!.ToLower() == "yes");
             } else if (underlyingType != null) {// Nullable types
                 if (underlyingType == typeof(DateTime))
                     newValue = Convert.ToDateTime(value);
@@ -199,8 +199,7 @@ namespace YetaWF.DataProvider.PostgreSQL {
             } else if (fieldType == typeof(TimeSpan)) {
                 newValue = new TimeSpan(Convert.ToInt64(value));
             } else if (baseType != null && fieldType.BaseType == typeof(Enum)) {
-                int intEnum;
-                if (int.TryParse(value.ToString(), out intEnum))
+                if (int.TryParse(value.ToString(), out int intEnum))
                     newValue = intEnum;
                 else {
                     try {
