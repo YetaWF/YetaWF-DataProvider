@@ -4,11 +4,11 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
-using System.Drawing;
 using System.Linq;
 using System.Reflection;
 using YetaWF.Core.DataProvider.Attributes;
 using YetaWF.Core.Models;
+using YetaWF.Core.Support;
 
 namespace YetaWF.DataProvider.SQLGeneric {
 
@@ -374,8 +374,8 @@ namespace YetaWF.DataProvider.SQLGeneric {
                         ; // nothing
                     } else if (pi.PropertyType == typeof(MultiString)) {
                         ; // nothing
-                    } else if (pi.PropertyType == typeof(Image)) {
-                        ; // nothing
+                    } else if (pi.PropertyType == typeof(System.Drawing.Image)) {
+                        throw new InternalError("Image and Bitmap types no longer supported/needed");
                     } else if (pi.PropertyType == typeof(TimeSpan)) {
                         ; // nothing
                     } else if (SQLGenericBase.TryGetDataType(pi.PropertyType)) {

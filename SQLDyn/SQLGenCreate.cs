@@ -5,7 +5,6 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Data;
-using System.Drawing;
 using System.Linq;
 using System.Reflection;
 using System.Text;
@@ -337,15 +336,8 @@ namespace YetaWF.DataProvider.SQL {
                                 newColumn.Nullable = true;
                             newTable.Columns.Add(newColumn);
                         }
-                    } else if (pi.PropertyType == typeof(Image)) {
-                        if (topMost && (prop.Name == key1Name || prop.Name == key2Name))
-                            throw new InternalError("Image can't be a primary key - table {0}", newTable.Name);
-                        Column newColumn = new Column {
-                            Name = colName,
-                            DataType = SqlDbType.VarBinary,
-                            Nullable = true,
-                        };
-                        newTable.Columns.Add(newColumn);
+                    } else if (pi.PropertyType == typeof(System.Drawing.Image)) {
+                        throw new InternalError("Image and Bitmap types no longer supported/needed");
                     } else if (SQLGenericBase.TryGetDataType(pi.PropertyType)) {
                         Column newColumn = new Column {
                             Name = colName,
@@ -631,8 +623,8 @@ ELSE
                 return SqlDbType.Bit;
             else if (tp == typeof(System.Guid) || tp == typeof(System.Guid?))
                 return SqlDbType.UniqueIdentifier;
-            else if (tp == typeof(Image))
-                return SqlDbType.VarBinary;
+            else if (tp == typeof(System.Drawing.Image))
+                throw new InternalError("Image and Bitmap types no longer supported/needed");
             else if (tp == typeof(int) || tp == typeof(int?))
                 return SqlDbType.Int;
             else if (tp == typeof(long) || tp == typeof(long?))
