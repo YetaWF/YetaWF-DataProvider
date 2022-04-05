@@ -64,7 +64,7 @@ namespace YetaWF.DataProvider.SQL {
         /// If <paramref name="Offset"/> and <paramref name="Next"/> are specified (not 0),
         /// OFFSET <paramref name="Offset"/> ROWS FETCH NEXT <paramref name="Next"/> ROWS ONLY is appended to the generated ORDER BY clause.
         /// </remarks>
-        internal void AddOrderBy(Dictionary<string, string> visibleColumns, List<DataProviderSortInfo> sorts, int Offset = 0, int Next = 0) {
+        internal void AddOrderBy(Dictionary<string, string> visibleColumns, List<DataProviderSortInfo>? sorts, int Offset = 0, int Next = 0) {
             Add(GetOrderBy(visibleColumns, sorts, Offset:Offset, Next: Next));
         }
 

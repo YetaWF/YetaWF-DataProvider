@@ -240,6 +240,10 @@ namespace YetaWF.DataProvider {
         public void AbortTransaction() {
             throw new NotSupportedException($"{nameof(AbortTransaction)} is not supported");
         }
+        /// <summary>
+        /// Used when creating a dataprovider whithin StartTransAction().
+        /// </summary>
+        public void SupportTransactions(DataProviderImpl ownerDP, DataProviderImpl dp) { }
 
         private string GetKey1Name() {
             if (_key1Name == null) {

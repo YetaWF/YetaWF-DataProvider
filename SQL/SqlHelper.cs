@@ -1,5 +1,6 @@
 ﻿/* Copyright © 2021 Softel vdm, Inc. - https://yetawf.com/Documentation/YetaWF/Licensing */
 
+using Microsoft.Data.SqlClient;
 using System;
 using System.Collections.Generic;
 using System.Data;
@@ -11,7 +12,6 @@ using YetaWF.Core.Language;
 using YetaWF.Core.Models;
 using YetaWF.Core.Support;
 using YetaWF.Core.Support.Serializers;
-using Microsoft.Data.SqlClient;
 
 namespace YetaWF.DataProvider.SQL {
 
@@ -66,7 +66,7 @@ namespace YetaWF.DataProvider.SQL {
             return (T)CreateObject(dr, t);
         }
         public object CreateObject(SqlDataReader dr, Type tp) {
-            object obj = Activator.CreateInstance(tp) !;
+            object obj = Activator.CreateInstance(tp)!;
             FillObject(dr, obj);
             return obj;
         }

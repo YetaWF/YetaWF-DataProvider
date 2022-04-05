@@ -207,7 +207,7 @@ namespace YetaWF.DataProvider.SQL {
 
             // release the owner's current connection
             SQLBase ownerSqlBase = (SQLBase)ownerDP.GetDataProvider();
-            if (ConnDynamic)
+            if (ownerSqlBase.ConnDynamic)
                 ownerSqlBase.ReleaseSqlConnection(ownerSqlBase.ConnectionString);
             else if (ownerSqlBase.Conn != null)
                 ownerSqlBase.Conn.Close();
@@ -215,10 +215,13 @@ namespace YetaWF.DataProvider.SQL {
 
             // release all dependent dataprovider's connection
             foreach (DataProviderImpl dp in dps) {
+#if DEBUG
+                if (ownerDP == dp) throw new InternalError("The owning dataprovider is also listed as a dependent dataprovider");
+#endif
                 SQLBase sqlBase = (SQLBase)dp.GetDataProvider();
-                if (ConnDynamic)
+                if (sqlBase.ConnDynamic)
                     sqlBase.ReleaseSqlConnection(sqlBase.ConnectionString);
-                else if (ownerSqlBase.Conn != null)
+                else if (sqlBase.Conn != null)
                     sqlBase.Conn.Close();
                 sqlBase.Conn = null!;
             }
@@ -255,6 +258,25 @@ namespace YetaWF.DataProvider.SQL {
             if (Trans != null)
                 Trans.Dispose();
             Trans = null;
+        }
+        /// <summary>
+        /// Used when creating a dataprovider within StartTransAction().
+        /// </summary>
+        public void SupportTransactions(DataProviderImpl ownerDP, DataProviderImpl dp) {
+            SQLBase ownerSqlBase = (SQLBase)ownerDP.GetDataProvider();
+            if (ownerSqlBase.ConnDynamic || ownerSqlBase.Conn == null) return; // no transaction started
+
+            // release the dependent dataprovider's connection
+            SQLBase sqlBase = (SQLBase)dp.GetDataProvider();
+            if (sqlBase.ConnDynamic)
+                sqlBase.ReleaseSqlConnection(sqlBase.ConnectionString);
+            else if (sqlBase.Conn != null)
+                sqlBase.Conn.Close();
+            sqlBase.Conn = null!;
+
+            // the dependent data provider has to use the same connection
+            sqlBase.Conn = ownerSqlBase.Conn;
+            sqlBase.ConnDynamic = false;
         }
 
         // VISIBLE COLUMNS
@@ -429,12 +451,12 @@ namespace YetaWF.DataProvider.SQL {
         /// SQL injection attacks are not possible when using parameters.
         /// </remarks>
         /// <returns>Some forms of this method return an object of type {i}TYPE{/i}.</returns>
-        public async Task Direct_QueryAsync(string sql, params object[] args) {
+        public async Task Direct_QueryAsync(string sql, params object?[] args) {
             await EnsureOpenAsync();
             SQLHelper sqlHelper = new SQLHelper(Conn, null, Languages);
             string tableName = GetTableName();
             int count = 0;
-            foreach (object arg in args) {
+            foreach (object? arg in args) {
                 ++count;
                 sqlHelper.AddParam($"p{count}", arg);
             }
@@ -486,7 +508,7 @@ namespace YetaWF.DataProvider.SQL {
                 if (YetaWFManager.IsSync() ? reader.Read() : await reader.ReadAsync())
                     return sqlHelper.CreateObject<TYPE>(reader);
                 else
-                    return default;
+                    return default(TYPE);
             }
         }
         /// <summary>
@@ -623,9 +645,10 @@ namespace YetaWF.DataProvider.SQL {
         /// Returns an ISQLTableInfo interface for the data provider.
         /// </summary>
         /// <returns>Returns an ISQLTableInfo interface for the data provider.</returns>
-        public async Task<ISQLTableInfo> GetISQLTableInfoAsync() {
-            await EnsureOpenAsync();
-            return (ISQLTableInfo)this;
+        public Task<ISQLTableInfo> GetISQLTableInfoAsync() {
+            SqlConnectionStringBuilder sqlsb = new SqlConnectionStringBuilder(GetSqlConnectionString());
+            Database = sqlsb.InitialCatalog;
+            return Task.FromResult((ISQLTableInfo)this);
         }
 
         /// <summary>

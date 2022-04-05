@@ -180,7 +180,7 @@ namespace YetaWF.DataProvider.PostgreSQL {
 
             // release the owner's current connection
             SQLBase ownerSqlBase = (SQLBase)ownerDP.GetDataProvider();
-            if (!ConnDependent) {
+            if (!ownerSqlBase.ConnDependent) {
                 Conn.Dispose();
                 Conn.Close();
                 Conn = null!;
@@ -227,6 +227,26 @@ namespace YetaWF.DataProvider.PostgreSQL {
             if (Trans != null)
                 Trans.Dispose();
             Trans = null;
+        }
+
+        /// <summary>
+        /// Used when creating a dataprovider whithin StartTransAction().
+        /// </summary>
+        public void SupportTransactions(DataProviderImpl ownerDP, DataProviderImpl dp) {
+            SQLBase ownerSqlBase = (SQLBase)ownerDP.GetDataProvider();
+            if (ownerSqlBase.Conn == null) return; // no transaction started
+
+            // release the dependent dataprovider's connection
+            SQLBase sqlBase = (SQLBase)dp.GetDataProvider();
+            if (!sqlBase.ConnDependent) {
+                sqlBase.Conn.Close();
+                sqlBase.Conn.Dispose();
+            }
+            sqlBase.Conn = null!;
+
+            // the dependent data provider has to use the same connection
+            sqlBase.Conn = ownerSqlBase.Conn;
+            sqlBase.ConnDependent = true;
         }
 
         // VISIBLE COLUMNS
@@ -622,9 +642,10 @@ namespace YetaWF.DataProvider.PostgreSQL {
         /// Returns an IPostgreSQLTableInfo interface for the data provider.
         /// </summary>
         /// <returns>Returns an IPostgreSQLTableInfo interface for the data provider.</returns>
-        public async Task<IPostgreSQLTableInfo> GetIPostgreSQLTableInfoAsync() {
-            await EnsureOpenAsync();
-            return (IPostgreSQLTableInfo)this;
+        public Task<IPostgreSQLTableInfo> GetIPostgreSQLTableInfoAsync() {
+            NpgsqlConnectionStringBuilder sqlsb = new NpgsqlConnectionStringBuilder(GetConnectionString());
+            Database = sqlsb.Database ?? string.Empty;
+            return Task.FromResult((IPostgreSQLTableInfo)this);
         }
 
         /// <summary>
