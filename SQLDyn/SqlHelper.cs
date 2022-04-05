@@ -278,7 +278,7 @@ namespace YetaWF.DataProvider.SQL {
             if (sqlParms != null)
                 AttachParameters(command, sqlParms);
         }
-        private static void AttachParameters(SqlCommand command, List<SqlParameter> sqlParms) {
+        private static void AttachParameters(SqlCommand command, List<SqlParameter>? sqlParms) {
             if (sqlParms != null) {
                 foreach (SqlParameter p in sqlParms) {
                     if (p != null) {

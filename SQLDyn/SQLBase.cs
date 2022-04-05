@@ -219,7 +219,7 @@ namespace YetaWF.DataProvider.SQL {
 
             // release the owner's current connection
             SQLBase ownerSqlBase = (SQLBase)ownerDP.GetDataProvider();
-            if (ConnDynamic)
+            if (ownerSqlBase.ConnDynamic)
                 ownerSqlBase.ReleaseSqlConnection(ownerSqlBase.ConnectionString);
             else if (ownerSqlBase.Conn != null)
                 ownerSqlBase.Conn.Close();
@@ -227,10 +227,13 @@ namespace YetaWF.DataProvider.SQL {
 
             // release all dependent dataprovider's connection
             foreach (DataProviderImpl dp in dps) {
+#if DEBUG
+                if (ownerDP == dp) throw new InternalError("The owning dataprovider is also listed as a dependent dataprovider");
+#endif
                 SQLBase sqlBase = (SQLBase)dp.GetDataProvider();
-                if (ConnDynamic)
+                if (sqlBase.ConnDynamic)
                     sqlBase.ReleaseSqlConnection(sqlBase.ConnectionString);
-                else if (ownerSqlBase.Conn != null)
+                else if (sqlBase.Conn != null)
                     sqlBase.Conn.Close();
                 sqlBase.Conn = null!;
             }
@@ -267,6 +270,25 @@ namespace YetaWF.DataProvider.SQL {
             if (Trans != null)
                 Trans.Dispose();
             Trans = null;
+        }
+        /// <summary>
+        /// Used when creating a dataprovider within StartTransAction().
+        /// </summary>
+        public void SupportTransactions(DataProviderImpl ownerDP, DataProviderImpl dp) {
+            SQLBase ownerSqlBase = (SQLBase)ownerDP.GetDataProvider();
+            if (ownerSqlBase.ConnDynamic || ownerSqlBase.Conn == null) return; // no transaction started
+
+            // release the dependent dataprovider's connection
+            SQLBase sqlBase = (SQLBase)dp.GetDataProvider();
+            if (sqlBase.ConnDynamic)
+                sqlBase.ReleaseSqlConnection(sqlBase.ConnectionString);
+            else if (sqlBase.Conn != null)
+                sqlBase.Conn.Close();
+            sqlBase.Conn = null!;
+
+            // the dependent data provider has to use the same connection
+            sqlBase.Conn = ownerSqlBase.Conn;
+            sqlBase.ConnDynamic = false;
         }
 
         // SORTS, FILTERS
@@ -838,9 +860,10 @@ namespace YetaWF.DataProvider.SQL {
         /// Returns an ISQLTableInfo interface for the data provider.
         /// </summary>
         /// <returns>Returns an ISQLTableInfo interface for the data provider.</returns>
-        public async Task<ISQLTableInfo> GetISQLTableInfoAsync() {
-            await EnsureOpenAsync();
-            return (ISQLTableInfo)this;
+        public Task<ISQLTableInfo> GetISQLTableInfoAsync() {
+            SqlConnectionStringBuilder sqlsb = new SqlConnectionStringBuilder(GetSqlConnectionString());
+            Database = sqlsb.InitialCatalog;
+            return Task.FromResult((ISQLTableInfo)this);
         }
 
         /// <summary>
