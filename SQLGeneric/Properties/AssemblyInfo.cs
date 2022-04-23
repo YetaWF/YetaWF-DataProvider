@@ -1,4 +1,4 @@
-﻿/* Copyright © 2021 Softel vdm, Inc. - https://yetawf.com/Documentation/YetaWF/Licensing */
+﻿/* Copyright © 2022 Softel vdm, Inc. - https://yetawf.com/Documentation/YetaWF/Licensing */
 
 using System.Reflection;
 using YetaWF.PackageAttributes;
@@ -7,12 +7,12 @@ using YetaWF.PackageAttributes;
 [assembly: AssemblyDescription("YetaWF Base Classes For All SQL-Based Data Provider")]
 [assembly: AssemblyConfiguration("")]
 [assembly: AssemblyCompany("Softel vdm, Inc.")]
-[assembly: AssemblyCopyright("Copyright © 2021 - Softel vdm, Inc.")]
+[assembly: AssemblyCopyright("Copyright © 2022 - Softel vdm, Inc.")]
 [assembly: AssemblyProduct("SQLGeneric")]
 [assembly: AssemblyTrademark("")]
 [assembly: AssemblyCulture("")]
 
-[assembly: AssemblyVersion("5.4.0.0")]
+[assembly: AssemblyVersion("5.5.0.0")]
 
 [assembly: Package(PackageTypeEnum.DataProvider, "YetaWF.DataProvider")]
 
