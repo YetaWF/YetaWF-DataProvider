@@ -4,7 +4,6 @@ using Microsoft.Data.SqlClient;
 using System;
 using System.Collections;
 using System.Collections.Generic;
-using System.Drawing;
 using System.IO;
 using System.Linq;
 using System.Reflection;
@@ -422,8 +421,8 @@ namespace YetaWF.DataProvider.SQL {
                         if (Languages.Count == 0) throw new InternalError("We need Languages for MultiString support");
                         foreach (LanguageData lang in Languages)
                             sb.Add($"[{prefix}{ColumnFromPropertyWithLanguage(lang.Id, colName)}],");
-                    } else if (pi.PropertyType == typeof(Image)) {
-                        sb.Add($"[{prefix}{colName}],");
+                    } else if (pi.PropertyType == typeof(System.Drawing.Image)) {
+                        throw new InternalError("Image and Bitmap types no longer supported/needed");
                     } else if (TryGetDataType(pi.PropertyType)) {
                         sb.Add($"[{prefix}{colName}],");
                     } else if (pi.PropertyType.IsClass /* && propmmd.Model != null*/ && typeof(IEnumerable).IsAssignableFrom(pi.PropertyType)) {
@@ -485,15 +484,8 @@ namespace YetaWF.DataProvider.SQL {
                             sb.Add(sqlHelper.AddTempParam(ms[lang.Id] ?? ""));
                             sb.Add(",");
                         }
-                    } else if (pi.PropertyType == typeof(Image)) {
-                        object val = pi.GetValue(container)!;
-                        BinaryFormatter binaryFmt = new BinaryFormatter { AssemblyFormat = 0/*System.Runtime.Serialization.Formatters.FormatterAssemblyStyle.Simple*/ };
-                        using (MemoryStream ms = new MemoryStream()) {
-                            // TODO: img.Save() to stream
-                            binaryFmt.Serialize(ms, val);
-                            sb.Add(sqlHelper.AddTempParam(ms.ToArray()));
-                        }
-                        sb.Add(",");
+                    } else if (pi.PropertyType == typeof(System.Drawing.Image)) {
+                        throw new InternalError("Image and Bitmap types no longer supported/needed");
                     } else if (pi.PropertyType == typeof(TimeSpan)) {
                         TimeSpan val = (TimeSpan)pi.GetValue(container)!;
                         long ticks = val.Ticks;
@@ -564,15 +556,8 @@ namespace YetaWF.DataProvider.SQL {
                             sb.Add(sqlHelper.Expr(prefix + ColumnFromPropertyWithLanguage(lang.Id, colName), "=", ms[lang.Id], true));
                             sb.Add(",");
                         }
-                    } else if (pi.PropertyType == typeof(Image)) {
-                        object val = pi.GetValue(container)!;
-                        BinaryFormatter binaryFmt = new BinaryFormatter { AssemblyFormat = 0/*System.Runtime.Serialization.Formatters.FormatterAssemblyStyle.Simple*/ };
-                        using (MemoryStream ms = new MemoryStream()) {
-                            // TODO: img.Save() to stream
-                            binaryFmt.Serialize(ms, val);
-                            sb.Add(sqlHelper.Expr(prefix + colName, "=", ms.ToArray(), true));
-                            sb.Add(",");
-                        }
+                    } else if (pi.PropertyType == typeof(System.Drawing.Image)) {
+                        throw new InternalError("Image and Bitmap types no longer supported/needed");
                     } else if (pi.PropertyType == typeof(TimeSpan)) {
                         TimeSpan val = (TimeSpan)pi.GetValue(container)!;
                         long ticks = val.Ticks;

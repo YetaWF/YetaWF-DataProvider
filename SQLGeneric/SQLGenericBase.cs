@@ -2,7 +2,6 @@
 
 using System;
 using System.Collections.Generic;
-using System.Drawing;
 using System.Linq;
 using System.Threading.Tasks;
 using YetaWF.Core.DataProvider;
@@ -311,8 +310,8 @@ namespace YetaWF.DataProvider.SQLGeneric {
                 return true;
             else if (tp == typeof(System.Guid) || tp == typeof(System.Guid?))
                 return true;
-            else if (tp == typeof(Image))
-                return true;
+            else if (tp == typeof(System.Drawing.Image))
+                throw new InternalError("Image and Bitmap types no longer supported/needed");
             else if (tp == typeof(int) || tp == typeof(int?))
                 return true;
             else if (tp == typeof(long) || tp == typeof(long?))

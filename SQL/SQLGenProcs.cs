@@ -5,7 +5,6 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Data;
-using System.Drawing;
 using System.Linq;
 using System.Reflection;
 using System.Text;
@@ -888,8 +887,8 @@ IF EXISTS (
                         sb.Add(fmtBinary(Prefix, container, prop));
                     } else if (propertyType == typeof(MultiString)) {
                         sb.Add(fmtLanguage(Prefix, container, prop));
-                    } else if (propertyType == typeof(Image)) {
-                        sb.Add(fmtImage(Prefix, container, prop));
+                    } else if (propertyType == typeof(System.Drawing.Image)) {
+                        throw new InternalError("Image and Bitmap types no longer supported/needed");
                     } else if (SQLGenericBase.TryGetDataType(propertyType)) {
                         sb.Add(fmt(Prefix, container, prop));
                     } else if (propertyType.IsClass && typeof(IEnumerable).IsAssignableFrom(propertyType)) {

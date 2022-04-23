@@ -5,7 +5,6 @@ using NpgsqlTypes;
 using System;
 using System.Collections.Generic;
 using System.Data;
-using System.Drawing;
 using System.Linq;
 using System.Reflection;
 using System.Text;
@@ -651,8 +650,8 @@ ALTER TABLE ""{schema}"".""{newTable.Name}""
                 return NpgsqlDbType.Bit;
             else if (tp == typeof(System.Guid) || tp == typeof(System.Guid?))
                 return NpgsqlDbType.Uuid;
-            else if (tp == typeof(Image))
-                return NpgsqlDbType.Bytea;
+            else if (tp == typeof(System.Drawing.Image))
+                throw new InternalError("Image and Bitmap types no longer supported/needed");
             else if (tp == typeof(int) || tp == typeof(int?))
                 return NpgsqlDbType.Integer;
             else if (tp == typeof(Single) || tp == typeof(Single?))

@@ -1,9 +1,9 @@
 ﻿/* Copyright © 2021 Softel vdm, Inc. - https://yetawf.com/Documentation/YetaWF/Licensing */
 
+using Microsoft.Data.SqlClient;
 using System;
 using System.Collections.Generic;
 using System.Data;
-using System.Drawing;
 using System.Linq;
 using System.Reflection;
 using System.Text;
@@ -14,7 +14,6 @@ using YetaWF.Core.Models;
 using YetaWF.Core.Models.Attributes;
 using YetaWF.Core.Support;
 using YetaWF.DataProvider.SQLGeneric;
-using Microsoft.Data.SqlClient;
 
 namespace YetaWF.DataProvider.SQL {
 
@@ -643,8 +642,8 @@ ELSE
                 return SqlDbType.Bit;
             else if (tp == typeof(System.Guid) || tp == typeof(System.Guid?))
                 return SqlDbType.UniqueIdentifier;
-            else if (tp == typeof(Image))
-                return SqlDbType.VarBinary;
+            else if (tp == typeof(System.Drawing.Image))
+                throw new InternalError("Image and Bitmap types no longer supported/needed");
             else if (tp == typeof(int) || tp == typeof(int?))
                 return SqlDbType.Int;
             else if (tp == typeof(long) || tp == typeof(long?))

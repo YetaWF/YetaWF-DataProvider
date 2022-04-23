@@ -4,8 +4,6 @@ using Microsoft.Data.SqlClient;
 using System;
 using System.Collections.Generic;
 using System.Data;
-using System.Drawing;
-using System.IO;
 using System.Reflection;
 using System.Threading.Tasks;
 using YetaWF.Core.DataProvider;
@@ -112,16 +110,8 @@ namespace YetaWF.DataProvider.SQL {
                                 }
                             }
                         }
-                    } else if (pi.PropertyType == typeof(Image)) {
-                        if (columns.Contains(colName)) {
-                            byte[] btes = (byte[])dr[colName];
-                            if (btes.Length > 1) {
-                                using (MemoryStream ms = new MemoryStream(btes)) {
-                                    Image img = Image.FromStream(ms);
-                                    pi.SetValue(container, img, null);
-                                }
-                            }
-                        }
+                    } else if (pi.PropertyType == typeof(System.Drawing.Image)) {
+                        throw new InternalError("Image and Bitmap types no longer supported/needed");
                     } else if (columns.Contains(colName)) {
                         object value = dr[colName];
                         pi.SetValue(container, GetValue(pi.PropertyType, value), BindingFlags.Default, null, null, null);
@@ -441,13 +431,7 @@ namespace YetaWF.DataProvider.SQL {
 
             // special handling
             if (value is System.Drawing.Image) {
-                // for image parameters - Note that images will always be saved as jpeg (this could be changed)
-                System.Drawing.Image img = (System.Drawing.Image)value;
-                System.IO.MemoryStream ms = new System.IO.MemoryStream();
-                img.Save(ms, System.Drawing.Imaging.ImageFormat.Jpeg);
-                ms.Close();
-                value = ms.ToArray();
-                parm = new SqlParameter(name, value);
+                throw new InternalError("Image and Bitmap types no longer supported/needed");
             } else if (value is System.String) {
                 string s = (string)value ?? "";
                 parm = new SqlParameter(name, SqlDbType.NVarChar, s.Length);
