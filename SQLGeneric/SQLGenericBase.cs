@@ -310,8 +310,10 @@ namespace YetaWF.DataProvider.SQLGeneric {
                 return true;
             else if (tp == typeof(System.Guid) || tp == typeof(System.Guid?))
                 return true;
+#if SYSTEM_DRAWING
             else if (tp == typeof(System.Drawing.Image))
                 throw new InternalError("Image and Bitmap types no longer supported/needed");
+#endif
             else if (tp == typeof(int) || tp == typeof(int?))
                 return true;
             else if (tp == typeof(long) || tp == typeof(long?))

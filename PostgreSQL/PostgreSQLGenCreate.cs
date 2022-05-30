@@ -650,8 +650,10 @@ ALTER TABLE ""{schema}"".""{newTable.Name}""
                 return NpgsqlDbType.Bit;
             else if (tp == typeof(System.Guid) || tp == typeof(System.Guid?))
                 return NpgsqlDbType.Uuid;
+#if SYSTEM_DRAWING
             else if (tp == typeof(System.Drawing.Image))
                 throw new InternalError("Image and Bitmap types no longer supported/needed");
+#endif
             else if (tp == typeof(int) || tp == typeof(int?))
                 return NpgsqlDbType.Integer;
             else if (tp == typeof(Single) || tp == typeof(Single?))

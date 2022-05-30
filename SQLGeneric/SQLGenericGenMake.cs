@@ -374,8 +374,10 @@ namespace YetaWF.DataProvider.SQLGeneric {
                         ; // nothing
                     } else if (pi.PropertyType == typeof(MultiString)) {
                         ; // nothing
+#if SYSTEM_DRAWING
                     } else if (pi.PropertyType == typeof(System.Drawing.Image)) {
                         throw new InternalError("Image and Bitmap types no longer supported/needed");
+#endif
                     } else if (pi.PropertyType == typeof(TimeSpan)) {
                         ; // nothing
                     } else if (SQLGenericBase.TryGetDataType(pi.PropertyType)) {

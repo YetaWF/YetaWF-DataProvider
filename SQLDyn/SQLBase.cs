@@ -421,8 +421,10 @@ namespace YetaWF.DataProvider.SQL {
                         if (Languages.Count == 0) throw new InternalError("We need Languages for MultiString support");
                         foreach (LanguageData lang in Languages)
                             sb.Add($"[{prefix}{ColumnFromPropertyWithLanguage(lang.Id, colName)}],");
+#if SYSTEM_DRAWING
                     } else if (pi.PropertyType == typeof(System.Drawing.Image)) {
                         throw new InternalError("Image and Bitmap types no longer supported/needed");
+#endif
                     } else if (TryGetDataType(pi.PropertyType)) {
                         sb.Add($"[{prefix}{colName}],");
                     } else if (pi.PropertyType.IsClass /* && propmmd.Model != null*/ && typeof(IEnumerable).IsAssignableFrom(pi.PropertyType)) {
@@ -484,8 +486,10 @@ namespace YetaWF.DataProvider.SQL {
                             sb.Add(sqlHelper.AddTempParam(ms[lang.Id] ?? ""));
                             sb.Add(",");
                         }
+#if SYSTEM_DRAWING
                     } else if (pi.PropertyType == typeof(System.Drawing.Image)) {
                         throw new InternalError("Image and Bitmap types no longer supported/needed");
+#endif
                     } else if (pi.PropertyType == typeof(TimeSpan)) {
                         TimeSpan val = (TimeSpan)pi.GetValue(container)!;
                         long ticks = val.Ticks;
@@ -556,8 +560,10 @@ namespace YetaWF.DataProvider.SQL {
                             sb.Add(sqlHelper.Expr(prefix + ColumnFromPropertyWithLanguage(lang.Id, colName), "=", ms[lang.Id], true));
                             sb.Add(",");
                         }
+#if SYSTEM_DRAWING
                     } else if (pi.PropertyType == typeof(System.Drawing.Image)) {
                         throw new InternalError("Image and Bitmap types no longer supported/needed");
+#endif
                     } else if (pi.PropertyType == typeof(TimeSpan)) {
                         TimeSpan val = (TimeSpan)pi.GetValue(container)!;
                         long ticks = val.Ticks;

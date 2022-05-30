@@ -112,8 +112,10 @@ namespace YetaWF.DataProvider.PostgreSQL {
                                 }
                             }
                         }
+#if SYSTEM_DRAWING
                     } else if (pi.PropertyType == typeof(System.Drawing.Image)) {
                         throw new InternalError("Image and Bitmap types no longer supported/needed");
+#endif
                     } else if (columns.Contains(colName)) {
                         object value = dr[colName];
                         pi.SetValue(container, GetValue(pi.PropertyType, value), BindingFlags.Default, null, null, null);
@@ -488,9 +490,12 @@ namespace YetaWF.DataProvider.PostgreSQL {
             NpgsqlParameter parm;
 
             // special handling
+#if SYSTEM_DRAWING            
             if (value is System.Drawing.Image) {
                 throw new InternalError("Image and Bitmap types no longer supported/needed");
-            } else if (value is System.String) {
+            } else
+#endif
+            if (value is System.String) {
                 string s = (string)value ?? "";
                 parm = new NpgsqlParameter(name, NpgsqlDbType.Varchar, s.Length);
                 parm.Value = s;
