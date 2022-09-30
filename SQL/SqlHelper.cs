@@ -110,8 +110,10 @@ namespace YetaWF.DataProvider.SQL {
                                 }
                             }
                         }
+ #if SYSTEM_DRAWING
                     } else if (pi.PropertyType == typeof(System.Drawing.Image)) {
                         throw new InternalError("Image and Bitmap types no longer supported/needed");
+#endif
                     } else if (columns.Contains(colName)) {
                         object value = dr[colName];
                         pi.SetValue(container, GetValue(pi.PropertyType, value), BindingFlags.Default, null, null, null);
@@ -430,12 +432,14 @@ namespace YetaWF.DataProvider.SQL {
             SqlParameter parm;
 
             // special handling
-            if (value is System.Drawing.Image) {
-                throw new InternalError("Image and Bitmap types no longer supported/needed");
-            } else if (value is System.String) {
+            if (value is System.String) {
                 string s = (string)value ?? "";
                 parm = new SqlParameter(name, SqlDbType.NVarChar, s.Length);
                 parm.Value = s;
+#if SYSTEM_DRAWING
+            } else if (value is System.Drawing.Image) {
+                throw new InternalError("Image and Bitmap types no longer supported/needed");
+#endif
             } else if (value is DateTime) {
                 parm = new SqlParameter(name, SqlDbType.DateTime2);
                 parm.Value = value;

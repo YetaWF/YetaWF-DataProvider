@@ -642,8 +642,10 @@ ELSE
                 return SqlDbType.Bit;
             else if (tp == typeof(System.Guid) || tp == typeof(System.Guid?))
                 return SqlDbType.UniqueIdentifier;
+#if SYSTEM_DRAWING
             else if (tp == typeof(System.Drawing.Image))
                 throw new InternalError("Image and Bitmap types no longer supported/needed");
+#endif
             else if (tp == typeof(int) || tp == typeof(int?))
                 return SqlDbType.Int;
             else if (tp == typeof(long) || tp == typeof(long?))

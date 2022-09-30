@@ -887,8 +887,10 @@ IF EXISTS (
                         sb.Add(fmtBinary(Prefix, container, prop));
                     } else if (propertyType == typeof(MultiString)) {
                         sb.Add(fmtLanguage(Prefix, container, prop));
+#if SYSTEM_DRAWING
                     } else if (propertyType == typeof(System.Drawing.Image)) {
                         throw new InternalError("Image and Bitmap types no longer supported/needed");
+#endif
                     } else if (SQLGenericBase.TryGetDataType(propertyType)) {
                         sb.Add(fmt(Prefix, container, prop));
                     } else if (propertyType.IsClass && typeof(IEnumerable).IsAssignableFrom(propertyType)) {
