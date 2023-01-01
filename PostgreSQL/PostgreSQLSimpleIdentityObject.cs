@@ -58,7 +58,7 @@ namespace YetaWF.DataProvider.PostgreSQL {
 
             SQLHelper sqlHelper = new SQLHelper(Conn, null, Languages);
 
-            AddSubtableMapping();
+            await AddSubtableMappingAsync();
             sqlHelper.AddParam("valIdentity", identity);
 
             try {
@@ -87,7 +87,7 @@ namespace YetaWF.DataProvider.PostgreSQL {
 
             SQLHelper sqlHelper = new SQLHelper(Conn, null, Languages);
 
-            AddSubtableMapping();
+            await AddSubtableMappingAsync();
             GetParameterList(sqlHelper, obj, Database, Schema, Dataset, GetPropertyData(), Prefix: null, TopMost: true, SiteSpecific: false, WithDerivedInfo: false, SubTable: false);
             sqlHelper.AddParam("valIdentity", identity);
 

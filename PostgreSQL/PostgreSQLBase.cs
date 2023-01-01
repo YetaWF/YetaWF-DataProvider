@@ -145,16 +145,29 @@ namespace YetaWF.DataProvider.PostgreSQL {
         private static string? _defaultConnectString;
         private static string? _defaultSchema;
 
-        internal void AddCompositeMapping(Type type, string pgType) {
+        internal async Task AddCompositeMappingAsync(Type type, string pgType) {
+            if (TypeList.Any(x => x.Name == pgType)) return;
             lock (lockObject) {
-                if (TypeList.Contains(pgType)) return;
-                Conn.TypeMapper.MapComposite(type, pgType, Translator);
-                TypeList.Add(pgType);
+                if (TypeList.Any(x => x.Name == pgType)) return;
+
+                NpgsqlDataSourceBuilder dataSourceBuilder = new NpgsqlDataSourceBuilder(Conn.ConnectionString);
+                dataSourceBuilder.MapComposite(type, pgType, Translator);
+                NpgsqlDataSource dataSource = dataSourceBuilder.Build();
+
+                TypeList.Add(new TypeEntryList {
+                    DataSource = dataSource,
+                    Name = pgType,
+                });
             }
+            await Conn.ReloadTypesAsync();
         }
-        internal static NpgsqlNullNameTranslator Translator => new NpgsqlNullNameTranslator();
-        private List<string> TypeList => new List<string>();// keep track of mapped types
         private static object lockObject => new object();
+        internal static NpgsqlNullNameTranslator Translator => new NpgsqlNullNameTranslator();
+        private static List<TypeEntryList> TypeList => new List<TypeEntryList>();// keep track of mapped types
+        private class TypeEntryList {
+            public NpgsqlDataSource DataSource { get; set; } = null!;
+            public string Name { get; set; } = null!;
+        }
 
         // IDATAPROVIDERTRANSACTIONS
         // IDATAPROVIDERTRANSACTIONS

@@ -108,7 +108,7 @@ namespace YetaWF.DataProvider.PostgreSQL {
                 sqlHelper = new SQLHelper(Conn, null, Languages);
                 sqlHelper.AddParam("Key1Val", key);
                 sqlHelper.AddParam(SQLGen.ValSiteIdentity, SiteIdentity);
-                AddCompositeMapping(typeof(DerivedInfo), DerivedInfoType);
+                await AddCompositeMappingAsync(typeof(DerivedInfo), DerivedInfoType);
                 DerivedInfo info;
                 using (NpgsqlDataReader reader = await sqlHelper.ExecuteReaderStoredProcAsync($@"""{Schema}"".""{BaseDataset}__GetBase""")) {
                     if (!(YetaWFManager.IsSync() ? reader.Read() : await reader.ReadAsync())) return default(OBJTYPE);
@@ -118,7 +118,7 @@ namespace YetaWF.DataProvider.PostgreSQL {
                 sqlHelper = new SQLHelper(Conn, null, Languages);
                 sqlHelper.AddParam("Key1Val", key);
                 sqlHelper.AddParam(SQLGen.ValSiteIdentity, SiteIdentity);
-                AddCompositeMapping(sqlHelper.GetDerivedType(info.DerivedDataType, info.DerivedAssemblyName), $"{info.DerivedTableName}_T");
+                await AddCompositeMappingAsync(sqlHelper.GetDerivedType(info.DerivedDataType, info.DerivedAssemblyName), $"{info.DerivedTableName}_T");
                 using (NpgsqlDataReader reader = await sqlHelper.ExecuteReaderStoredProcAsync($@"""{Schema}"".""{info.DerivedTableName}__Get""")) {
                     if (!(YetaWFManager.IsSync() ? reader.Read() : await reader.ReadAsync())) return default(OBJTYPE);
                     return sqlHelper.CreateObject<OBJTYPE>(reader, info.DerivedDataType, info.DerivedAssemblyName);
@@ -132,7 +132,7 @@ namespace YetaWF.DataProvider.PostgreSQL {
 
                 sqlHelper.AddParam("Key1Val", key);
                 sqlHelper.AddParam(SQLGen.ValSiteIdentity, SiteIdentity);
-                AddCompositeMapping(typeof(OBJTYPE), $"Y{Dataset}_T");
+                await AddCompositeMappingAsync(typeof(OBJTYPE), $"Y{Dataset}_T");
                 using (NpgsqlDataReader reader = await sqlHelper.ExecuteReaderStoredProcAsync($@"""{Schema}"".""{Dataset}__Get""")) {
                     if (!(YetaWFManager.IsSync() ? reader.Read() : await reader.ReadAsync())) return default(OBJTYPE);
                     return sqlHelper.CreateObject<OBJTYPE>(reader);
@@ -159,7 +159,7 @@ namespace YetaWF.DataProvider.PostgreSQL {
             List<PropertyData> propData = GetPropertyData();
             List<PropertyData> propDataNoDups = propData.Except(basePropData, new PropertyDataComparer()).ToList();
 
-            AddSubtableMapping();
+            await AddSubtableMappingAsync();
             GetParameterList(sqlHelper, obj, Database, Schema, BaseDataset, basePropData, Prefix: null, TopMost: false, SiteSpecific: false, WithDerivedInfo: false, SubTable: false);
             GetParameterList(sqlHelper, obj, Database, Schema, Dataset, propDataNoDups, Prefix: null, TopMost: false, SiteSpecific: false, WithDerivedInfo: false, SubTable: false);
             sqlHelper.AddParam(SQLGen.ValDerivedTableName, Dataset);
@@ -201,7 +201,7 @@ namespace YetaWF.DataProvider.PostgreSQL {
             List<PropertyData> propData = GetPropertyData();
             List<PropertyData> propDataNoDups = propData.Except(basePropData, new PropertyDataComparer()).ToList();
 
-            AddSubtableMapping();
+            await AddSubtableMappingAsync();
             GetParameterList(sqlHelper, obj, Database, Schema, BaseDataset, basePropData, Prefix: null, TopMost: false, SiteSpecific: false, WithDerivedInfo: false, SubTable: false);
             GetParameterList(sqlHelper, obj, Database, Schema, Dataset, propDataNoDups, Prefix: null, TopMost: false, SiteSpecific: false, WithDerivedInfo: false, SubTable: false);
             sqlHelper.AddParam(SQLGen.ValDerivedTableName, Dataset);
@@ -242,7 +242,7 @@ namespace YetaWF.DataProvider.PostgreSQL {
             sqlHelper = new SQLHelper(Conn, null, Languages);
             sqlHelper.AddParam("Key1Val", key);
             sqlHelper.AddParam(SQLGen.ValSiteIdentity, SiteIdentity);
-            AddCompositeMapping(typeof(DerivedInfo), DerivedInfoType);
+            await AddCompositeMappingAsync(typeof(DerivedInfo), DerivedInfoType);
             DerivedInfo info;
             using (NpgsqlDataReader reader = await sqlHelper.ExecuteReaderStoredProcAsync($@"""{Schema}"".""{BaseDataset}__GetBase""")) {
                 if (!(YetaWFManager.IsSync() ? reader.Read() : await reader.ReadAsync())) return false;
@@ -350,7 +350,7 @@ LEFT JOIN {fullTableName} ON {fullBaseTableName}.""{Key1Name}"" = {fullTableName
 
                 // Get records
 
-                AddSubtableMapping();
+                await AddSubtableMappingAsync();
 
                 sb = new SQLBuilder();
                 sb.Append($@"

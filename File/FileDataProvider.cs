@@ -326,7 +326,7 @@ namespace YetaWF.DataProvider {
                     BaseFolder = BaseFolder,
                     FileName = InternalFilePrefix + IdentityName,
                 };
-                using (ILockObject lockObject = await YetaWF.Core.IO.Caching.LockProvider.LockResourceAsync($"{AreaRegistration.CurrentPackage.AreaName}_FileDataProvider_{BaseFolder}")) {
+                await using (ILockObject lockObject = await YetaWF.Core.IO.Caching.LockProvider.LockResourceAsync($"{AreaRegistration.CurrentPackage.AreaName}_FileDataProvider_{BaseFolder}")) {
                     FileIdentityCount? ident = await fdIdent.LoadAsync();
                     if (ident == null) { // new
                         ident = new FileIdentityCount(IdentitySeed);
@@ -336,7 +336,6 @@ namespace YetaWF.DataProvider {
                         await fdIdent.UpdateFileAsync(fdIdent.FileName, ident);
                     }
                     identity = ident.Count;
-                    await lockObject.UnlockAsync();
                 }
                 piIdent.SetValue(obj, identity);
                 if (Key1Name == IdentityName)

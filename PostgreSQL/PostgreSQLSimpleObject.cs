@@ -81,7 +81,7 @@ namespace YetaWF.DataProvider.PostgreSQL {
 
             SQLHelper sqlHelper = new SQLHelper(Conn, null, Languages);
 
-            AddSubtableMapping();
+            await AddSubtableMappingAsync();
 
             sqlHelper.AddKeyParam("Key1Val", key, typeof(KEYTYPE));
             if (HasKey2)
@@ -116,7 +116,7 @@ namespace YetaWF.DataProvider.PostgreSQL {
 
             SQLHelper sqlHelper = new SQLHelper(Conn, null, Languages);
 
-            AddSubtableMapping();
+            await AddSubtableMappingAsync();
             GetParameterList(sqlHelper, obj, Database, Schema, Dataset, GetPropertyData(), Prefix: null, TopMost: true, SiteSpecific: SiteIdentity > 0, WithDerivedInfo: false, SubTable: false);
 
             try {
@@ -172,7 +172,7 @@ namespace YetaWF.DataProvider.PostgreSQL {
 
             SQLHelper sqlHelper = new SQLHelper(Conn, null, Languages);
 
-            AddSubtableMapping();
+            await AddSubtableMappingAsync();
             GetParameterList(sqlHelper, obj, Database, Schema, Dataset, GetPropertyData(), Prefix: null, TopMost: true, SiteSpecific: SiteIdentity > 0, WithDerivedInfo: false, SubTable: false);
             sqlHelper.AddKeyParam("Key1Val", origKey, typeof(KEYTYPE));
             if (HasKey2)
@@ -322,7 +322,7 @@ namespace YetaWF.DataProvider.PostgreSQL {
 
             // Get records
 
-            AddSubtableMapping();
+            await AddSubtableMappingAsync();
 
             sb = new SQLBuilder();
             sb.Append($@"
@@ -396,13 +396,13 @@ FROM {fullTableName}
             return 1;// because Postgres...
         }
 
-        internal void AddSubtableMapping() {
+        internal async Task AddSubtableMappingAsync() {
             List<PropertyData> propData = GetPropertyData();
             List<SQLGenericGen.SubTableInfo> subTables = SQLGen.GetSubTables(Dataset, propData);
             foreach (SQLGenericGen.SubTableInfo subTable in subTables) {
                 List<PropertyData> subPropData = ObjectSupport.GetPropertyData(subTable.Type);
                 if (subPropData.Count > 1)
-                    AddCompositeMapping(subTable.Type, $"{subTable.Name}_T");
+                    await AddCompositeMappingAsync(subTable.Type, $"{subTable.Name}_T");
             }
         }
 

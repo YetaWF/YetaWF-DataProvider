@@ -84,7 +84,7 @@ namespace YetaWF.DataProvider {
 
         private async Task<SerializableList<DesignedModule>> LoadDesignedModulesAsync() {
             using (GenericModuleDefinitionDataProvider modDP = new GenericModuleDefinitionDataProvider()) {
-                using (ILockObject lockObject = await modDP.LockDesignedModulesAsync()) {
+                await using (ILockObject lockObject = await modDP.LockDesignedModulesAsync()) {
                     return await modDP.LoadDesignedModulesAsync();
                 }
             }
@@ -115,20 +115,18 @@ namespace YetaWF.DataProvider {
 
         private async Task SaveModuleDefinitionAsync(ModuleDefinition mod, IModuleDefinitionIO dataProvider) {
             using (GenericModuleDefinitionDataProvider modDP = new GenericModuleDefinitionDataProvider()) {
-                using (ILockObject lockObject = await modDP.LockDesignedModulesAsync()) {
+                await using (ILockObject lockObject = await modDP.LockDesignedModulesAsync()) {
                     await dataProvider.SaveModuleDefinitionAsync(mod);
                     await SetCachedModuleAsync(mod);
-                    await lockObject.UnlockAsync();
                 }
             }
         }
 
         private async Task<bool> RemoveModuleDefinitionAsync(Guid guid) {
             using (GenericModuleDefinitionDataProvider modDP = new GenericModuleDefinitionDataProvider()) {
-                using (ILockObject lockObject = await modDP.LockDesignedModulesAsync()) {
+                await using (ILockObject lockObject = await modDP.LockDesignedModulesAsync()) {
                     await RemoveCachedModuleAsync(guid);
                     bool ret = await modDP.RemoveModuleDefinitionAsync(guid);
-                    await lockObject.UnlockAsync();
                     return ret;
                 }
             }
