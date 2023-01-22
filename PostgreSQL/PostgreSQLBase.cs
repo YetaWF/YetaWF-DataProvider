@@ -221,7 +221,7 @@ namespace YetaWF.DataProvider.PostgreSQL {
 
             if (Trans != null) throw new InternalError("StartTransaction has already been called for this data provider");
             Trans = new TransactionScope(TransactionScopeOption.Required, new TransactionOptions { IsolationLevel = IsolationLevel.Serializable }, TransactionScopeAsyncFlowOption.Enabled);
-            return new DataProviderTransaction(CommitTransactionAsync, AbortTransaction);
+            return new DataProviderTransaction(CommitTransactionAsync, AbortTransactionAsync);
         }
         /// <summary>
         /// Commits a transaction, saving all updates.
@@ -236,10 +236,11 @@ namespace YetaWF.DataProvider.PostgreSQL {
         /// <summary>
         /// Aborts a transaction, abandoning all updates.
         /// </summary>
-        public void AbortTransaction() {
+        public Task AbortTransactionAsync() {
             if (Trans != null)
                 Trans.Dispose();
             Trans = null;
+            return Task.CompletedTask;
         }
 
         /// <summary>

@@ -53,7 +53,7 @@ namespace YetaWF.DataProvider {
         private async Task<GetCachedModuleInfo> GetCachedModuleAsync(Guid guid) {
             GetCachedModuleInfo modInfo = new GetCachedModuleInfo();
             GetObjectInfo<ModuleDefinition> objInfo;
-            using (ICacheDataProvider sharedCacheDP = YetaWF.Core.IO.Caching.GetSharedCacheProvider()) {
+            await using (ICacheDataProvider sharedCacheDP = YetaWF.Core.IO.Caching.GetSharedCacheProvider()) {
                 objInfo = await sharedCacheDP.GetAsync<ModuleDefinition>(CacheKey(guid));
             }
             if (!objInfo.Success)
@@ -63,17 +63,17 @@ namespace YetaWF.DataProvider {
             return modInfo;
         }
         private async Task SetCachedModuleAsync(ModuleDefinition mod) {
-            using (ICacheDataProvider sharedCacheDP = YetaWF.Core.IO.Caching.GetSharedCacheProvider()) {
+            await using (ICacheDataProvider sharedCacheDP = YetaWF.Core.IO.Caching.GetSharedCacheProvider()) {
                 await sharedCacheDP.AddAsync(CacheKey(mod.ModuleGuid), mod);
             }
         }
         private async Task SetEmptyCachedModuleAsync(Guid guid) {
-            using (ICacheDataProvider sharedCacheDP = YetaWF.Core.IO.Caching.GetSharedCacheProvider()) {
+            await using (ICacheDataProvider sharedCacheDP = YetaWF.Core.IO.Caching.GetSharedCacheProvider()) {
                 await sharedCacheDP.AddAsync<ModuleDefinition>(CacheKey(guid), null);
             }
         }
         private async Task RemoveCachedModuleAsync(Guid guid) {
-            using (ICacheDataProvider sharedCacheDP = YetaWF.Core.IO.Caching.GetSharedCacheProvider()) {
+            await using (ICacheDataProvider sharedCacheDP = YetaWF.Core.IO.Caching.GetSharedCacheProvider()) {
                 await sharedCacheDP.RemoveAsync<ModuleDefinition>(CacheKey(guid));
             }
         }
@@ -327,7 +327,7 @@ namespace YetaWF.DataProvider {
             return list;
         }
         internal async Task<SerializableList<DesignedModule>> GetDesignedModulesAsync() {
-            using (ICacheDataProvider staticCacheDP = YetaWF.Core.IO.Caching.GetStaticCacheProvider()) {
+            await using (ICacheDataProvider staticCacheDP = YetaWF.Core.IO.Caching.GetStaticCacheProvider()) {
                 SerializableList<DesignedModule> list;
                 GetObjectInfo<SerializableList<DesignedModule>> info = await staticCacheDP.GetAsync<SerializableList<DesignedModule>>(DESIGNEDMODULESKEY);
                 if (info.Success)
@@ -340,7 +340,7 @@ namespace YetaWF.DataProvider {
             }
         }
         internal async Task SaveDesignedModulesAsync(SerializableList<DesignedModule> list) {
-            using (ICacheDataProvider staticCacheDP = YetaWF.Core.IO.Caching.GetStaticCacheProvider()) {
+            await using (ICacheDataProvider staticCacheDP = YetaWF.Core.IO.Caching.GetStaticCacheProvider()) {
                 await staticCacheDP.AddAsync<SerializableList<DesignedModule>>(DESIGNEDMODULESKEY, list);
             }
         }

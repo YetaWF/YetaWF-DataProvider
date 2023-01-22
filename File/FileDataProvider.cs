@@ -237,8 +237,8 @@ namespace YetaWF.DataProvider {
         /// Aborts a transaction, abandoning all updates.
         /// </summary>
         /// <remarks>This method is defined for symmetry with other data providers, but file data providers do not support transactions.</remarks>
-        public void AbortTransaction() {
-            throw new NotSupportedException($"{nameof(AbortTransaction)} is not supported");
+        public Task AbortTransactionAsync() {
+            throw new NotSupportedException($"{nameof(AbortTransactionAsync)} is not supported");
         }
         /// <summary>
         /// Used when creating a dataprovider whithin StartTransAction().
